@@ -155,8 +155,8 @@
 .fps-cell.dir { font-size: 16px; font-weight: 700; text-align: center; line-height: 1; }
 /* space 15 center estimate: larger hours, raised smaller minutes */
 .fps-cell.est { font-weight: 700; }
-.fps-cell.est .hh { font-size: 16px; }
-.fps-cell.est .mm { font-size: 11px; position: relative; top: -5px; margin-left: 1px; }
+.fps-cell.est .hh { font-size: 24px; }
+.fps-cell.est .mm { font-size: 16px; position: relative; top: -8px; margin-left: 1px; }
 .fps-cell.route { font-size: 12px; white-space: normal; line-height: 1.25; }
 .fps-cell.rem { font-size: 11px; white-space: normal; line-height: 1.2; }
 

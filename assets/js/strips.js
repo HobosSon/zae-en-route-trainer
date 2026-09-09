@@ -22,7 +22,7 @@
   const CELLS = [
     { k: "aid", f: "3", x: 2, y: 5, w: 12, cls: "aid", n: "3" },
     { k: "type", f: "4", x: 2, y: 33, w: 12, cls: "type", n: "4" },
-    { k: "tas", f: "5", x: 2, y: 55, w: 12, cls: "tas", n: "5" },
+    { k: "tas", f: "5", x: 2, y: 47, w: 12, cls: "tas", n: "5" },
     { k: "strip", f: "10", x: 3.5, y: 80, w: 6, cls: "sm", n: "10" },
     // col B (no internal lines) — 11 & 12 grouped at top
     { k: "prevfix", f: "11", x: 15, y: 8, w: 7, cls: "mid", n: "11" },

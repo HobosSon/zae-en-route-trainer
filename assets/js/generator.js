@@ -205,8 +205,12 @@
   function altMagnitude(alt) { return alt && alt.block ? alt.block[0] : alt; }
 
   // ---- filed TAS / GS ----------------------------------------------------
-  function filedTAS(ac) { return rint(ac.tas[0], ac.tas[1]); }
-  function groundSpeed(tas) { return Math.max(60, tas + rint(-25, 15)); } // light wind effect
+  // Filed TAS is always a multiple of 10, clamped to 120-480 kt.
+  function filedTAS(ac) {
+    let t = Math.round(rint(ac.tas[0], ac.tas[1]) / 10) * 10;
+    return Math.max(120, Math.min(480, t));
+  }
+  function groundSpeed(tas) { return Math.max(90, tas + rint(-25, 15)); } // light wind effect (for estimates only)
 
   // ---- strip assembly ----------------------------------------------------
   function baseCore(ac, equip, tas, gs) {
@@ -241,29 +245,36 @@
     };
   }
 
+  // Non-compulsory reporting points — never used as previous/next fix.
+  const NONCOMP_FIXES = { DINKY: 1, BARNE: 1, HAZAL: 1, RICKS: 1, HEDUD: 1, DESKE: 1, YAZOO: 1, BOOSI: 1, ARGUW: 1, UBABY: 1 };
+  function isComp(id) { return !NONCOMP_FIXES[id]; }
+  function compBefore(trav, i) { for (let k = i - 1; k >= 0; k--) if (isComp(trav.points[k])) return { fix: trav.points[k], k: k }; return null; }
+  function compAfter(trav, i) { for (let k = i + 1; k < trav.points.length; k++) if (isComp(trav.points[k])) return { fix: trav.points[k], k: k }; return null; }
+
   // ---- EN ROUTE ----------------------------------------------------------
   function genEnroute(tier) {
     for (let attempt = 0; attempt < 40; attempt++) {
       const aw = pick(Object.keys(ZAE.AIRWAYS).map(function (k) { return ZAE.AIRWAYS[k]; }));
       const trav = traverse(aw, chance(0.5));
-      // candidate posted fixes that are interior to this traversal (have a real
-      // previous fix AND a real next fix) so estimates and space 21 are meaningful
+      // candidate posted fixes that have a COMPULSORY previous fix and a next fix
       const cands = aw.postings
         .map(function (p) { return { p: p, i: trav.points.indexOf(p.fix) }; })
-        .filter(function (c) { return c.i >= 1 && c.i < trav.points.length - 1; });
+        .filter(function (c) { return c.i >= 1 && c.i < trav.points.length - 1 && compBefore(trav, c.i) && compAfter(trav, c.i); });
       if (!cands.length) continue;
       const chosen = pick(cands);
       const postedFix = chosen.p.fix;
       const i = chosen.i;
-      const prevFix = trav.points[i - 1];
-      const nextFix = i + 1 < trav.points.length ? trav.points[i + 1] : null;
+      const prevC = compBefore(trav, i);
+      const nextC = compAfter(trav, i);
+      const prevFix = prevC.fix;
+      const nextFix = nextC.fix;
 
       const ac = chooseAircraft(tier);
       const equip = chooseEquip(tier, ac);
       const tas = filedTAS(ac);
       const gs = groundSpeed(tas);
 
-      const distPrevToPosted = distanceBetween(trav, i - 1, i);
+      const distPrevToPosted = distanceBetween(trav, prevC.k, i);
       const pt = plusTime(distPrevToPosted, gs);
       const estPrev = rint(0, 1439);
       const estPrevStr = toHHMM(estPrev);
@@ -343,8 +354,9 @@
       const mea = maxMEA(trav);
       const alt = chooseAltitude(trav.course, mea, tier, ac);
       const exitNav = trav.points[trav.points.length - 1];
-      const nextFix = pidx + 1 < trav.points.length ? trav.points[pidx + 1] : externalFor(exitNav);
+      const nextC = compAfter(trav, pidx);
       const dest = externalFor(exitNav);
+      const nextFix = nextC ? nextC.fix : dest;
       const routeStr = aptId + " " + gw + " " + aw.id + " " + exitNav + " " + dest;
 
       const s = baseCore(ac, equip, tas, gs);
@@ -486,8 +498,10 @@
       let ei = trav.points.indexOf(entryNav);
       if (ei <= 0) { trav = traverse(aw, false); ei = trav.points.indexOf(entryNav); }
       if (ei <= 0) continue;
+      const prevC = compBefore(trav, ei);
+      if (!prevC) continue;
 
-      const prevFix = trav.points[ei - 1];
+      const prevFix = prevC.fix;
       const originNav = trav.points[0];
       const origin = externalFor(originNav);
 
@@ -496,7 +510,7 @@
       const tas = filedTAS(ac);
       const gs = groundSpeed(tas);
 
-      const dist = distanceBetween(trav, ei - 1, ei);
+      const dist = distanceBetween(trav, prevC.k, ei);
       const pt = plusTime(dist, gs);
       const estPrev = rint(0, 1439);
       const estFix = estPrev + pt;
@@ -525,7 +539,7 @@
       key.arrivalFix = entryNav + " (last posted fix before the field)";
       key.previousFix = prevFix;
       key.altitude = altPlain(alt) + "  (MEA " + mea.toLocaleString() + " ft)";
-      key.plusTimeMath = "Dist " + prevFix + "→" + entryNav + " = " + dist + " nm; +time ≈ " + pt + " min → " + entryNav + " est " + toHHMM(estFix);
+      key.estimateMath = "Est " + prevFix + " " + toHHMM(estPrev) + " → " + entryNav + " est " + toHHMM(estFix);
       key.notes.push("Arrival arrow (↓) posted in space 16. Space 28 carries miscellaneous control data (e.g., cleared-for-approach time).");
       if (apt.apch === "JAN") key.notes.push("JAN Approach: nonradar limits at/below 5,000 ft (freq 119.2 / 259.2).");
       return { type: "arrival", spaces: s, meta: key };
