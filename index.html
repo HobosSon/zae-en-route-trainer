@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ZAE Aero Center — En Route Non-Radar Trainer</title>
+  <link rel="stylesheet" href="assets/css/main.css" />
+</head>
+<body>
+  <div class="scanlines" aria-hidden="true"></div>
+
+  <header class="site-header">
+    <div class="brand">
+      <span class="brand-badge">ZAE</span>
+      <div class="brand-text">
+        <h1>Aero Center ARTCC</h1>
+        <p>En Route Non-Radar &mdash; Academy Training Aid</p>
+      </div>
+    </div>
+    <div class="header-meta">
+      <span class="meta-line" id="zulu-clock">--:--:--Z</span>
+      <span class="meta-line meta-dim">UNOFFICIAL / TRAINING USE ONLY</span>
+    </div>
+  </header>
+
+  <main class="menu">
+    <div class="menu-intro">
+      <h2>Training Menu</h2>
+      <p>
+        Select a training module. Scenarios and flight strips are generated for
+        the fictional <strong>Aero Center (ZAE)</strong> facility for practice
+        purposes only &mdash; not for use in live operations.
+      </p>
+    </div>
+
+    <nav class="menu-grid" aria-label="Training modules">
+      <a class="menu-card menu-card--active" href="strips.html">
+        <div class="menu-card__icon" aria-hidden="true">▤</div>
+        <div class="menu-card__body">
+          <h3>Create a Flight Strip</h3>
+          <p>Generate random flight progress strips at scalable difficulty.</p>
+        </div>
+        <span class="menu-card__cta">Open &rarr;</span>
+      </a>
+
+      <div class="menu-card menu-card--soon" aria-disabled="true">
+        <div class="menu-card__icon" aria-hidden="true">✈</div>
+        <div class="menu-card__body">
+          <h3>Practice Scenarios</h3>
+          <p>Multi-aircraft traffic problems and non-radar separation drills.</p>
+        </div>
+        <span class="menu-card__cta">Coming soon</span>
+      </div>
+
+      <a class="menu-card menu-card--active" href="map.html">
+        <div class="menu-card__icon" aria-hidden="true">◎</div>
+        <div class="menu-card__body">
+          <h3>Facility Reference</h3>
+          <p>ZAE Sector 66 non-radar map &mdash; airways, fixes, radials, MEAs, and mileages.</p>
+        </div>
+        <span class="menu-card__cta">Open &rarr;</span>
+      </a>
+
+      <div class="menu-card menu-card--soon" aria-disabled="true">
+        <div class="menu-card__icon" aria-hidden="true">?</div>
+        <div class="menu-card__body">
+          <h3>Knowledge Quiz</h3>
+          <p>Phraseology, LOAs, and non-radar procedure checks.</p>
+        </div>
+        <span class="menu-card__cta">Coming soon</span>
+      </div>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <span>Aero Center (ZAE) &middot; En Route Non-Radar Study Resource</span>
+    <span class="meta-dim">Prototype build</span>
+  </footer>
+
+  <script src="assets/js/main.js"></script>
+</body>
+</html>

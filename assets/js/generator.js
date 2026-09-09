@@ -1,0 +1,506 @@
+/*
+ * ZAE flight progress strip generator.
+ * Produces randomized, rule-consistent nonradar strips (proposal / departure /
+ * en route / arrival) for Sector 66 Jackson Low, at three difficulty tiers.
+ *
+ * Exposed as the global `StripGen`. Requires ZAE (assets/data/zae.js).
+ *
+ * Each generated strip is an object:
+ *   { type, spaces: {"3":..,"4":.., "14a":..}, meta: {...answer key...} }
+ * `spaces` keys match the LP05 Appendix B numbered spaces.
+ */
+(function (root) {
+  "use strict";
+
+  const ZAE = root.ZAE;
+
+  // ---- tiny helpers ------------------------------------------------------
+  function rint(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
+  function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+  function chance(p) { return Math.random() < p; }
+  function pad2(n) { return String(n).padStart(2, "0"); }
+  function pad4(n) { return String(n).padStart(4, "0"); }
+
+  // Zulu clock as minutes-of-day <-> HHMM
+  function toHHMM(mins) {
+    mins = ((mins % 1440) + 1440) % 1440;
+    return pad2(Math.floor(mins / 60)) + pad2(mins % 60);
+  }
+  function fromHHMM(s) { return parseInt(s.slice(0, 2), 10) * 60 + parseInt(s.slice(2), 10); }
+
+  function beacon() {
+    let b = "";
+    for (let i = 0; i < 4; i++) b += rint(0, 7);
+    return b;
+  }
+
+  // Quick Estimate Method (LP05): MPM = first two digits of GS / 6.
+  function milesPerMinute(gs) {
+    const firstTwo = Math.floor(gs / (gs >= 100 ? 10 : 1)); // first two digits
+    const mpm = Math.round((firstTwo / 6) * 10) / 10;
+    return Math.max(0.5, mpm);
+  }
+  function plusTime(distanceNm, gs) {
+    return Math.max(1, Math.round(distanceNm / milesPerMinute(gs)));
+  }
+
+  // Compass arrow + label from a magnetic course (space 23 / space 16 usage)
+  function directionArrow(course) {
+    course = ((course % 360) + 360) % 360;
+    if (course >= 315 || course < 45) return { arrow: "↑", label: "N" };
+    if (course < 135) return { arrow: "→", label: "E" };
+    if (course < 225) return { arrow: "↓", label: "S" };
+    return { arrow: "←", label: "W" };
+  }
+
+  // ---- difficulty tiers --------------------------------------------------
+  const TIERS = {
+    trainee: {
+      label: "Trainee",
+      countRange: [1, 2],
+      types: ["proposal", "proposal", "enroute", "enroute", "departure"],
+      equip: ["A", "A", "A", "U", "B"],
+      altCap: 17000,
+      allowBlocks: false,
+      allowHeavy: false,
+      remarkChance: 0.1,
+      // prefer straightforward airline/GA on main airways
+      gaChance: 0.35
+    },
+    developmental: {
+      label: "Developmental",
+      countRange: [2, 4],
+      types: ["proposal", "departure", "enroute", "enroute", "arrival"],
+      equip: ["A", "A", "U", "B", "D", "T", "Y", "C", "I"],
+      altCap: 20000,
+      allowBlocks: false,
+      allowHeavy: true,
+      remarkChance: 0.3,
+      gaChance: 0.45
+    },
+    cpc: {
+      label: "CPC",
+      countRange: [3, 6],
+      types: ["proposal", "departure", "enroute", "enroute", "arrival", "enroute"],
+      equip: ["A", "U", "B", "D", "T", "X", "Y", "C", "I", "M", "N", "P"],
+      altCap: 23000,
+      allowBlocks: true,
+      allowHeavy: true,
+      remarkChance: 0.5,
+      gaChance: 0.5
+    }
+  };
+
+  const REMARKS = [
+    "SLOW CLIMBER", "NO OXYGEN", "STUDENT PILOT", "MINIMUM FUEL",
+    "REQ FL230", "WX DEVIATION RTE", "TCAS INOP", "PILOT REQ HIGHER",
+    "VKS LNDG PRACTICE", "OPR CHK RQ"
+  ];
+
+  // ---- aircraft / callsign ----------------------------------------------
+  function chooseAircraft(tier) {
+    const ga = chance(tier.gaChance);
+    let pool = ZAE.AIRCRAFT.filter(function (a) { return ga ? a.ga : true; });
+    if (!ga) pool = ZAE.AIRCRAFT.filter(function (a) { return a.cat === "J" || a.cat === "T"; });
+    const ac = pick(pool);
+    return ac;
+  }
+
+  function chooseEquip(tier, ac) {
+    // GA piston rarely has TACAN; keep it plausible but driven by the tier pool.
+    let s = pick(tier.equip);
+    if (ac.cat === "P" && (s === "M" || s === "N" || s === "P")) s = pick(["A", "U", "T", "D"]);
+    return s;
+  }
+
+  function callsign(ac) {
+    if (!ac.ga) {
+      // airline: ICAO prefix + 1-4 digit flight number
+      return pick(ZAE.AIRLINES) + rint(1, 3999);
+    }
+    // GA N-number: N + 1-3 digits + optional 1-2 letters (avoid I/O)
+    const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    let n = "N" + rint(1, 999);
+    const tail = rint(0, 2);
+    for (let i = 0; i < tail; i++) n += letters[rint(0, letters.length - 1)];
+    return n;
+  }
+
+  // ---- route helpers -----------------------------------------------------
+  function airwaysThrough(navId) {
+    return Object.keys(ZAE.AIRWAYS)
+      .map(function (k) { return ZAE.AIRWAYS[k]; })
+      .filter(function (aw) { return aw.points.indexOf(navId) !== -1; });
+  }
+
+  // Build a directed traversal of an airway: {aw, points, legs, course}
+  function traverse(aw, forward) {
+    const points = forward ? aw.points.slice() : aw.points.slice().reverse();
+    const legs = forward ? aw.legs.slice() : aw.legs.slice().reverse();
+    const course = forward ? aw.course : (aw.course + 180) % 360;
+    return { aw: aw, points: points, legs: legs, course: course };
+  }
+
+  function distanceBetween(trav, i, j) {
+    // sum legs between point index i and j (i<j)
+    let d = 0;
+    for (let k = i; k < j; k++) d += trav.legs[k];
+    return d;
+  }
+
+  function postingFor(aw, fixId) {
+    for (let i = 0; i < aw.postings.length; i++) if (aw.postings[i].fix === fixId) return aw.postings[i];
+    return null;
+  }
+
+  function externalFor(navId) {
+    const list = ZAE.EXTERNAL_AIRPORTS[navId];
+    return list ? pick(list) : (navId + " (via " + navId + ")");
+  }
+
+  function maxMEA(trav, upToIndex) {
+    let m = 0;
+    const lim = upToIndex == null ? trav.legs.length : upToIndex;
+    for (let k = 0; k < lim; k++) m = Math.max(m, trav.aw.meaLegs[k]);
+    return m || 3000;
+  }
+
+  // ---- altitude ----------------------------------------------------------
+  function aircraftCap(ac) {
+    if (ac.cat === "P") return 11000;
+    if (ac.cat === "T") return 20000;
+    return 23000;
+  }
+
+  function chooseAltitude(course, mea, tier, ac) {
+    const cap = Math.min(tier.altCap, aircraftCap(ac), ZAE.LOW_CEILING);
+    const eastbound = (((course % 360) + 360) % 360) < 180; // 0-179 => odd thousands
+    const floorK = Math.ceil(mea / 1000);
+    const opts = [];
+    for (let k = floorK; k <= Math.floor(cap / 1000); k++) {
+      const isOdd = k % 2 === 1;
+      if (eastbound === isOdd) opts.push(k * 1000);
+    }
+    if (!opts.length) {
+      // fall back to nearest legal thousand at/above MEA regardless of parity
+      return Math.max(mea, floorK * 1000);
+    }
+    let alt = pick(opts);
+    // Occasional block altitude for the top tier
+    if (tier.allowBlocks && chance(0.15)) {
+      const higher = opts.filter(function (a) { return a > alt; });
+      if (higher.length) return { block: [alt, higher[0]] };
+    }
+    return alt;
+  }
+
+  function altToHundreds(alt) {
+    if (alt && alt.block) return (alt.block[0] / 100) + "B" + (alt.block[1] / 100);
+    return String(alt / 100);
+  }
+  function altPlain(alt) {
+    if (alt && alt.block) return alt.block[0] + "B" + alt.block[1] + " (block)";
+    return alt.toLocaleString() + " ft";
+  }
+  function altMagnitude(alt) { return alt && alt.block ? alt.block[0] : alt; }
+
+  // ---- filed TAS / GS ----------------------------------------------------
+  function filedTAS(ac) { return rint(ac.tas[0], ac.tas[1]); }
+  function groundSpeed(tas) { return Math.max(60, tas + rint(-25, 15)); } // light wind effect
+
+  // ---- strip assembly ----------------------------------------------------
+  function baseCore(ac, equip, tas, gs) {
+    const heavy = ac.heavy;
+    const s = {};
+    s["3"] = callsign(ac);
+    s["4"] = (heavy ? "H/" : "") + ac.type + "/" + equip;
+    s["5"] = "T" + tas;
+    s["6"] = "66";
+    s["8"] = String(gs);
+    s["10"] = pad2(rint(1, 40));
+    return s;
+  }
+
+  function equipMeaning(equip) {
+    const e = ZAE.EQUIP[equip];
+    return e ? (e.nav + ", " + e.xpdr) : equip;
+  }
+
+  // Common answer-key scaffold
+  function keyBase(type, ac, equip, tas, gs, cs) {
+    return {
+      stripType: type,
+      callsign: cs,
+      aircraft: ac.type + " (" + ({ J: "jet", T: "turboprop", P: "piston" }[ac.cat]) + ")",
+      heavy: ac.heavy,
+      equip: "/" + equip + " — " + equipMeaning(equip),
+      tas: tas + " kt",
+      gs: gs + " kt",
+      notes: []
+    };
+  }
+
+  // ---- EN ROUTE ----------------------------------------------------------
+  function genEnroute(tier) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const aw = pick(Object.keys(ZAE.AIRWAYS).map(function (k) { return ZAE.AIRWAYS[k]; }));
+      const trav = traverse(aw, chance(0.5));
+      // candidate posted fixes that are interior to this traversal (have a real
+      // previous fix AND a real next fix) so estimates and space 21 are meaningful
+      const cands = aw.postings
+        .map(function (p) { return { p: p, i: trav.points.indexOf(p.fix) }; })
+        .filter(function (c) { return c.i >= 1 && c.i < trav.points.length - 1; });
+      if (!cands.length) continue;
+      const chosen = pick(cands);
+      const postedFix = chosen.p.fix;
+      const i = chosen.i;
+      const prevFix = trav.points[i - 1];
+      const nextFix = i + 1 < trav.points.length ? trav.points[i + 1] : null;
+
+      const ac = chooseAircraft(tier);
+      const equip = chooseEquip(tier, ac);
+      const tas = filedTAS(ac);
+      const gs = groundSpeed(tas);
+
+      const distPrevToPosted = distanceBetween(trav, i - 1, i);
+      const pt = plusTime(distPrevToPosted, gs);
+      const estPrev = rint(0, 1439);
+      const estPrevStr = toHHMM(estPrev);
+      const estPostedStr = toHHMM(estPrev + pt);
+
+      const mea = maxMEA(trav);
+      const alt = chooseAltitude(trav.course, mea, tier, ac);
+      const dir = directionArrow(trav.course);
+
+      const entryNav = trav.points[0];
+      const exitNav = trav.points[trav.points.length - 1];
+      const origin = externalFor(entryNav);
+      const dest = externalFor(exitNav);
+      const routeStr = [origin, entryNav, aw.id, exitNav, dest].join(" ");
+
+      const s = baseCore(ac, equip, tas, gs);
+      s["11"] = prevFix;
+      s["12"] = estPrevStr;
+      s["14a"] = "+" + pt;
+      s["15"] = estPostedStr;
+      s["19"] = postedFix;
+      s["20"] = altToHundreds(alt);
+      s["21"] = nextFix || dest;
+      s["23"] = dir.arrow;
+      s["25"] = routeStr;
+      s["27"] = beacon();
+      if (chance(0.5)) s["29-30"] = ZAE.NAVAIDS[exitNav] ? (ZAE.NAVAIDS[exitNav].owner) : "";
+      if (chance(tier.remarkChance)) s["26"] = markRemark(pick(REMARKS), alt);
+
+      const key = keyBase("En Route", ac, equip, tas, gs, s["3"]);
+      key.route = routeStr;
+      key.airway = aw.id + " (" + trav.points.join(" → ") + ")";
+      key.postedFix = postedFix + (postingFor(aw, postedFix).at !== postedFix ? " (posted under " + postingFor(aw, postedFix).at + " bay)" : "");
+      key.previousFix = prevFix;
+      key.nextFix = nextFix || dest;
+      key.altitude = altPlain(alt) + "  (MEA " + mea.toLocaleString() + " ft; " + dir.label + "-bound → " + ((trav.course < 180) ? "odd" : "even") + " thousands)";
+      key.direction = dir.label + "  " + dir.arrow;
+      key.plusTimeMath =
+        "Dist " + prevFix + "→" + postedFix + " = " + distPrevToPosted + " nm; " +
+        "MPM = " + Math.floor(gs / 10) + "/6 ≈ " + milesPerMinute(gs) + "; " +
+        "+time = " + distPrevToPosted + " ÷ " + milesPerMinute(gs) + " ≈ " + pt + " min";
+      key.estimateMath =
+        "Est " + prevFix + " " + estPrevStr + " + " + pt + " = " + postedFix + " est " + estPostedStr;
+      key.allPostings = aw.postings.map(function (p) { return p.fix + (p.at !== p.fix ? "@" + p.at : ""); }).join(", ");
+      return { type: "enroute", spaces: s, meta: key };
+    }
+    return null;
+  }
+
+  // ---- PROPOSAL / DEPARTURE ---------------------------------------------
+  function airportEntryNav(aptId) {
+    if (["KJAN", "KHKS", "KJVW", "KTVR", "0M8", "KVKS"].indexOf(aptId) !== -1) return "MHZ";
+    if (aptId === "KGWO") return "SQS";
+    return "MHZ";
+  }
+
+  function genProposalOrDeparture(tier, isDeparture) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const aptId = pick(Object.keys(ZAE.AIRPORTS));
+      const apt = ZAE.AIRPORTS[aptId];
+      const entryNav = airportEntryNav(aptId);
+      const throughAws = airwaysThrough(entryNav);
+      if (!throughAws.length) continue;
+      const aw = pick(throughAws);
+      // pick a direction that leads outward from entryNav (has points after it)
+      let trav = traverse(aw, true);
+      let ei = trav.points.indexOf(entryNav);
+      if (ei >= trav.points.length - 1) { trav = traverse(aw, false); ei = trav.points.indexOf(entryNav); }
+      if (ei < 0 || ei >= trav.points.length - 1) continue;
+
+      const exitNav = trav.points[trav.points.length - 1];
+      const dest = externalFor(exitNav);
+
+      const ac = chooseAircraft(tier);
+      const equip = chooseEquip(tier, ac);
+      const tas = filedTAS(ac);
+      const gs = groundSpeed(tas);
+
+      // next posted fix strictly after the departure/entry point
+      let nextPosted = null, npIndex = -1;
+      for (let k = ei + 1; k < trav.points.length; k++) {
+        const pp = postingFor(aw, trav.points[k]);
+        if (pp) { nextPosted = pp; npIndex = k; break; }
+      }
+      const nextFixSpace21 = nextPosted ? nextPosted.fix : exitNav;
+
+      const mea = maxMEA(trav);
+      const alt = chooseAltitude(trav.course, mea, tier, ac);
+      const dir = directionArrow(trav.course);
+
+      const ptime = toHHMM(rint(0, 1439));
+      // GA files ETE; append to destination in the route (space 25)
+      const ete = ac.ga ? pad4(rint(35, 200)) : null;
+      const routeStr = [aptId, entryNav, aw.id, exitNav, dest + (ete ? "/" + ete : "")].join(" ");
+
+      const s = baseCore(ac, equip, tas, gs);
+      s["16"] = "↑"; // departure arrow
+      s["19"] = aptId + " P" + ptime;
+      s["21"] = nextFixSpace21;
+      s["24"] = altToHundreds(alt);
+      s["25"] = routeStr;
+      s["27"] = beacon();
+      if (ZAE.NAVAIDS[exitNav] && ZAE.NAVAIDS[exitNav].owner && ZAE.NAVAIDS[exitNav].owner.charAt(0) === "Z") {
+        s["29-30"] = ZAE.NAVAIDS[exitNav].owner;
+      }
+      if (chance(tier.remarkChance)) s["26"] = markRemark(pick(REMARKS), alt);
+
+      const key = keyBase(isDeparture ? "Departure" : "Proposal", ac, equip, tas, gs, s["3"]);
+      key.origin = apt.name + " (" + aptId + ") — " + apt.apch + ", Rwy " + apt.rwy;
+      key.route = routeStr;
+      key.airway = aw.id + " (" + trav.points.slice(ei).join(" → ") + ")";
+      key.nextPostedFix = nextPosted
+        ? nextPosted.fix + (nextPosted.at !== nextPosted.fix ? " (posted under " + nextPosted.at + " bay)" : "")
+        : exitNav + " (coordination fix — hand off to " + (ZAE.NAVAIDS[exitNav] ? ZAE.NAVAIDS[exitNav].owner : "?") + ")";
+      key.altitude = "Requested " + altPlain(alt) + "  (MEA " + mea.toLocaleString() + " ft; " + dir.label + "-bound → " + ((trav.course < 180) ? "odd" : "even") + " thousands)";
+      key.proposedTime = "P" + ptime + " (proposed departure)";
+      if (ete) key.ete = ete.slice(0, 2) + "+" + ete.slice(2) + " (ETE, GA aircraft)";
+      key.requiredPostings = "Along this route in Jackson Low: " +
+        aw.postings.map(function (p) { return p.fix + (p.at !== p.fix ? "@" + p.at : ""); }).join(", ");
+
+      if (isDeparture) {
+        // airborne: actual departure time + estimate to next posted fix
+        const depMin = fromHHMM(ptime) + rint(0, 6);
+        const depStr = toHHMM(depMin);
+        s["18"] = depStr;
+        s["20"] = altToHundreds(alt);
+        delete s["24"]; // assigned now, shown in 20
+        if (nextPosted) {
+          const dist = distanceBetween(trav, ei, npIndex);
+          const pt = plusTime(dist, gs);
+          s["15"] = toHHMM(depMin + pt);
+          key.estimateMath =
+            "Dep " + depStr + " + (" + dist + " nm ÷ " + milesPerMinute(gs) + " MPM ≈ " + pt + " min) = " +
+            nextPosted.fix + " est " + toHHMM(depMin + pt);
+        }
+        key.departureTime = depStr + " (actual off " + aptId + ")";
+        key.altitude = "Assigned " + altPlain(alt) + "  (MEA " + mea.toLocaleString() + " ft)";
+      }
+
+      return { type: isDeparture ? "departure" : "proposal", spaces: s, meta: key };
+    }
+    return null;
+  }
+
+  // ---- ARRIVAL -----------------------------------------------------------
+  function genArrival(tier) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const aptId = pick(Object.keys(ZAE.AIRPORTS));
+      const apt = ZAE.AIRPORTS[aptId];
+      const entryNav = airportEntryNav(aptId); // last posted fix before the field
+      const throughAws = airwaysThrough(entryNav);
+      if (!throughAws.length) continue;
+      const aw = pick(throughAws);
+      // direction inbound: aircraft flies toward entryNav from outside, so entryNav should be near the END
+      let trav = traverse(aw, true);
+      let ei = trav.points.indexOf(entryNav);
+      if (ei <= 0) { trav = traverse(aw, false); ei = trav.points.indexOf(entryNav); }
+      if (ei <= 0) continue;
+
+      const prevFix = trav.points[ei - 1];
+      const originNav = trav.points[0];
+      const origin = externalFor(originNav);
+
+      const ac = chooseAircraft(tier);
+      const equip = chooseEquip(tier, ac);
+      const tas = filedTAS(ac);
+      const gs = groundSpeed(tas);
+
+      const dist = distanceBetween(trav, ei - 1, ei);
+      const pt = plusTime(dist, gs);
+      const estPrev = rint(0, 1439);
+      const estFix = estPrev + pt;
+
+      const mea = maxMEA(trav);
+      const alt = chooseAltitude(trav.course, mea, tier, ac);
+
+      const routeStr = [origin, originNav, aw.id, entryNav, aptId].join(" ");
+      const s = baseCore(ac, equip, tas, gs);
+      s["11"] = prevFix;
+      s["12"] = toHHMM(estPrev);
+      s["14a"] = "+" + pt;
+      s["15"] = toHHMM(estFix);
+      s["16"] = "↓"; // arrival arrow
+      s["19"] = entryNav;
+      s["20"] = altToHundreds(alt);
+      s["21"] = aptId;
+      s["25"] = routeStr;
+      s["27"] = beacon();
+      s["28"] = "CAF " + toHHMM(estFix + rint(2, 8)); // cleared-approach placeholder / EFC-style misc
+      if (chance(tier.remarkChance)) s["26"] = markRemark(pick(REMARKS), alt);
+
+      const key = keyBase("Arrival", ac, equip, tas, gs, s["3"]);
+      key.destination = apt.name + " (" + aptId + ") — " + apt.apch + ", Rwy " + apt.rwy + (apt.loc ? ", " + apt.loc : "");
+      key.route = routeStr;
+      key.airway = aw.id + " inbound (" + trav.points.slice(0, ei + 1).join(" → ") + ")";
+      key.arrivalFix = entryNav + " (last posted fix before the field)";
+      key.previousFix = prevFix;
+      key.altitude = altPlain(alt) + "  (MEA " + mea.toLocaleString() + " ft)";
+      key.plusTimeMath = "Dist " + prevFix + "→" + entryNav + " = " + dist + " nm; +time ≈ " + pt + " min → " + entryNav + " est " + toHHMM(estFix);
+      key.notes.push("Arrival arrow (↓) posted in space 16. Space 28 carries miscellaneous control data (e.g., cleared-for-approach time).");
+      if (apt.apch === "JAN") key.notes.push("JAN Approach: nonradar limits at/below 5,000 ft (freq 119.2 / 259.2).");
+      return { type: "arrival", spaces: s, meta: key };
+    }
+    return null;
+  }
+
+  function markRemark(text, alt) {
+    if (text === "REQ FL230" && altMagnitude(alt) >= 21000) text = "REQ HIGHER";
+    return "○ " + text; // the "O" symbol seen on ZAE example strips
+  }
+
+  // ---- public API --------------------------------------------------------
+  function generateOne(tierKey, forcedType) {
+    const tier = TIERS[tierKey] || TIERS.trainee;
+    const type = forcedType && forcedType !== "any" ? forcedType : pick(tier.types);
+    let strip = null;
+    if (type === "proposal") strip = genProposalOrDeparture(tier, false);
+    else if (type === "departure") strip = genProposalOrDeparture(tier, true);
+    else if (type === "arrival") strip = genArrival(tier);
+    else strip = genEnroute(tier);
+    return strip || genEnroute(tier);
+  }
+
+  function generate(opts) {
+    opts = opts || {};
+    const tierKey = opts.difficulty || "trainee";
+    const tier = TIERS[tierKey] || TIERS.trainee;
+    let count = opts.count;
+    if (!count) count = rint(tier.countRange[0], tier.countRange[1]);
+    const out = [];
+    for (let i = 0; i < count; i++) out.push(generateOne(tierKey, opts.type));
+    return out;
+  }
+
+  root.StripGen = {
+    generate: generate,
+    generateOne: generateOne,
+    tiers: TIERS,
+    _internal: { plusTime: plusTime, milesPerMinute: milesPerMinute, directionArrow: directionArrow }
+  };
+})(typeof window !== "undefined" ? window : this);

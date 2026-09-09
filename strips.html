@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flight Strip Generator — ZAE Aero Center</title>
+  <link rel="stylesheet" href="assets/css/main.css" />
+  <link rel="stylesheet" href="assets/css/strips.css" />
+</head>
+<body>
+  <div class="scanlines" aria-hidden="true"></div>
+
+  <header class="site-header">
+    <div class="brand">
+      <span class="brand-badge">ZAE</span>
+      <div class="brand-text">
+        <h1>Aero Center ARTCC</h1>
+        <p>En Route Non-Radar &mdash; Flight Strip Generator</p>
+      </div>
+    </div>
+    <div class="header-meta">
+      <span class="meta-line" id="zulu-clock">--:--:--Z</span>
+      <span class="meta-line meta-dim">SECTOR 66 · JACKSON LOW</span>
+    </div>
+  </header>
+
+  <main class="strips-main">
+    <a class="back-link" href="index.html">&larr; Back to menu</a>
+    <h2 class="page-title">Flight Strip Generator</h2>
+    <p class="page-sub">
+      Generate randomized nonradar flight progress strips for practice. Every strip
+      uses real Aero Center (ZAE) airways, fixes, mileages, and MEAs. Use
+      <em>Reveal details</em> to self-check your reading of each strip.
+    </p>
+
+    <div class="controls">
+      <div class="control">
+        <label for="difficulty">Difficulty</label>
+        <select id="difficulty">
+          <option value="trainee">Trainee — single airway, standard</option>
+          <option value="developmental">Developmental — mixed types</option>
+          <option value="cpc">CPC — full complexity</option>
+        </select>
+      </div>
+
+      <div class="control">
+        <label for="type">Strip type</label>
+        <select id="type">
+          <option value="any">Any (random)</option>
+          <option value="proposal">Proposal</option>
+          <option value="departure">Departure</option>
+          <option value="enroute">En Route</option>
+          <option value="arrival">Arrival</option>
+        </select>
+      </div>
+
+      <div class="control">
+        <label for="count">Count</label>
+        <input type="number" id="count" min="1" max="12" placeholder="auto" />
+      </div>
+
+      <button class="btn" id="generate">Generate strips</button>
+
+      <div class="toggles">
+        <label class="toggle"><input type="checkbox" id="show-nums" checked /> Space numbers</label>
+        <label class="toggle"><input type="checkbox" id="reveal-all" /> Reveal all</label>
+      </div>
+    </div>
+
+    <div id="output"></div>
+  </main>
+
+  <footer class="site-footer">
+    <span>Aero Center (ZAE) &middot; Nonradar strip format per FAA JO 7110.65 / Course 50148001</span>
+    <span class="meta-dim">Training use only</span>
+  </footer>
+
+  <script src="assets/js/main.js"></script>
+  <script src="assets/data/zae.js"></script>
+  <script src="assets/js/generator.js"></script>
+  <script src="assets/js/strips.js"></script>
+</body>
+</html>
