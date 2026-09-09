@@ -280,11 +280,11 @@
       const conn = origin === "K" + entryNav ? " " : "./.";
       const routeStr = origin + conn + entryNav + " " + aw.id + " " + exitNav + " " + dest;
 
+      // Overflight (entered from an adjacent center): carry the received estimate,
+      // NO plus time (14a) and blank actual time (14).
       const s = baseCore(ac, equip, tas, gs);
       s["11"] = prevFix;
       s["12"] = estPrevStr;
-      s["14"] = "00";
-      s["14a"] = "+" + pt;
       s["15"] = estPostedStr;
       s["19"] = postedFix;
       s["20"] = altToHundreds(alt);
@@ -300,14 +300,75 @@
       key.previousFix = prevFix;
       key.nextFix = nextFix || dest;
       key.altitude = altPlain(alt) + "  (MEA " + mea.toLocaleString() + " ft; " + dir.label + "-bound → " + ((trav.course < 180) ? "odd" : "even") + " thousands)";
-      key.direction = dir.label + "  " + dir.arrow;
-      key.plusTimeMath =
-        "Dist " + prevFix + "→" + postedFix + " = " + distPrevToPosted + " nm; " +
-        "MPM = " + Math.floor(gs / 10) + "/6 ≈ " + milesPerMinute(gs) + "; " +
-        "+time = " + distPrevToPosted + " ÷ " + milesPerMinute(gs) + " ≈ " + pt + " min";
-      key.estimateMath =
-        "Est " + prevFix + " " + estPrevStr + " + " + pt + " = " + postedFix + " est " + estPostedStr;
+      key.direction = dir.label;
+      key.notes.push("Overflight (entered from an adjacent center): estimate over " + prevFix + " is received, so no plus time is posted — carry the estimate over " + postedFix + ".");
+      key.estimateMath = "Est " + prevFix + " " + estPrevStr + " → " + postedFix + " est " + estPostedStr;
       key.allPostings = aw.postings.map(function (p) { return p.fix + (p.at !== p.fix ? "@" + p.at : ""); }).join(", ");
+      return { type: "enroute", spaces: s, meta: key };
+    }
+    return null;
+  }
+
+  // En route strip that follows a departure WITHIN ZAE airspace — this is the
+  // only case that carries a plus time (14a): computed from the departure
+  // gateway fix to the downstream posted fix.
+  const DEP_GATEWAY = { KJAN: "MHZ", KJVW: "MHZ", KVKS: "MHZ", "0M8": "MHZ", KGWO: "SQS" };
+  function genEnrouteDeparted(tier) {
+    const apts = Object.keys(DEP_GATEWAY);
+    for (let attempt = 0; attempt < 60; attempt++) {
+      const aptId = pick(apts);
+      const gw = DEP_GATEWAY[aptId];
+      const throughAws = airwaysThrough(gw);
+      const aw = pick(throughAws);
+      // find a traversal + posting strictly downstream of the gateway
+      let trav = traverse(aw, true);
+      let gi = trav.points.indexOf(gw);
+      let cands = aw.postings.map(function (p) { return { p: p, i: trav.points.indexOf(p.fix) }; }).filter(function (c) { return c.i > gi && c.p.fix !== gw; });
+      if (!cands.length) { trav = traverse(aw, false); gi = trav.points.indexOf(gw); cands = aw.postings.map(function (p) { return { p: p, i: trav.points.indexOf(p.fix) }; }).filter(function (c) { return c.i > gi && c.p.fix !== gw; }); }
+      if (!cands.length) continue;
+      const chosen = pick(cands);
+      const postedFix = chosen.p.fix;
+      const pidx = chosen.i;
+
+      const ac = chooseAircraft(tier);
+      const equip = chooseEquip(tier, ac);
+      const tas = filedTAS(ac);
+      const gs = groundSpeed(tas);
+
+      const dist = distanceBetween(trav, gi, pidx);
+      const pt = plusTime(dist, gs);
+      const gwTime = rint(0, 1439);
+      const estPosted = gwTime + pt;
+
+      const mea = maxMEA(trav);
+      const alt = chooseAltitude(trav.course, mea, tier, ac);
+      const exitNav = trav.points[trav.points.length - 1];
+      const nextFix = pidx + 1 < trav.points.length ? trav.points[pidx + 1] : externalFor(exitNav);
+      const dest = externalFor(exitNav);
+      const routeStr = aptId + " " + gw + " " + aw.id + " " + exitNav + " " + dest;
+
+      const s = baseCore(ac, equip, tas, gs);
+      s["11"] = gw;                       // previous fix = departure gateway
+      s["12"] = toHHMM(gwTime);
+      s["14a"] = "+" + pt;                // plus time (departed ZAE)
+      s["15"] = toHHMM(estPosted);
+      s["19"] = postedFix;
+      s["20"] = altToHundreds(alt);
+      s["21"] = nextFix;
+      s["25"] = routeStr;
+      if (chance(tier.remarkChance)) s["26"] = markRemark(pick(REMARKS), alt);
+
+      const key = keyBase("En Route", ac, equip, tas, gs, s["3"]);
+      key.origin = ZAE.AIRPORTS[aptId] ? (ZAE.AIRPORTS[aptId].name + " (" + aptId + ")") : aptId;
+      key.route = routeStr;
+      key.airway = aw.id + " (" + trav.points.slice(gi).join(" → ") + ")";
+      key.postedFix = postedFix + (postingFor(aw, postedFix).at !== postedFix ? " (posted under " + postingFor(aw, postedFix).at + " bay)" : "");
+      key.previousFix = gw + " (departure gateway)";
+      key.nextFix = nextFix;
+      key.altitude = altPlain(alt) + "  (MEA " + mea.toLocaleString() + " ft)";
+      key.notes.push("Departed within ZAE (" + aptId + ") — plus time IS posted.");
+      key.plusTimeMath = "Dist " + gw + "→" + postedFix + " = " + dist + " nm; MPM = " + Math.floor(gs / 10) + "/6 ≈ " + milesPerMinute(gs) + "; +time = " + dist + " ÷ " + milesPerMinute(gs) + " ≈ " + pt + " min";
+      key.estimateMath = "Est " + gw + " " + toHHMM(gwTime) + " + " + pt + " = " + postedFix + " est " + toHHMM(estPosted);
       return { type: "enroute", spaces: s, meta: key };
     }
     return null;
@@ -320,9 +381,13 @@
     return "MHZ";
   }
 
+  // Only airports that are valid space-19 bay postings.
+  const DEP_AIRPORTS = ["KJAN", "KJVW", "KGWO", "KVKS", "0M8"];
+  const ARR_AIRPORTS = ["KJAN", "KJVW", "KGWO"];
+
   function genProposalOrDeparture(tier, isDeparture) {
     for (let attempt = 0; attempt < 40; attempt++) {
-      const aptId = pick(Object.keys(ZAE.AIRPORTS));
+      const aptId = pick(DEP_AIRPORTS);
       const apt = ZAE.AIRPORTS[aptId];
       const entryNav = airportEntryNav(aptId);
       const throughAws = airwaysThrough(entryNav);
@@ -410,7 +475,7 @@
   // ---- ARRIVAL -----------------------------------------------------------
   function genArrival(tier) {
     for (let attempt = 0; attempt < 40; attempt++) {
-      const aptId = pick(Object.keys(ZAE.AIRPORTS));
+      const aptId = pick(ARR_AIRPORTS);
       const apt = ZAE.AIRPORTS[aptId];
       const entryNav = airportEntryNav(aptId); // last posted fix before the field
       const throughAws = airwaysThrough(entryNav);
@@ -444,8 +509,6 @@
       const s = baseCore(ac, equip, tas, gs);
       s["11"] = prevFix;
       s["12"] = toHHMM(estPrev);
-      s["14"] = "00";
-      s["14a"] = "+" + pt;
       s["15"] = toHHMM(estFix);
       s["16"] = "↓"; // arrival arrow
       s["19"] = entryNav;
@@ -483,7 +546,7 @@
     if (type === "proposal") strip = genProposalOrDeparture(tier, false);
     else if (type === "departure") strip = genProposalOrDeparture(tier, true);
     else if (type === "arrival") strip = genArrival(tier);
-    else strip = genEnroute(tier);
+    else strip = chance(0.45) ? genEnrouteDeparted(tier) : genEnroute(tier);
     return strip || genEnroute(tier);
   }
 

@@ -30,7 +30,7 @@
     { k: "act", f: "14", x: 15, y: 55, w: 4, cls: "mid", n: "14" },
     { k: "plus", f: "14a", x: 15, y: 78, w: 6, cls: "mid", n: "14a" },
     // col C — center estimate (4-digit), arrow top-right, 17|18 box (full-width), posted fix below
-    { k: "centerest", f: "15", x: 23.5, y: 6, w: 8, cls: "mid", n: "15" },
+    { k: "centerest", f: "15", x: 23.5, y: 4, w: 9, cls: "est", n: "15" },
     { k: "arrow", f: "16", x: 33.5, y: 4, w: 3.5, cls: "arrow", n: "16" },
     { k: "box17", f: "17", x: 23, y: 55, w: 5, cls: "sm", n: "17" },
     { k: "box18", f: "18", x: 29, y: 55, w: 8, cls: "sm", n: "18" },
@@ -102,7 +102,16 @@
         cell.dataset.k = c.k;
       } else {
         const v = spaces ? spaces[c.f] : "";
-        if (v != null && v !== "") cell.textContent = slashZero(v);
+        if (v != null && v !== "") {
+          // Space 15 (center estimate): hours larger, minutes raised — like the paper strips.
+          if (c.k === "centerest" && /^\d{4}$/.test(String(v))) {
+            const hh = el("span", "hh", slashZero(String(v).slice(0, 2)));
+            const mm = el("span", "mm", slashZero(String(v).slice(2)));
+            cell.appendChild(hh); cell.appendChild(mm);
+          } else {
+            cell.textContent = slashZero(v);
+          }
+        }
       }
       wrap.appendChild(cell);
       if (showNums) {
