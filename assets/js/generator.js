@@ -217,7 +217,8 @@
     s["5"] = "T" + tas;
     s["6"] = "66";
     s["8"] = String(gs);
-    s["10"] = pad2(rint(1, 40));
+    // NOTE: strip number (10) and beacon (27) are computer-generated codes,
+    // intentionally omitted from the practice strips (may return in scenarios).
     return s;
   }
 
@@ -283,14 +284,12 @@
       s["11"] = prevFix;
       s["12"] = estPrevStr;
       s["14"] = "00";
-      s["14a"] = String(pt);
+      s["14a"] = "+" + pt;
       s["15"] = estPostedStr;
       s["19"] = postedFix;
       s["20"] = altToHundreds(alt);
       s["21"] = nextFix || dest;
-      s["23"] = dir.arrow;
       s["25"] = routeStr;
-      s["27"] = beacon();
       if (chance(0.5)) s["29-30"] = ZAE.NAVAIDS[exitNav] ? (ZAE.NAVAIDS[exitNav].owner) : "";
       if (chance(tier.remarkChance)) s["26"] = markRemark(pick(REMARKS), alt);
 
@@ -366,7 +365,6 @@
       s["21"] = nextFixSpace21;
       s["24"] = altToHundreds(alt);
       s["25"] = routeStr;
-      s["27"] = beacon();
       if (ZAE.NAVAIDS[exitNav] && ZAE.NAVAIDS[exitNav].owner && ZAE.NAVAIDS[exitNav].owner.charAt(0) === "Z") {
         s["29-30"] = ZAE.NAVAIDS[exitNav].owner;
       }
@@ -447,14 +445,13 @@
       s["11"] = prevFix;
       s["12"] = toHHMM(estPrev);
       s["14"] = "00";
-      s["14a"] = String(pt);
+      s["14a"] = "+" + pt;
       s["15"] = toHHMM(estFix);
       s["16"] = "↓"; // arrival arrow
       s["19"] = entryNav;
       s["20"] = altToHundreds(alt);
       s["21"] = aptId;
       s["25"] = routeStr;
-      s["27"] = beacon();
       s["28"] = "CAF " + toHHMM(estFix + rint(2, 8)); // cleared-approach placeholder / EFC-style misc
       if (chance(tier.remarkChance)) s["26"] = markRemark(pick(REMARKS), alt);
 

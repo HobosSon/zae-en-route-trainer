@@ -14,8 +14,8 @@
     rect: [0, 0, 1000, 188],
     vlines: [145, 225, 375, 525, 600, 930],
     hlines: [],
-    box: [232, 98, 138, 40],      // x,y,w,h  (spaces 17|18) — its edges are the two h-lines
-    boxsplit: 287
+    box: [225, 98, 150, 40],      // spaces 17|18 — spans the FULL center column (edge to edge)
+    boxsplit: 285
   };
 
   // Cells: key -> field mapping + placement (% of strip) + style class + space #.
@@ -24,17 +24,17 @@
     { k: "type", f: "4", x: 2, y: 33, w: 12, cls: "type", n: "4" },
     { k: "tas", f: "5", x: 2, y: 55, w: 12, cls: "tas", n: "5" },
     { k: "strip", f: "10", x: 3.5, y: 80, w: 6, cls: "sm", n: "10" },
-    // col B (no internal lines)
+    // col B (no internal lines) — 11 & 12 grouped at top
     { k: "prevfix", f: "11", x: 15, y: 8, w: 7, cls: "mid", n: "11" },
-    { k: "prevtime", f: "12", x: 15, y: 33, w: 7, cls: "mid", n: "12" },
-    { k: "act", f: "14", x: 15, y: 58, w: 4, cls: "mid", n: "14" },
-    { k: "plus", f: "14a", x: 15, y: 80, w: 6, cls: "mid", n: "14a" },
-    // col C — center estimate (4-digit), arrow top-right, 17|18 box, posted fix below
+    { k: "prevtime", f: "12", x: 15, y: 24, w: 7, cls: "mid", n: "12" },
+    { k: "act", f: "14", x: 15, y: 55, w: 4, cls: "mid", n: "14" },
+    { k: "plus", f: "14a", x: 15, y: 78, w: 6, cls: "mid", n: "14a" },
+    // col C — center estimate (4-digit), arrow top-right, 17|18 box (full-width), posted fix below
     { k: "centerest", f: "15", x: 23.5, y: 6, w: 8, cls: "mid", n: "15" },
     { k: "arrow", f: "16", x: 33.5, y: 4, w: 3.5, cls: "arrow", n: "16" },
-    { k: "box17", f: "17", x: 24, y: 54, w: 4.5, cls: "sm", n: "17" },
-    { k: "box18", f: "18", x: 29.3, y: 54, w: 7, cls: "sm", n: "18" },
-    { k: "postedfix", f: "19", x: 23.8, y: 77, w: 13, cls: "big", n: "19" },
+    { k: "box17", f: "17", x: 23, y: 55, w: 5, cls: "sm", n: "17" },
+    { k: "box18", f: "18", x: 29, y: 55, w: 8, cls: "sm", n: "18" },
+    { k: "postedfix", f: "19", x: 23, y: 77, w: 14, cls: "big", n: "19" },
     // col D — altitude, same width as col C, top-left
     { k: "altA", f: "20", x: 38.5, y: 8, w: 12, cls: "big", n: "20" },
     { k: "alt20a", f: "20a", x: 38.5, y: 78, w: 12, cls: "sm", n: "20a" },
