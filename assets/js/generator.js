@@ -276,12 +276,14 @@
       const exitNav = trav.points[trav.points.length - 1];
       const origin = externalFor(entryNav);
       const dest = externalFor(exitNav);
-      const routeStr = [origin, entryNav, aw.id, exitNav, dest].join(" ");
+      const conn = origin === "K" + entryNav ? " " : "./.";
+      const routeStr = origin + conn + entryNav + " " + aw.id + " " + exitNav + " " + dest;
 
       const s = baseCore(ac, equip, tas, gs);
       s["11"] = prevFix;
       s["12"] = estPrevStr;
-      s["14a"] = "+" + pt;
+      s["14"] = "00";
+      s["14a"] = String(pt);
       s["15"] = estPostedStr;
       s["19"] = postedFix;
       s["20"] = altToHundreds(alt);
@@ -439,11 +441,13 @@
       const mea = maxMEA(trav);
       const alt = chooseAltitude(trav.course, mea, tier, ac);
 
-      const routeStr = [origin, originNav, aw.id, entryNav, aptId].join(" ");
+      const conn = origin === "K" + originNav ? " " : "./.";
+      const routeStr = origin + conn + originNav + " " + aw.id + " " + entryNav + " " + aptId;
       const s = baseCore(ac, equip, tas, gs);
       s["11"] = prevFix;
       s["12"] = toHHMM(estPrev);
-      s["14a"] = "+" + pt;
+      s["14"] = "00";
+      s["14a"] = String(pt);
       s["15"] = toHHMM(estFix);
       s["16"] = "↓"; // arrival arrow
       s["19"] = entryNav;

@@ -122,82 +122,73 @@
   font-weight: 700;
 }
 
-/* The strip itself — buff/green FDIO look */
-.strip {
-  --cell-border: #7fae7a;
-  display: flex;
-  background: #cdeeb0;
-  color: #10240c;
-  border: 1.5px solid #4d6b48;
-  border-radius: 2px;
-  font-family: var(--mono);
-  overflow-x: auto;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
-}
-
-.strip-col {
-  display: flex;
-  flex-direction: column;
-  border-right: 1.5px solid #4d6b48;
-  min-width: 0;
-}
-.strip-col:last-child { border-right: none; }
-
-.strip-row {
-  display: flex;
-  flex: 1;
-  border-bottom: 1px solid var(--cell-border);
-  min-height: 0;
-}
-.strip-row:last-child { border-bottom: none; }
-
-.cell {
+/* FPS2000-style paper flight progress strip */
+.fps-strip {
   position: relative;
-  flex: 1;
-  border-right: 1px solid var(--cell-border);
-  padding: 2px 4px;
-  min-height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
+  width: 100%;
+  aspect-ratio: 1000 / 188;
+  background: #f4f1e9;               /* light manila/paper */
+  color: #111;
+  border: 1.5px solid #222;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  font-family: "Consolas", "SFMono-Regular", "Liberation Mono", monospace;
+  /* slashed zeros where the font supports it (belt-and-suspenders: JS also substitutes) */
+  font-feature-settings: "zero" 1;
   overflow: hidden;
 }
-.cell:last-child { border-right: none; }
+.fps-grid { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.fps-grid line, .fps-grid rect { stroke: #222; stroke-width: 1; fill: none; vector-effect: non-scaling-stroke; }
 
-.cell .num {
+.fps-cell {
   position: absolute;
-  top: 0;
-  left: 1px;
-  font-size: 7px;
-  line-height: 1;
-  color: #5f8a58;
+  color: #111;
+  line-height: 1.05;
+  white-space: pre;
+  overflow: hidden;
+}
+.fps-cell.aid { font-weight: 700; font-size: 15px; letter-spacing: 0.5px; }
+.fps-cell.type, .fps-cell.tas { font-size: 13px; }
+.fps-cell.big { font-size: 14px; font-weight: 700; }
+.fps-cell.mid { font-size: 13px; }
+.fps-cell.sm { font-size: 11px; }
+.fps-cell.arrow { font-size: 26px; font-weight: 700; text-align: center; }
+.fps-cell.route { font-size: 12px; white-space: normal; line-height: 1.25; }
+.fps-cell.rem { font-size: 11px; white-space: normal; line-height: 1.2; }
+
+/* optional field-number overlay */
+.fps-num {
+  position: absolute;
+  font-family: var(--mono);
+  font-size: 8px;
+  color: #b23b2e;
+  transform: translate(-1px, -9px);
   pointer-events: none;
+  opacity: 0.8;
 }
-.strip.hide-nums .cell .num { display: none; }
 
-.cell .val {
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-  padding-left: 1px;
-  padding-top: 3px;
-  width: 100%;
+/* editable (blank template) mode */
+.fps-strip.editable .fps-cell {
+  outline: none;
+  cursor: text;
 }
-.cell .val.big { font-size: 14px; font-weight: 700; }
-.cell .val.arrow { font-size: 20px; font-weight: 700; text-align: center; }
-.cell .val.route { white-space: normal; font-size: 11px; line-height: 1.15; }
-.cell .val.rem { white-space: normal; font-size: 10.5px; line-height: 1.15; }
+.fps-strip.editable .fps-cell:focus { background: rgba(80, 150, 255, 0.14); }
+.fps-strip.editable .fps-cell:empty::before {
+  content: "";
+}
 
-/* column width weighting */
-.col-id { flex: 2.3; }
-.col-prev { flex: 1.4; }
-.col-center { flex: 2.5; }
-.col-alt { flex: 1.15; }
-.col-next { flex: 1.15; }
-.col-route { flex: 3.3; }
-.col-right { flex: 1.5; }
+@media print {
+  body { background: #fff; }
+  .site-header, .site-footer, .controls, .back-link, .page-title, .page-sub,
+  .reveal-row, .answer-key, .strip-tag, .scanlines { display: none !important; }
+  .fps-strip { box-shadow: none; page-break-inside: avoid; margin-bottom: 8px; }
+}
 
-.strip .strip-row.tall { flex: 2; }
+/* clamp strip width so proportions stay realistic on wide screens */
+.strip-card .fps-strip { max-width: 900px; }
+
+@media (min-width: 700px) {
+  #output.small-strips .fps-strip { }
+}
 
 /* ---------- Answer key ---------- */
 .reveal-row { display: flex; gap: 0.5rem; }
