@@ -6,37 +6,51 @@
 (function () {
   "use strict";
 
-  // Grid lines for the strip template, in a 1000 x 188 coordinate space.
-  // Column order matches the FPS2000 paper strip:
-  // AID | prev-fix+posted-fix | 14/14a + 17|18 box | arrow | altitude | next-fix | route
+  // Grid lines for the strip template, in a 1000 x 188 coordinate space, matching
+  // LP05 Appendix B exactly. Columns:
+  // AID | 11-14a | 15/16 + 17|18 box + 19 | 20 | 21-24 | 25/26 | 27-30
+  // The ONLY horizontal lines are the top & bottom of the 17|18 box.
   const GRID = {
     rect: [0, 0, 1000, 188],
-    vlines: [210, 290, 380, 440, 520, 600],
-    hlines: [[210, 118, 290, 118], [600, 118, 1000, 118]],
-    box: [298, 98, 74, 44],       // x,y,w,h  (spaces 17|18)
-    boxsplit: 335
+    vlines: [145, 225, 375, 525, 600, 930],
+    hlines: [],
+    box: [232, 98, 138, 40],      // x,y,w,h  (spaces 17|18) — its edges are the two h-lines
+    boxsplit: 287
   };
 
   // Cells: key -> field mapping + placement (% of strip) + style class + space #.
-  // field is the LP05 space number this cell shows.
   const CELLS = [
-    { k: "aid", f: "3", x: 2, y: 5, w: 18, cls: "aid", n: "3" },
-    { k: "type", f: "4", x: 2, y: 33, w: 18, cls: "type", n: "4" },
-    { k: "tas", f: "5", x: 2, y: 55, w: 18, cls: "tas", n: "5" },
-    { k: "strip", f: "10", x: 3, y: 80, w: 7, cls: "sm", n: "10" },
-    { k: "prevfix", f: "11", x: 21.5, y: 8, w: 7, cls: "mid", n: "11" },
-    { k: "prevtime", f: "12", x: 21.5, y: 36, w: 7, cls: "mid", n: "12" },
-    { k: "postedfix", f: "19", x: 21.5, y: 80, w: 17, cls: "big", n: "19" },
-    { k: "act", f: "14", x: 29.7, y: 8, w: 4, cls: "mid", n: "14" },
-    { k: "plus", f: "14a", x: 34, y: 8, w: 4.5, cls: "mid", n: "14a" },
-    { k: "box17", f: "17", x: 30.3, y: 55, w: 3.4, cls: "sm", n: "17" },
-    { k: "box18", f: "18", x: 33.8, y: 55, w: 3.4, cls: "sm", n: "18" },
-    { k: "arrow", f: "16", x: 38, y: 28, w: 6, cls: "arrow", n: "16" },
-    { k: "altA", f: "20", x: 44.5, y: 30, w: 7.5, cls: "big", n: "20" },
-    { k: "nextfix", f: "21", x: 52.5, y: 8, w: 7, cls: "mid", n: "21" },
-    { k: "reqalt", f: "24", x: 52.5, y: 74, w: 7, cls: "mid", n: "24" },
-    { k: "route", f: "25", x: 61, y: 8, w: 37, cls: "route", n: "25" },
-    { k: "remarks", f: "26", x: 61, y: 72, w: 37, cls: "rem", n: "26" }
+    { k: "aid", f: "3", x: 2, y: 5, w: 12, cls: "aid", n: "3" },
+    { k: "type", f: "4", x: 2, y: 33, w: 12, cls: "type", n: "4" },
+    { k: "tas", f: "5", x: 2, y: 55, w: 12, cls: "tas", n: "5" },
+    { k: "strip", f: "10", x: 3.5, y: 80, w: 6, cls: "sm", n: "10" },
+    // col B (no internal lines)
+    { k: "prevfix", f: "11", x: 15, y: 8, w: 7, cls: "mid", n: "11" },
+    { k: "prevtime", f: "12", x: 15, y: 33, w: 7, cls: "mid", n: "12" },
+    { k: "act", f: "14", x: 15, y: 58, w: 4, cls: "mid", n: "14" },
+    { k: "plus", f: "14a", x: 15, y: 80, w: 6, cls: "mid", n: "14a" },
+    // col C — center estimate (4-digit), arrow top-right, 17|18 box, posted fix below
+    { k: "centerest", f: "15", x: 23.5, y: 6, w: 8, cls: "mid", n: "15" },
+    { k: "arrow", f: "16", x: 33.5, y: 4, w: 3.5, cls: "arrow", n: "16" },
+    { k: "box17", f: "17", x: 24, y: 54, w: 4.5, cls: "sm", n: "17" },
+    { k: "box18", f: "18", x: 29.3, y: 54, w: 7, cls: "sm", n: "18" },
+    { k: "postedfix", f: "19", x: 23.8, y: 77, w: 13, cls: "big", n: "19" },
+    // col D — altitude, same width as col C, top-left
+    { k: "altA", f: "20", x: 38.5, y: 8, w: 12, cls: "big", n: "20" },
+    { k: "alt20a", f: "20a", x: 38.5, y: 78, w: 12, cls: "sm", n: "20a" },
+    // col E — 21/22/23/24
+    { k: "nextfix", f: "21", x: 53, y: 8, w: 6.5, cls: "mid", n: "21" },
+    { k: "b22", f: "22", x: 53, y: 33, w: 6.5, cls: "sm", n: "22" },
+    { k: "b23", f: "23", x: 53, y: 52, w: 6.5, cls: "dir", n: "23" },
+    { k: "reqalt", f: "24", x: 53, y: 78, w: 6.5, cls: "mid", n: "24" },
+    // col F — route / remarks (no line between)
+    { k: "route", f: "25", x: 61, y: 8, w: 31, cls: "route", n: "25" },
+    { k: "remarks", f: "26", x: 61, y: 70, w: 31, cls: "rem", n: "26" },
+    // col G — 27-30
+    { k: "b27", f: "27", x: 93.5, y: 8, w: 6, cls: "sm", n: "27" },
+    { k: "b28", f: "28", x: 93.5, y: 30, w: 6, cls: "sm", n: "28" },
+    { k: "b29", f: "29", x: 93.5, y: 72, w: 3, cls: "sm", n: "29" },
+    { k: "b30", f: "30", x: 96.5, y: 72, w: 3, cls: "sm", n: "30" }
   ];
 
   const TYPE_LABELS = { proposal: "Proposal", departure: "Departure", enroute: "En Route", arrival: "Arrival", blank: "Blank" };
@@ -87,9 +101,7 @@
         cell.setAttribute("spellcheck", "false");
         cell.dataset.k = c.k;
       } else {
-        let v = spaces ? spaces[c.f] : "";
-        // arrow falls back to direction arrow (space 23) for en route strips
-        if (c.k === "arrow" && (v == null || v === "") && spaces) v = spaces["23"] || "";
+        const v = spaces ? spaces[c.f] : "";
         if (v != null && v !== "") cell.textContent = slashZero(v);
       }
       wrap.appendChild(cell);
