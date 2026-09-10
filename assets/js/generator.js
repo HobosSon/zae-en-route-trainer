@@ -302,7 +302,6 @@
       s["21"] = nextFix || dest;
       s["25"] = routeStr;
       if (chance(0.5)) s["29-30"] = ZAE.NAVAIDS[exitNav] ? (ZAE.NAVAIDS[exitNav].owner) : "";
-      if (chance(tier.remarkChance)) s["26"] = markRemark(pick(REMARKS), alt);
 
       const key = keyBase("En Route", ac, equip, tas, gs, s["3"]);
       key.route = routeStr;
@@ -368,7 +367,6 @@
       s["20"] = altToHundreds(alt);
       s["21"] = nextFix;
       s["25"] = routeStr;
-      if (chance(tier.remarkChance)) s["26"] = markRemark(pick(REMARKS), alt);
 
       const key = keyBase("En Route", ac, equip, tas, gs, s["3"]);
       key.origin = ZAE.AIRPORTS[aptId] ? (ZAE.AIRPORTS[aptId].name + " (" + aptId + ")") : aptId;
@@ -445,7 +443,6 @@
       if (ZAE.NAVAIDS[exitNav] && ZAE.NAVAIDS[exitNav].owner && ZAE.NAVAIDS[exitNav].owner.charAt(0) === "Z") {
         s["29-30"] = ZAE.NAVAIDS[exitNav].owner;
       }
-      if (chance(tier.remarkChance)) s["26"] = markRemark(pick(REMARKS), alt);
 
       const key = keyBase(isDeparture ? "Departure" : "Proposal", ac, equip, tas, gs, s["3"]);
       key.origin = apt.name + " (" + aptId + ") — " + apt.apch + ", Rwy " + apt.rwy;
@@ -530,7 +527,6 @@
       s["21"] = aptId;
       s["25"] = routeStr;
       s["28"] = "CAF " + toHHMM(estFix + rint(2, 8)); // cleared-approach placeholder / EFC-style misc
-      if (chance(tier.remarkChance)) s["26"] = markRemark(pick(REMARKS), alt);
 
       const key = keyBase("Arrival", ac, equip, tas, gs, s["3"]);
       key.destination = apt.name + " (" + aptId + ") — " + apt.apch + ", Rwy " + apt.rwy + (apt.loc ? ", " + apt.loc : "");
@@ -678,7 +674,6 @@
           }
         }
         if (ev === lastEvt && exitFacility) s["30"] = exitFacility;
-        if (chance(tier.remarkChance)) s["26"] = markRemark(pick(REMARKS), alt);
 
         const key = keyBase(ev.evt === "departure" ? "Departure" : ev.evt === "arrival" ? "Arrival" : "En Route", ac, equip, tas, gs, cs);
         key.route = routeStr;
