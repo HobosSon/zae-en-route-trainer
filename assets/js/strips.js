@@ -34,7 +34,7 @@
     { k: "arrow", f: "16", x: 32.5, y: 1, w: 4.5, cls: "arrow", n: "16" },
     { k: "box17", f: "17", x: 23, y: 55, w: 5, cls: "sm", n: "17" },
     { k: "box18", f: "18", x: 29, y: 55, w: 8, cls: "sm", n: "18" },
-    { k: "postedfix", f: "19", x: 22.5, y: 77, w: 15, cls: "big pf", n: "19" },
+    { k: "postedfix", f: "19", x: 23, y: 73.5, w: 14, h: 26, cls: "big pfv", n: "19" },
     // col D — altitude, same width as col C, top-left
     { k: "altA", f: "20", x: 38.5, y: 8, w: 12, cls: "big", n: "20" },
     { k: "alt20a", f: "20a", x: 38.5, y: 78, w: 12, cls: "sm", n: "20a" },
@@ -95,6 +95,7 @@
       cell.style.left = c.x + "%";
       cell.style.top = c.y + "%";
       cell.style.width = c.w + "%";
+      if (c.h) cell.style.height = c.h + "%";
       if (editable) {
         cell.setAttribute("contenteditable", "true");
         cell.setAttribute("spellcheck", "false");
