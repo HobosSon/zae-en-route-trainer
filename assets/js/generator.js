@@ -552,16 +552,161 @@
     return "○ " + text; // the "O" symbol seen on ZAE example strips
   }
 
+  // ---- multi-bay flight -------------------------------------------------
+  // Which bay each posting fix belongs to.
+  const BAY_OF = {
+    MLU: "VKS", KVKS: "VKS", "0M8": "VKS", STUEE: "VKS", DORTS: "VKS", HATER: "VKS",
+    MHZ: "MHZ", KJAN: "MHZ", KJVW: "MHZ", SQS: "SQS", KGWO: "SQS"
+  };
+  // Boundary NAVAID -> adjacent facility (for the space-30 handoff note).
+  const FACILITY_OF_EXIT = { MLU: "ZFW", MCB: "ZHU", HEZ: "ZHU", GCV: "ZHU" };
+
+  // Returns an ARRAY of strips for ONE plane — one per ZAE bay it transits.
+  function generateFlight(tier, kind) {
+    for (let attempt = 0; attempt < 60; attempt++) {
+      const ac = chooseAircraft(tier);
+      const equip = chooseEquip(tier, ac);
+      const tas = filedTAS(ac);
+      const gs = groundSpeed(tas);
+
+      let aw, trav, startIdx, endIdx, entryNav, exitNav, origin, dest, originAirport = null, destAirport = null;
+
+      if (kind === "departure") {
+        const aptId = pick(DEP_AIRPORTS);
+        const gw = DEP_GATEWAY[aptId];
+        aw = pick(airwaysThrough(gw));
+        trav = traverse(aw, true);
+        let gi = trav.points.indexOf(gw);
+        if (gi >= trav.points.length - 1) { trav = traverse(aw, false); gi = trav.points.indexOf(gw); }
+        if (gi < 0 || gi >= trav.points.length - 1) continue;
+        startIdx = gi; endIdx = trav.points.length - 1;
+        entryNav = gw; exitNav = trav.points[endIdx];
+        originAirport = aptId; origin = aptId; dest = externalFor(exitNav);
+      } else if (kind === "arrival") {
+        const aptId = pick(ARR_AIRPORTS);
+        const feeder = airportEntryNav(aptId);
+        aw = pick(airwaysThrough(feeder));
+        trav = traverse(aw, true);
+        let fi = trav.points.indexOf(feeder);
+        if (fi <= 0) { trav = traverse(aw, false); fi = trav.points.indexOf(feeder); }
+        if (fi <= 0) continue;
+        startIdx = 0; endIdx = fi;
+        entryNav = trav.points[0]; exitNav = feeder;
+        destAirport = aptId; origin = externalFor(entryNav); dest = aptId;
+      } else { // overflight
+        aw = ZAE.AIRWAYS[pick(Object.keys(ZAE.AIRWAYS))];
+        trav = traverse(aw, chance(0.5));
+        startIdx = 0; endIdx = trav.points.length - 1;
+        entryNav = trav.points[0]; exitNav = trav.points[endIdx];
+        origin = externalFor(entryNav); dest = externalFor(exitNav);
+      }
+      if (!isComp(trav.points[startIdx])) continue; // need a compulsory anchor
+
+      // postings on this airway within the flown segment
+      const postings = aw.postings
+        .map(function (p) { return { fix: p.fix, i: trav.points.indexOf(p.fix) }; })
+        .filter(function (o) { return o.i >= startIdx && o.i <= endIdx; })
+        .sort(function (a, b) { return a.i - b.i; });
+
+      // one event per bay
+      let events = [];
+      if (kind === "departure") {
+        events.push({ posted: originAirport, i: startIdx, evt: "departure", bay: BAY_OF[DEP_GATEWAY[originAirport]] });
+        postings.forEach(function (o) { if (o.i > startIdx) events.push({ posted: o.fix, i: o.i, evt: "enroute", bay: BAY_OF[o.fix] }); });
+      } else if (kind === "arrival") {
+        postings.forEach(function (o) {
+          if (o.i === endIdx) events.push({ posted: o.fix, i: o.i, evt: "arrival", bay: BAY_OF[o.fix] });
+          else events.push({ posted: o.fix, i: o.i, evt: "enroute", bay: BAY_OF[o.fix] });
+        });
+        if (!events.some(function (e) { return e.evt === "arrival"; })) events.push({ posted: exitNav, i: endIdx, evt: "arrival", bay: BAY_OF[exitNav] });
+      } else {
+        postings.forEach(function (o) { events.push({ posted: o.fix, i: o.i, evt: "enroute", bay: BAY_OF[o.fix] }); });
+      }
+      // dedupe by bay, keep order
+      const seen = {};
+      events = events.filter(function (e) { if (!e.bay || seen[e.bay]) return false; seen[e.bay] = 1; return true; });
+      events.sort(function (a, b) { return a.i - b.i; });
+      if (!events.length) continue;
+
+      const mea = maxMEA(trav);
+      const alt = chooseAltitude(trav.course, mea, tier, ac);
+      const conn = origin === "K" + entryNav ? " " : "./.";
+      let routeStr;
+      if (kind === "departure") routeStr = originAirport + " " + entryNav + " " + aw.id + " " + exitNav + " " + dest;
+      else if (kind === "arrival") routeStr = origin + conn + entryNav + " " + aw.id + " " + exitNav + " " + destAirport;
+      else routeStr = origin + conn + entryNav + " " + aw.id + " " + exitNav + " " + dest;
+
+      // chain center-estimate times over compulsory fixes from the start
+      const baseT = rint(0, 1439);
+      const timeAt = {}; let cur = baseT, lastComp = startIdx; timeAt[startIdx] = baseT;
+      for (let k = startIdx + 1; k <= endIdx; k++) {
+        if (isComp(trav.points[k])) { cur += plusTime(distanceBetween(trav, lastComp, k), gs); timeAt[k] = cur; lastComp = k; }
+      }
+
+      const cs = callsign(ac);
+      const equipStr = "/" + equip + " — " + equipMeaning(equip);
+      const exitFacility = (kind !== "arrival") ? FACILITY_OF_EXIT[exitNav] : null;
+      const lastEvt = events[events.length - 1];
+      const strips = [];
+
+      events.forEach(function (ev) {
+        const s = {};
+        s["3"] = cs;
+        s["4"] = (ac.heavy ? "H/" : "") + ac.type + "/" + equip;
+        s["5"] = "T" + tas;
+        s["6"] = "66";
+        s["20"] = altToHundreds(alt);
+        s["25"] = routeStr;
+
+        const prevC = compBefore(trav, ev.i);
+        const nextC = compAfter(trav, ev.i);
+
+        if (ev.evt === "departure") {
+          s["16"] = "↑";
+          s["19"] = originAirport + " P" + toHHMM(baseT);
+          s["21"] = nextC ? nextC.fix : dest;
+        } else {
+          s["11"] = prevC ? prevC.fix : entryNav;
+          s["12"] = toHHMM(prevC ? timeAt[prevC.k] : baseT);
+          s["15"] = toHHMM(timeAt[ev.i]);
+          s["19"] = ev.posted;
+          if (ev.evt === "arrival") { s["16"] = "↓"; s["21"] = destAirport; }
+          else s["21"] = nextC ? nextC.fix : dest;
+          // plus time ONLY on en route strips that follow a ZAE departure
+          if (kind === "departure" && ev.evt === "enroute" && prevC) {
+            s["14a"] = "+" + plusTime(distanceBetween(trav, prevC.k, ev.i), gs);
+          }
+        }
+        if (ev === lastEvt && exitFacility) s["30"] = exitFacility;
+        if (chance(tier.remarkChance)) s["26"] = markRemark(pick(REMARKS), alt);
+
+        const key = keyBase(ev.evt === "departure" ? "Departure" : ev.evt === "arrival" ? "Arrival" : "En Route", ac, equip, tas, gs, cs);
+        key.route = routeStr;
+        key.bay = ev.bay + " bay";
+        key.postedFix = ev.evt === "departure" ? (originAirport + " (departure)") : ev.posted;
+        if (s["11"]) key.previousFix = s["11"];
+        if (s["21"]) key.nextFix = s["21"];
+        key.altitude = altPlain(alt) + "  (MEA " + mea.toLocaleString() + " ft)";
+        if (s["14a"]) key.estimateMath = "Est " + s["11"] + " " + s["12"] + " " + s["14a"] + " = " + ev.posted + " est " + s["15"];
+        else if (s["15"]) key.estimateMath = "Est " + s["11"] + " " + s["12"] + " → " + ev.posted + " est " + s["15"];
+        if (exitFacility && ev === lastEvt) key.notes.push("Leaving ZAE to " + exitFacility + " — noted in space 30.");
+        if (events.length > 1) key.notes.push("Part of a " + events.length + "-bay flight (" + events.map(function (e) { return e.bay; }).join(" → ") + "); all strips are one plane.");
+
+        strips.push({ type: ev.evt, spaces: s, meta: key, bay: ev.bay });
+      });
+      return strips;
+    }
+    return null;
+  }
+
   // ---- public API --------------------------------------------------------
   function generateOne(tierKey, forcedType) {
     const tier = TIERS[tierKey] || TIERS.trainee;
     const type = forcedType && forcedType !== "any" ? forcedType : pick(tier.types);
-    let strip = null;
-    if (type === "proposal") strip = genProposalOrDeparture(tier, false);
-    else if (type === "departure") strip = genProposalOrDeparture(tier, true);
-    else if (type === "arrival") strip = genArrival(tier);
-    else strip = chance(0.45) ? genEnrouteDeparted(tier) : genEnroute(tier);
-    return strip || genEnroute(tier);
+    if (type === "proposal") return genProposalOrDeparture(tier, false) || genEnroute(tier);
+    const kind = type === "departure" ? "departure" : type === "arrival" ? "arrival" : "overflight";
+    const f = generateFlight(tier, kind);
+    return (f && f[0]) || genEnroute(tier);
   }
 
   function generate(opts) {
@@ -571,7 +716,20 @@
     let count = opts.count;
     if (!count) count = rint(tier.countRange[0], tier.countRange[1]);
     const out = [];
-    for (let i = 0; i < count; i++) out.push(generateOne(tierKey, opts.type));
+    for (let i = 0; i < count; i++) {
+      let type = opts.type && opts.type !== "any" ? opts.type : pick(tier.types);
+      let strips;
+      if (type === "proposal") {
+        const s = genProposalOrDeparture(tier, false);
+        strips = s ? [s] : [];
+      } else {
+        const kind = type === "departure" ? "departure" : type === "arrival" ? "arrival" : "overflight";
+        strips = generateFlight(tier, kind) || [];
+        if (!strips.length) { const s = genEnroute(tier); strips = s ? [s] : []; }
+      }
+      strips.forEach(function (s) { s.flight = i + 1; });
+      out.push.apply(out, strips);
+    }
     return out;
   }
 

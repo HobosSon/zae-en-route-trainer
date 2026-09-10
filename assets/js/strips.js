@@ -31,10 +31,10 @@
     { k: "plus", f: "14a", x: 15, y: 78, w: 6, cls: "mid", n: "14a" },
     // col C — center estimate (4-digit), arrow top-right, 17|18 box (full-width), posted fix below
     { k: "centerest", f: "15", x: 23.5, y: 4, w: 9, cls: "est", n: "15" },
-    { k: "arrow", f: "16", x: 33.5, y: 4, w: 3.5, cls: "arrow", n: "16" },
+    { k: "arrow", f: "16", x: 32.5, y: 1, w: 4.5, cls: "arrow", n: "16" },
     { k: "box17", f: "17", x: 23, y: 55, w: 5, cls: "sm", n: "17" },
     { k: "box18", f: "18", x: 29, y: 55, w: 8, cls: "sm", n: "18" },
-    { k: "postedfix", f: "19", x: 23, y: 77, w: 14, cls: "big", n: "19" },
+    { k: "postedfix", f: "19", x: 22.5, y: 77, w: 15, cls: "big pf", n: "19" },
     // col D — altitude, same width as col C, top-left
     { k: "altA", f: "20", x: 38.5, y: 8, w: 12, cls: "big", n: "20" },
     { k: "alt20a", f: "20a", x: 38.5, y: 78, w: 12, cls: "sm", n: "20a" },
@@ -49,14 +49,13 @@
     // col G — 27-30
     { k: "b27", f: "27", x: 93.5, y: 8, w: 6, cls: "sm", n: "27" },
     { k: "b28", f: "28", x: 93.5, y: 30, w: 6, cls: "sm", n: "28" },
-    { k: "b29", f: "29", x: 93.5, y: 72, w: 3, cls: "sm", n: "29" },
-    { k: "b30", f: "30", x: 96.5, y: 72, w: 3, cls: "sm", n: "30" }
+    { k: "b30", f: "30", x: 93.5, y: 72, w: 6, cls: "mid", n: "30" }
   ];
 
   const TYPE_LABELS = { proposal: "Proposal", departure: "Departure", enroute: "En Route", arrival: "Arrival", blank: "Blank" };
 
   const KEY_ORDER = [
-    ["stripType", "Strip type"], ["callsign", "Callsign"], ["aircraft", "Aircraft"],
+    ["stripType", "Strip type"], ["bay", "Bay"], ["callsign", "Callsign"], ["aircraft", "Aircraft"],
     ["equip", "Equipment"], ["tas", "Filed TAS"], ["gs", "Est. ground speed"],
     ["origin", "Departing"], ["destination", "Destination"], ["route", "Route (space 25)"],
     ["airway", "Airway / traversal"], ["postedFix", "Posted fix"], ["arrivalFix", "Arrival fix"],
@@ -142,8 +141,9 @@
   function renderCard(strip, index, showNums) {
     const card = el("div", "strip-card");
     const tag = el("div", "strip-tag");
-    tag.appendChild(el("span", null, "#" + (index + 1)));
+    tag.appendChild(el("span", null, "#" + (strip.flight || index + 1)));
     tag.appendChild(el("span", "badge", TYPE_LABELS[strip.type] || strip.type));
+    if (strip.bay) tag.appendChild(el("span", "bay-badge", strip.bay + " bay"));
     if (strip.type !== "blank") tag.appendChild(el("span", null, (strip.spaces["3"] || "") + " · " + (strip.spaces["4"] || "")));
     else tag.appendChild(el("span", null, "fill me in"));
     card.appendChild(tag);

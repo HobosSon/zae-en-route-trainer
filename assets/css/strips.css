@@ -121,6 +121,15 @@
   text-transform: uppercase;
   font-weight: 700;
 }
+.strip-tag .bay-badge {
+  background: var(--bg-card);
+  border: 1px solid var(--border-bright);
+  color: var(--amber);
+  padding: 0.1rem 0.45rem;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
 
 /* FPS2000-style paper flight progress strip */
 .fps-strip {
@@ -151,10 +160,11 @@
 .fps-cell.big { font-size: 14px; font-weight: 700; }
 .fps-cell.mid { font-size: 13px; }
 .fps-cell.sm { font-size: 11px; }
-.fps-cell.arrow { font-size: 22px; font-weight: 700; text-align: right; line-height: 1; }
+.fps-cell.arrow { font-size: 40px; font-weight: 900; text-align: right; line-height: 0.85; -webkit-text-stroke: 1.2px currentColor; }
 .fps-cell.dir { font-size: 16px; font-weight: 700; text-align: center; line-height: 1; }
-/* space 15 center estimate: larger hours, raised smaller minutes */
-.fps-cell.est { font-weight: 700; }
+.fps-cell.pf { text-align: center; }
+/* space 15 center estimate: larger hours, raised smaller minutes, lighter weight */
+.fps-cell.est { font-weight: 500; }
 .fps-cell.est .hh { font-size: 24px; }
 .fps-cell.est .mm { font-size: 16px; position: relative; top: -8px; margin-left: 1px; }
 .fps-cell.route { font-size: 12px; white-space: normal; line-height: 1.25; }
