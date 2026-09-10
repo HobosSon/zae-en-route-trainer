@@ -1,0 +1,63 @@
+.sc-main { flex: 1; width: 100%; max-width: 1100px; margin: 0 auto; padding: 1.75rem; }
+.back-link { display: inline-block; font-family: var(--mono); font-size: 0.8rem; color: var(--text-dim); text-decoration: none; margin-bottom: 1rem; }
+.back-link:hover { color: var(--green); }
+.page-title { margin: 0 0 0.25rem; font-size: 1.35rem; }
+.page-sub { margin: 0 0 1.25rem; color: var(--text-dim); font-size: 0.9rem; }
+
+/* tabs */
+.sc-tabs { display: flex; gap: 0.5rem; border-bottom: 1px solid var(--border); margin-bottom: 1.25rem; }
+.tab { background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text-dim); padding: 0.55rem 1rem; font-size: 0.95rem; cursor: pointer; font-family: var(--sans); }
+.tab:hover { color: var(--text); }
+.tab-active { color: var(--green); border-bottom-color: var(--green); font-weight: 700; }
+
+.sc-intro { margin-bottom: 1.25rem; color: var(--text-dim); font-size: 0.9rem; display: flex; flex-direction: column; gap: 0.75rem; }
+.sc-intro p { margin: 0; }
+.author-row { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+
+/* level grid */
+.level-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.85rem; }
+.level-tile {
+  position: relative; display: flex; flex-direction: column; gap: 0.25rem;
+  background: var(--bg-card); border: 1px solid var(--border-bright); border-radius: 8px;
+  padding: 0.9rem; min-height: 96px; cursor: pointer; transition: border-color .15s, transform .15s, background .15s;
+}
+.level-tile:hover:not(.locked) { border-color: var(--green); transform: translateY(-2px); background: var(--bg-card-hover); }
+.level-tile.locked { opacity: 0.5; cursor: not-allowed; border-style: dashed; }
+.level-num { font-family: var(--mono); font-size: 0.72rem; color: var(--text-faint); }
+.level-title { font-weight: 700; font-size: 0.98rem; }
+.level-meta { font-family: var(--mono); font-size: 0.72rem; color: var(--text-dim); }
+.level-tile .btn-xs { margin-top: 0.4rem; align-self: flex-start; }
+
+/* community */
+.community-list { display: flex; flex-direction: column; gap: 0.75rem; }
+.community-card { display: flex; justify-content: space-between; align-items: center; gap: 1rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 0.9rem 1.1rem; flex-wrap: wrap; }
+.cc-info h3 { margin: 0 0 0.2rem; font-size: 1.02rem; }
+.cc-info p { margin: 0; color: var(--text-dim); font-size: 0.82rem; }
+.cc-actions { display: flex; gap: 0.5rem; }
+
+/* player */
+.sc-head { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.sc-title { margin: 0 0 0.25rem; font-size: 1.25rem; }
+.sc-desc { margin: 0 0 1.25rem; color: var(--text-dim); font-size: 0.9rem; max-width: 70ch; }
+.play-strips { display: flex; flex-direction: column; gap: 1.25rem; }
+
+/* editor */
+.editor { display: flex; flex-direction: column; gap: 1rem; }
+.editor-field { display: flex; flex-direction: column; gap: 0.3rem; }
+.editor-flabel { font-family: var(--mono); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); }
+.editor-input { background: var(--bg-card); color: var(--text); border: 1px solid var(--border-bright); border-radius: 5px; padding: 0.5rem 0.65rem; font-family: var(--sans); font-size: 0.95rem; width: 100%; box-sizing: border-box; }
+.editor-strips { display: flex; flex-direction: column; gap: 1rem; }
+.editor-strip { display: flex; flex-direction: column; gap: 0.4rem; }
+.editor-strip-bar { display: flex; align-items: center; gap: 0.6rem; }
+.editor-strip-n { font-family: var(--mono); font-size: 0.8rem; color: var(--text-dim); }
+.editor-type { background: var(--bg-card); color: var(--text); border: 1px solid var(--border-bright); border-radius: 4px; padding: 0.25rem 0.4rem; font-family: var(--mono); font-size: 0.8rem; }
+.editor-label { font-family: var(--mono); font-size: 0.85rem; color: var(--amber); }
+.editor-save-row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.5rem; }
+.editor-msg { font-family: var(--mono); font-size: 0.8rem; color: var(--green); }
+.editor-strip .fps-strip.editable { max-width: 100%; }
+
+.export-box { width: 100%; box-sizing: border-box; background: #0c1110; color: var(--text); border: 1px solid var(--border-bright); border-radius: 6px; padding: 0.75rem; font-family: var(--mono); font-size: 0.78rem; }
+
+.btn-xs { padding: 0.2rem 0.55rem !important; font-size: 0.72rem !important; }
+.btn-danger { color: var(--danger) !important; }
+.btn-danger:hover { border-color: var(--danger) !important; }
