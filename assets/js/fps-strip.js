@@ -31,7 +31,7 @@
     { k: "postedfix", f: "19", x: 23, y: 73.5, w: 14, h: 26, cls: "big pfv", n: "19" },
     { k: "altA", f: "20", x: 38.5, y: 8, w: 12, cls: "big", n: "20" },
     { k: "alt20a", f: "20a", x: 38.5, y: 78, w: 12, cls: "sm", n: "20a" },
-    { k: "nextfix", f: "21", x: 53, y: 8, w: 6.5, cls: "mid", n: "21" },
+    { k: "nextfix", f: "21", x: 52.7, y: 8, w: 7.3, cls: "mid", n: "21" },
     { k: "b22", f: "22", x: 53, y: 33, w: 6.5, cls: "sm", n: "22" },
     { k: "b23", f: "23", x: 53, y: 52, w: 6.5, cls: "dir", n: "23" },
     { k: "reqalt", f: "24", x: 53, y: 78, w: 6.5, cls: "mid", n: "24" },
@@ -39,7 +39,7 @@
     { k: "remarks", f: "26", x: 61, y: 70, w: 31, cls: "rem", n: "26" },
     { k: "b27", f: "27", x: 93.5, y: 8, w: 6, cls: "sm", n: "27" },
     { k: "b28", f: "28", x: 93.5, y: 30, w: 6, cls: "sm", n: "28" },
-    { k: "b30", f: "30", x: 93.5, y: 72, w: 6, cls: "mid", n: "30" }
+    { k: "b30", f: "30", x: 93.5, y: 82, w: 6, cls: "mid", n: "30" }
   ];
 
   function slashZero(s) { return String(s).replace(/0/g, "Ø"); }

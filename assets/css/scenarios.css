@@ -41,6 +41,16 @@
 .sc-desc { margin: 0 0 1.25rem; color: var(--text-dim); font-size: 0.9rem; max-width: 70ch; }
 .play-strips { display: flex; flex-direction: column; gap: 1.25rem; }
 
+/* start time + altimeter info bar */
+.sc-infobar { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 1.25rem; }
+.sc-info-item { display: flex; flex-direction: column; align-items: center; gap: 0.15rem; background: var(--bg-card); border: 1px solid var(--border-bright); border-radius: 6px; padding: 0.4rem 0.8rem; min-width: 74px; }
+.sc-info-lbl { font-family: var(--mono); font-size: 0.62rem; letter-spacing: 0.5px; color: var(--text-dim); }
+.sc-info-val { font-family: var(--mono); font-size: 1rem; font-weight: 700; color: var(--amber); }
+
+.altim-row { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+.altim-row .editor-field { flex: 1; min-width: 90px; }
+.editor-input-sm { max-width: 8rem; font-family: var(--mono); }
+
 /* editor */
 .editor { display: flex; flex-direction: column; gap: 1rem; }
 .editor-field { display: flex; flex-direction: column; gap: 0.3rem; }
