@@ -247,3 +247,7 @@
   .quiz-main { padding: 1.1rem; }
   .quiz-score__pct { font-size: 2rem; }
 }
+
+/* inline links inside page intros pick up the theme green */
+.page-sub a { color: var(--green); text-decoration: none; border-bottom: 1px solid var(--green-dim); }
+.page-sub a:hover { border-bottom-color: var(--green); }
