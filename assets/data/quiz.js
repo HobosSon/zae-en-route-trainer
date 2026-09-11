@@ -1,10 +1,11 @@
 /*
- * Knowledge Quiz question bank for the ZAE Aero Center En Route Non-Radar trainer.
+ * CKT 1 (Block 1) question bank for the ZAE Aero Center En Route Non-Radar trainer.
  * All items are original questions grounded in the Academy course study guides
  * (Course 50148001, V.2025-02) and FAA JO 7110.65. Exposed as window.QUIZ_BANK.
  *
  * Item shape:
- *   { id, cat, q, choices: [..4..], answer: <index>, explain, ref }
+ *   { id, block, cat, q, choices: [..4..], answer: <index>, explain, ref }
+ * block is the course block the item belongs to (1 = Block I / CKT 1).
  * cat is one of the keys in QUIZ_CATS.
  */
 (function (root) {
@@ -23,7 +24,7 @@
   const QUIZ_BANK = [
     // ---------- Vertical separation ----------
     {
-      id: "vert1", cat: "vert",
+      id: "vert1", block: 1, cat: "vert",
       q: "What is the minimum vertical separation between IFR aircraft at or below FL410?",
       choices: ["500 feet", "1,000 feet", "2,000 feet", "3,000 feet"],
       answer: 1,
@@ -31,7 +32,7 @@
       ref: "LP16 Vertical Separation / 7110.65 4-5-1"
     },
     {
-      id: "vert2", cat: "vert",
+      id: "vert2", block: 1, cat: "vert",
       q: "What is the minimum vertical separation between IFR aircraft above FL410?",
       choices: ["1,000 feet", "1,500 feet", "2,000 feet", "2,500 feet"],
       answer: 2,
@@ -39,7 +40,7 @@
       ref: "LP16 Vertical Separation / 7110.65 4-5-1"
     },
     {
-      id: "vert3", cat: "vert",
+      id: "vert3", block: 1, cat: "vert",
       q: "Between a non-RVSM aircraft and all other aircraft at or above FL290, the vertical minimum is:",
       choices: ["1,000 feet", "2,000 feet", "500 feet", "No change — still 1,000 feet"],
       answer: 1,
@@ -47,7 +48,7 @@
       ref: "LP16 Vertical Separation / 7110.65 4-5-1"
     },
     {
-      id: "vert4", cat: "vert",
+      id: "vert4", block: 1, cat: "vert",
       q: "You may assign an altitude to an aircraft after the aircraft previously at that altitude:",
       choices: [
         "Has been cleared to a new altitude and is observed leaving (valid Mode C) or reports leaving it",
@@ -60,7 +61,7 @@
       ref: "LP16 Vertical Separation / 7110.65 4-5-7"
     },
     {
-      id: "vert5", cat: "vert",
+      id: "vert5", block: 1, cat: "vert",
       q: "When an aircraft is climbing/descending at pilot's discretion, you may assign its altitude to another aircraft only after the first aircraft:",
       choices: [
         "Starts its climb or descent",
@@ -73,7 +74,7 @@
       ref: "LP16 Vertical Separation / 7110.65 4-5-7, 6-6-2"
     },
     {
-      id: "vert6", cat: "vert",
+      id: "vert6", block: 1, cat: "vert",
       q: "Separation from active Special Use Airspace / ATCAA at FL290 and below requires at least:",
       choices: ["500 feet above/below the airspace limits", "1,000 feet above/below", "1,500 feet above/below", "2,000 feet above/below"],
       answer: 0,
@@ -81,7 +82,7 @@
       ref: "LP16 Vertical Separation / 7110.65 9-3-2"
     },
     {
-      id: "vert7", cat: "vert",
+      id: "vert7", block: 1, cat: "vert",
       q: "After a pilot reports leaving an altitude under a cruise or pilot's-discretion clearance, the pilot:",
       choices: [
         "May return to that altitude if traffic permits",
@@ -96,7 +97,7 @@
 
     // ---------- Longitudinal separation ----------
     {
-      id: "long1", cat: "long",
+      id: "long1", block: 1, cat: "long",
       q: "On same, converging, or crossing courses, the standard longitudinal minimum between DME-equipped aircraft (at the same altitude) is:",
       choices: ["10 miles", "15 miles", "20 miles", "30 miles"],
       answer: 2,
@@ -104,7 +105,7 @@
       ref: "LP17 Longitudinal Separation / 7110.65 6-4-x"
     },
     {
-      id: "long2", cat: "long",
+      id: "long2", block: 1, cat: "long",
       q: "On same, converging, or crossing courses, the longitudinal minimum between aircraft NOT using DME/ATD mileage is:",
       choices: ["5 minutes", "8 minutes", "10 minutes", "15 minutes"],
       answer: 2,
@@ -112,7 +113,7 @@
       ref: "LP17 Longitudinal Separation / 7110.65 6-4-x"
     },
     {
-      id: "long3", cat: "long",
+      id: "long3", block: 1, cat: "long",
       q: "When the lead aircraft is at least 44 knots faster, the minimum between non-DME aircraft on the same course may be reduced to:",
       choices: ["3 minutes", "5 minutes", "8 minutes", "It cannot be reduced"],
       answer: 0,
@@ -120,7 +121,7 @@
       ref: "LP17 Longitudinal Separation / 7110.65 6-4-x"
     },
     {
-      id: "long4", cat: "long",
+      id: "long4", block: 1, cat: "long",
       q: "To apply mileage-based longitudinal separation you must:",
       choices: [
         "Solicit a DME (or VORTAC/fix) report from the aircraft",
@@ -133,7 +134,7 @@
       ref: "LP17 Longitudinal Separation / 7110.65 6-4-x"
     },
     {
-      id: "long5", cat: "long",
+      id: "long5", block: 1, cat: "long",
       q: "Using the Quick Estimate Method, an aircraft's miles-per-minute (MPM) is found by:",
       choices: [
         "Dividing the first two digits of its speed by 6",
@@ -148,7 +149,7 @@
 
     // ---------- Lateral & holding ----------
     {
-      id: "lat1", cat: "lat",
+      id: "lat1", block: 1, cat: "lat",
       q: "Along an established airway/route (FL600 and below), protected airspace extends how far each side of centerline out to 51 miles from the NAVAID?",
       choices: ["4 miles", "8 miles", "10 miles", "15 miles"],
       answer: 0,
@@ -156,7 +157,7 @@
       ref: "LP18 Lateral Separation / 7110.65 6-6-x"
     },
     {
-      id: "lat2", cat: "lat",
+      id: "lat2", block: 1, cat: "lat",
       q: "In a STANDARD holding pattern, turns are made in which direction?",
       choices: ["Left turns", "Right turns", "Either, controller's choice", "Alternating turns"],
       answer: 1,
@@ -164,7 +165,7 @@
       ref: "LP14 Holding Procedures"
     },
     {
-      id: "lat3", cat: "lat",
+      id: "lat3", block: 1, cat: "lat",
       q: "\"Expect Further Clearance (EFC)\" time tells the pilot:",
       choices: [
         "The time to leave the holding fix if two-way radio communication is lost",
@@ -177,7 +178,7 @@
       ref: "LP14 Holding Procedures / 7110.65 4-6-x"
     },
     {
-      id: "lat4", cat: "lat",
+      id: "lat4", block: 1, cat: "lat",
       q: "When a delay is anticipated, holding instructions should be issued at least how far in advance of the aircraft's estimate to the clearance limit?",
       choices: ["1 minute", "3 minutes", "5 minutes", "10 minutes"],
       answer: 2,
@@ -185,7 +186,7 @@
       ref: "LP14 Holding Procedures / 7110.65 4-6-1"
     },
     {
-      id: "lat5", cat: "lat",
+      id: "lat5", block: 1, cat: "lat",
       q: "Above 14,000 feet MSL, the standard inbound holding leg time is:",
       choices: ["1 minute", "1 1/2 minutes", "2 minutes", "3 minutes"],
       answer: 1,
@@ -193,7 +194,7 @@
       ref: "LP14 Holding Procedures"
     },
     {
-      id: "lat6", cat: "lat",
+      id: "lat6", block: 1, cat: "lat",
       q: "At Aero Center, the SQS holding pattern is notable because it:",
       choices: [
         "Overlaps Sector 67 airspace and requires coordination",
@@ -206,7 +207,7 @@
       ref: "LP18 Lateral Separation"
     },
     {
-      id: "lat7", cat: "lat",
+      id: "lat7", block: 1, cat: "lat",
       q: "How much airspace is protected for a holding aircraft is determined mainly by its altitude, speed, and:",
       choices: [
         "Distance of the holding fix from the NAVAID",
@@ -221,7 +222,7 @@
 
     // ---------- Altimeter & altitudes ----------
     {
-      id: "alt1", cat: "alt",
+      id: "alt1", block: 1, cat: "alt",
       q: "You must issue the current altimeter setting to all en route aircraft operating below FL180:",
       choices: ["At least one time", "Every 5 minutes", "Only on request", "Only during descent"],
       answer: 0,
@@ -229,7 +230,7 @@
       ref: "LP13 Altimeter Setting"
     },
     {
-      id: "alt2", cat: "alt",
+      id: "alt2", block: 1, cat: "alt",
       q: "With an altimeter setting of 29.92 or higher, the lowest usable flight level is:",
       choices: ["FL180", "FL190", "FL200", "FL170"],
       answer: 0,
@@ -237,7 +238,7 @@
       ref: "LP13 Altimeter Setting"
     },
     {
-      id: "alt3", cat: "alt",
+      id: "alt3", block: 1, cat: "alt",
       q: "The standard altimeter setting used at and above the lowest usable flight level is:",
       choices: ["29.92", "30.00", "Field elevation setting", "The nearest station setting"],
       answer: 0,
@@ -245,7 +246,7 @@
       ref: "LP13 Altimeter Setting"
     },
     {
-      id: "alt4", cat: "alt",
+      id: "alt4", block: 1, cat: "alt",
       q: "When issuing an altimeter setting that is more than one hour old, you must:",
       choices: [
         "State that it is more than one hour old",
@@ -258,7 +259,7 @@
       ref: "LP13 Altimeter Setting"
     },
     {
-      id: "alt5", cat: "alt",
+      id: "alt5", block: 1, cat: "alt",
       q: "To ask a pilot known to be operating at or above the lowest usable flight level for their altitude, use:",
       choices: ["\"SAY ALTITUDE\"", "\"SAY FLIGHT LEVEL\"", "\"SAY ALTITUDE OR FLIGHT LEVEL\"", "\"REPORT ALTIMETER\""],
       answer: 1,
@@ -268,7 +269,7 @@
 
     // ---------- Phraseology & interphone ----------
     {
-      id: "phr1", cat: "phrase",
+      id: "phr1", block: 1, cat: "phrase",
       q: "Per the interphone format, ALL interphone calls must be ended with:",
       choices: ["Your operating initials", "The word \"out\"", "The time in Zulu", "A frequency readback"],
       answer: 0,
@@ -276,7 +277,7 @@
       ref: "H00 Quick Reference Guide"
     },
     {
-      id: "phr2", cat: "phrase",
+      id: "phr2", block: 1, cat: "phrase",
       q: "Which of these is spoken in group form?",
       choices: [
         "Airline call signs (e.g. AAL552 = \"American Five Fifty Two\")",
@@ -289,7 +290,7 @@
       ref: "H00 Quick Reference Guide"
     },
     {
-      id: "phr3", cat: "phrase",
+      id: "phr3", block: 1, cat: "phrase",
       q: "The arrival clearance format \"FRAHE\" stands for Fix, Route, Altitude, Holding, and:",
       choices: ["Everything else (altimeter, frequency, EFC, etc.)", "Emergency", "Estimate", "Equipment"],
       answer: 0,
@@ -297,7 +298,7 @@
       ref: "H00 Quick Reference Guide"
     },
     {
-      id: "phr4", cat: "phrase",
+      id: "phr4", block: 1, cat: "phrase",
       q: "The standard phraseology to assign a climb is:",
       choices: [
         "\"CLIMB AND MAINTAIN (altitude)\"",
@@ -310,7 +311,7 @@
       ref: "LP16 Vertical Separation / 7110.65 4-5-7"
     },
     {
-      id: "phr5", cat: "phrase",
+      id: "phr5", block: 1, cat: "phrase",
       q: "A clearance void time is issued to a departure as:",
       choices: [
         "\"CLEARANCE VOID IF NOT OFF BY (time)...\"",
@@ -325,7 +326,7 @@
 
     // ---------- Strip marking (Appendix B) ----------
     {
-      id: "str1", cat: "strip",
+      id: "str1", block: 1, cat: "strip",
       q: "On the flight progress strip, space 3 contains:",
       choices: ["Aircraft Identification (AID)", "Filed true airspeed", "Strip number", "Previous fix"],
       answer: 0,
@@ -333,7 +334,7 @@
       ref: "LP05 Flight Progress Strips, Appendix B / 7110.65 2-3-2"
     },
     {
-      id: "str2", cat: "strip",
+      id: "str2", block: 1, cat: "strip",
       q: "Space 5 on the flight progress strip is:",
       choices: ["Filed true airspeed", "Estimated ground speed", "Computer ID number", "Sector number"],
       answer: 0,
@@ -341,7 +342,7 @@
       ref: "LP05 Flight Progress Strips, Appendix B / 7110.65 2-3-2"
     },
     {
-      id: "str3", cat: "strip",
+      id: "str3", block: 1, cat: "strip",
       q: "Space 15 (the large center time) represents:",
       choices: [
         "Center-estimated time over the fix (or clearance info for departures)",
@@ -354,7 +355,7 @@
       ref: "LP05 Flight Progress Strips, Appendix B / 7110.65 2-3-2"
     },
     {
-      id: "str4", cat: "strip",
+      id: "str4", block: 1, cat: "strip",
       q: "Space 16 on the strip is used for:",
       choices: [
         "Arrows showing departing (up) or arriving (down)",
@@ -367,7 +368,7 @@
       ref: "LP05 Flight Progress Strips, Appendix B / 7110.65 2-3-2"
     },
     {
-      id: "str5", cat: "strip",
+      id: "str5", block: 1, cat: "strip",
       q: "Space 14 records:",
       choices: [
         "Actual time over the previous fix (or actual departure time on the first posting)",
@@ -382,7 +383,7 @@
 
     // ---------- Procedures & control ----------
     {
-      id: "proc1", cat: "proc",
+      id: "proc1", block: 1, cat: "proc",
       q: "Most altitude changes in nonradar scenarios at Aero Center will be:",
       choices: ["Pilot's discretion", "Hard altitude assignments", "Cruise clearances only", "Block altitudes"],
       answer: 0,
@@ -390,7 +391,7 @@
       ref: "LP16 Vertical Separation"
     },
     {
-      id: "proc2", cat: "proc",
+      id: "proc2", block: 1, cat: "proc",
       q: "Which is a disadvantage of a pilot's-discretion climb/descent for the controller?",
       choices: [
         "The controller must protect more altitudes, complicating sequencing",
@@ -403,7 +404,7 @@
       ref: "LP16 Vertical Separation"
     },
     {
-      id: "proc3", cat: "proc",
+      id: "proc3", block: 1, cat: "proc",
       q: "When inbound information is relayed to an approach control, the format includes call sign, type, equipment suffix, estimate over the fix, altitude, and:",
       choices: [
         "Destination if other than the primary airports (JAN/MLU)",
@@ -416,7 +417,7 @@
       ref: "H00 Quick Reference Guide"
     },
     {
-      id: "proc4", cat: "proc",
+      id: "proc4", block: 1, cat: "proc",
       q: "\"Cross one seven miles northwest of Jackson VORTAC, at and maintain six thousand\" is an example of:",
       choices: [
         "A crossing restriction with an altitude at a specified fix",
@@ -429,7 +430,7 @@
       ref: "LP16 Vertical Separation / 7110.65 4-5-7"
     },
     {
-      id: "proc5", cat: "proc",
+      id: "proc5", block: 1, cat: "proc",
       q: "Separation of aircraft and issuing safety alerts is described in the course as:",
       choices: [
         "Your highest priority as an air traffic controller",

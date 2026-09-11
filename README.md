@@ -16,7 +16,7 @@ and its **Sector 66 "Jackson Low"** non-radar environment.
   plus-time and posted-fix estimate math via the Quick Estimate Method).
 
 Planned modules (stubbed as "Coming soon" on the menu): Practice Scenarios,
-Facility Reference, Knowledge Quiz.
+Facility Reference, Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
 
 ## Running locally
 

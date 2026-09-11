@@ -1,0 +1,56 @@
+/* CKT 1 Study Guide */
+
+.sg-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem 1.5rem;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.4rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.sg-controls .quiz-field { margin-bottom: 0; }
+
+.sg-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+  padding-bottom: 0.55rem;
+}
+.sg-toggle input { accent-color: var(--green); }
+
+.sg-section { margin-bottom: 1.6rem; }
+.sg-section__title {
+  margin: 0 0 0.7rem;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--amber);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.45rem;
+}
+
+.sg-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--green-dim);
+  border-radius: 8px;
+  padding: 0.9rem 1.1rem;
+  margin-bottom: 0.65rem;
+}
+.sg-q { margin: 0 0 0.5rem; font-size: 0.97rem; font-weight: 600; line-height: 1.45; }
+.sg-a { margin: 0 0 0.4rem; font-size: 0.92rem; color: var(--green); }
+.sg-explain { margin: 0 0 0.35rem; font-size: 0.87rem; color: var(--text-dim); line-height: 1.5; }
+.sg-card .quiz-feedback__ref { margin-bottom: 0; }
+
+.sg-card.is-hidden { border-left-color: var(--border-bright); }
+.sg-card.is-hidden .sg-answer { display: none; }
+.sg-reveal { margin-top: 0.2rem; padding: 0.4rem 0.9rem; font-size: 0.82rem; }

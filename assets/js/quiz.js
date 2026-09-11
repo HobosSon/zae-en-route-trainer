@@ -1,5 +1,5 @@
 /*
- * Knowledge Quiz controller. Requires quiz.js data (window.QUIZ_BANK / QUIZ_CATS).
+ * CKT 1 Quiz controller. Requires quiz.js data (window.QUIZ_BANK / QUIZ_CATS); uses Block 1 items.
  * Flow: setup screen (category + length) -> question-by-question with instant
  * feedback and explanation -> results with review of missed items.
  */
@@ -7,7 +7,7 @@
   "use strict";
 
   const root = document.getElementById("quiz");
-  const BANK = window.QUIZ_BANK || [];
+  const BANK = (window.QUIZ_BANK || []).filter(function (q) { return q.block === 1; });
   const CATS = window.QUIZ_CATS || {};
 
   function el(tag, cls, text) {
