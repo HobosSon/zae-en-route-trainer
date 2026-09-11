@@ -11,8 +11,10 @@
 
   const GRID = {
     vlines: [145, 225, 375, 525, 600, 930],
-    box: [225, 98, 150, 40],
-    boxsplit: 285
+    // 17/18 box, traced from SLP05 Appendix B: y 0.599-0.780 of strip height,
+    // full center-cell width, split 31.7% (17 narrow) / 68.3% (18 wide).
+    box: [225, 113, 150, 34],
+    boxsplit: 273
   };
 
   const CELLS = [
@@ -26,9 +28,9 @@
     { k: "plus", f: "14a", x: 15, y: 78, w: 6, cls: "mid", n: "14a" },
     { k: "centerest", f: "15", x: 23.5, y: 4, w: 9, cls: "est", n: "15" },
     { k: "arrow", f: "16", x: 32.5, y: 1, w: 4.5, cls: "arrow", n: "16" },
-    { k: "box17", f: "17", x: 23, y: 55, w: 5, cls: "sm", n: "17" },
-    { k: "box18", f: "18", x: 29, y: 55, w: 8, cls: "sm", n: "18" },
-    { k: "postedfix", f: "19", x: 23, y: 73.5, w: 14, h: 26, cls: "big pfv", n: "19" },
+    { k: "box17", f: "17", x: 23, y: 63, w: 4, cls: "sm", n: "17" },
+    { k: "box18", f: "18", x: 28, y: 63, w: 9, cls: "sm", n: "18" },
+    { k: "postedfix", f: "19", x: 23, y: 79, w: 14, h: 19, cls: "big pfv", n: "19" },
     { k: "altA", f: "20", x: 38.5, y: 8, w: 12, cls: "big", n: "20" },
     { k: "alt20a", f: "20a", x: 38.5, y: 78, w: 12, cls: "sm", n: "20a" },
     { k: "nextfix", f: "21", x: 52.7, y: 8, w: 7.3, cls: "mid", n: "21" },
