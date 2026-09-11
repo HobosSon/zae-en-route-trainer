@@ -172,6 +172,14 @@
   background: var(--danger); color: #2a0b08; border-color: var(--danger);
 }
 
+.quiz-kbd-hint {
+  margin: 0.9rem 0 0;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  text-align: center;
+}
+
 /* ---------- Feedback ---------- */
 .quiz-feedback {
   margin-top: 1.1rem;

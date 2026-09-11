@@ -37,8 +37,39 @@
 
   const state = { questions: [], idx: 0, answers: [], cat: "all", count: 10 };
 
+  // Keyboard control: A-D or 1-4 pick an answer; Enter/Space advance once answered.
+  // These track the live question so one document listener serves every screen.
+  let kbChoices = null;   // array of choice buttons, or null when not on a question
+  let kbAnswered = false; // has the current question been answered?
+  let kbNext = null;      // the "Next" button once answered
+
+  function keyToIndex(key) {
+    const k = key.toLowerCase();
+    if (k >= "a" && k <= "d") return k.charCodeAt(0) - 97; // a->0 .. d->3
+    if (k >= "1" && k <= "4") return parseInt(k, 10) - 1;  // 1->0 .. 4->3
+    return -1;
+  }
+
+  document.addEventListener("keydown", function (e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const tag = e.target && e.target.tagName;
+    if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+    if (!kbChoices) return;
+    if (!kbAnswered) {
+      const idx = keyToIndex(e.key);
+      if (idx >= 0 && idx < kbChoices.length) {
+        e.preventDefault();
+        kbChoices[idx].click();
+      }
+    } else if (kbNext && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      kbNext.click();
+    }
+  });
+
   // ---------- Setup screen ----------
   function renderSetup() {
+    kbChoices = null; kbNext = null;
     root.innerHTML = "";
     const card = el("div", "quiz-card");
     card.appendChild(el("h3", "quiz-card__title", "Set up your quiz"));
@@ -95,6 +126,7 @@
 
   // ---------- Question screen ----------
   function renderQuestion() {
+    kbChoices = null; kbAnswered = false; kbNext = null;
     root.innerHTML = "";
     const q = state.questions[state.idx];
     const total = state.questions.length;
@@ -123,6 +155,7 @@
       b.addEventListener("click", function () {
         if (answered) return;
         answered = true;
+        kbAnswered = true;
         const correct = i === q.answerIndex;
         state.answers.push({ q: q, chosen: i, correct: correct });
         Array.prototype.forEach.call(list.children, function (child, ci) {
@@ -130,12 +163,16 @@
           if (ci === q.answerIndex) child.classList.add("is-correct");
           else if (ci === i) child.classList.add("is-wrong");
         });
-        card.appendChild(renderFeedback(q, correct));
+        const fb = renderFeedback(q, correct);
+        card.appendChild(fb);
+        kbNext = fb.querySelector(".btn");
       });
       list.appendChild(b);
     });
     card.appendChild(list);
+    card.appendChild(el("p", "quiz-kbd-hint", "Keys: A–D or 1–4 to answer · Enter for next"));
     root.appendChild(card);
+    kbChoices = Array.prototype.slice.call(list.children);
   }
 
   function renderFeedback(q, correct) {
@@ -158,6 +195,7 @@
 
   // ---------- Results screen ----------
   function renderResults() {
+    kbChoices = null; kbNext = null;
     root.innerHTML = "";
     const total = state.answers.length;
     const score = state.answers.filter((a) => a.correct).length;
