@@ -6,6 +6,7 @@
   <title>Flight Strip Generator — ZAE Aero Center</title>
   <link rel="stylesheet" href="assets/css/main.css" />
   <link rel="stylesheet" href="assets/css/strips.css" />
+  <link rel="stylesheet" href="assets/css/strip-board.css" />
 </head>
 <body>
   <div class="scanlines" aria-hidden="true"></div>
@@ -28,9 +29,10 @@
     <a class="back-link" href="index.html">&larr; Back to menu</a>
     <h2 class="page-title">Flight Strip Generator</h2>
     <p class="page-sub">
-      Generate randomized nonradar flight progress strips for practice. Every strip
-      uses real Aero Center (ZAE) airways, fixes, mileages, and MEAs. Use
-      <em>Reveal details</em> to self-check your reading of each strip.
+      Generate randomized nonradar flight progress strips and post them to the
+      VKS, MHZ, and SQS bays. Departures sit above the bay label, en route and
+      arrivals below, earliest estimate at the bottom. Hover a strip to enlarge
+      it, click it for the answer key, and drag it to any bay or position.
     </p>
 
     <div class="controls">
@@ -47,7 +49,6 @@
         <label for="type">Strip type</label>
         <select id="type">
           <option value="any">Any (random)</option>
-          <option value="proposal">Proposal</option>
           <option value="departure">Departure</option>
           <option value="enroute">En Route</option>
           <option value="arrival">Arrival</option>
@@ -79,6 +80,7 @@
   <script src="assets/js/main.js"></script>
   <script src="assets/data/zae.js"></script>
   <script src="assets/js/fps-strip.js"></script>
+  <script src="assets/js/strip-board.js"></script>
   <script src="assets/js/generator.js"></script>
   <script src="assets/js/strips.js"></script>
 </body>

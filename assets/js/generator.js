@@ -1,6 +1,6 @@
 /*
  * ZAE flight progress strip generator.
- * Produces randomized, rule-consistent nonradar strips (proposal / departure /
+ * Produces randomized, rule-consistent nonradar strips (departure /
  * en route / arrival) for Sector 66 Jackson Low, at three difficulty tiers.
  *
  * Exposed as the global `StripGen`. Requires ZAE (assets/data/zae.js).
@@ -58,7 +58,7 @@
     trainee: {
       label: "Trainee",
       countRange: [1, 2],
-      types: ["proposal", "proposal", "enroute", "enroute", "departure"],
+      types: ["departure", "departure", "enroute", "enroute", "enroute"],
       equip: ["A", "A", "A", "U", "B"],
       altCap: 17000,
       allowBlocks: false,
@@ -70,7 +70,7 @@
     developmental: {
       label: "Developmental",
       countRange: [2, 4],
-      types: ["proposal", "departure", "enroute", "enroute", "arrival"],
+      types: ["departure", "departure", "enroute", "enroute", "arrival"],
       equip: ["A", "A", "U", "B", "D", "T", "Y", "C", "I"],
       altCap: 20000,
       allowBlocks: false,
@@ -81,7 +81,7 @@
     cpc: {
       label: "CPC",
       countRange: [3, 6],
-      types: ["proposal", "departure", "enroute", "enroute", "arrival", "enroute"],
+      types: ["departure", "departure", "enroute", "enroute", "arrival", "enroute"],
       equip: ["A", "U", "B", "D", "T", "X", "Y", "C", "I", "M", "N", "P"],
       altCap: 23000,
       allowBlocks: true,
@@ -554,6 +554,13 @@
     MLU: "VKS", KVKS: "VKS", "0M8": "VKS", STUEE: "VKS", DORTS: "VKS", HATER: "VKS",
     MHZ: "MHZ", KJAN: "MHZ", KJVW: "MHZ", SQS: "SQS", KGWO: "SQS"
   };
+  const BAYS = ["VKS", "MHZ", "SQS"];
+  // Bay a strip posts to when the generator did not already tag it (the single
+  // en route fallback): the posted fix in space 19, or the departure airport.
+  function bayForStrip(s) {
+    const first = String((s.spaces && s.spaces["19"]) || "").split(" ")[0];
+    return BAY_OF[first] || BAY_OF[s.meta && s.meta.postedFix] || "MHZ";
+  }
   // Boundary NAVAID -> adjacent facility (for the space-30 handoff note).
   const FACILITY_OF_EXIT = { MLU: "ZFW", MCB: "ZHU", HEZ: "ZHU", GCV: "ZHU" };
 
@@ -697,11 +704,13 @@
   // ---- public API --------------------------------------------------------
   function generateOne(tierKey, forcedType) {
     const tier = TIERS[tierKey] || TIERS.trainee;
-    const type = forcedType && forcedType !== "any" ? forcedType : pick(tier.types);
-    if (type === "proposal") return genProposalOrDeparture(tier, false) || genEnroute(tier);
+    let type = forcedType && forcedType !== "any" ? forcedType : pick(tier.types);
+    if (type === "proposal") type = "departure"; // proposals retired: departures only
     const kind = type === "departure" ? "departure" : type === "arrival" ? "arrival" : "overflight";
     const f = generateFlight(tier, kind);
-    return (f && f[0]) || genEnroute(tier);
+    const s = (f && f[0]) || genEnroute(tier);
+    if (s && !s.bay) s.bay = bayForStrip(s);
+    return s;
   }
 
   function generate(opts) {
@@ -713,16 +722,14 @@
     const out = [];
     for (let i = 0; i < count; i++) {
       let type = opts.type && opts.type !== "any" ? opts.type : pick(tier.types);
-      let strips;
-      if (type === "proposal") {
-        const s = genProposalOrDeparture(tier, false);
-        strips = s ? [s] : [];
-      } else {
-        const kind = type === "departure" ? "departure" : type === "arrival" ? "arrival" : "overflight";
-        strips = generateFlight(tier, kind) || [];
-        if (!strips.length) { const s = genEnroute(tier); strips = s ? [s] : []; }
-      }
-      strips.forEach(function (s) { s.flight = i + 1; });
+      if (type === "proposal") type = "departure"; // proposals retired: departures only
+      const kind = type === "departure" ? "departure" : type === "arrival" ? "arrival" : "overflight";
+      let strips = generateFlight(tier, kind) || [];
+      if (!strips.length) { const s = genEnroute(tier); strips = s ? [s] : []; }
+      strips.forEach(function (s) {
+        s.flight = i + 1;
+        if (!s.bay) s.bay = bayForStrip(s);
+      });
       out.push.apply(out, strips);
     }
     return out;
@@ -732,6 +739,8 @@
     generate: generate,
     generateOne: generateOne,
     tiers: TIERS,
+    bays: BAYS,
+    bayOf: function (fix) { return BAY_OF[fix]; },
     _internal: { plusTime: plusTime, milesPerMinute: milesPerMinute, directionArrow: directionArrow }
   };
 })(typeof window !== "undefined" ? window : this);

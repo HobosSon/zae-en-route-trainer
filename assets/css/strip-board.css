@@ -1,0 +1,72 @@
+/* Strip bay board: three bay columns, bottom-anchored stacks */
+
+.sb-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 10px;
+  background: #24292a;
+  border: 1px solid var(--border-bright);
+  border-radius: 8px;
+}
+
+/* column-reverse so the first child is the bottom slot */
+.sb-bay {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sb-slot {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1000 / 188;
+  border-radius: 3px;
+}
+.sb-empty { background: #6a6e6c; }
+
+.sb-label {
+  display: grid;
+  place-items: center;
+  font-family: var(--sans);
+  font-weight: 800;
+  font-size: clamp(0.8rem, 1.4vw, 1.05rem);
+  letter-spacing: 0.6px;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+.sb-label--vks { background: #1aa6f0; }
+.sb-label--mhz { background: #e2231a; }
+.sb-label--sqs { background: #1f9e46; }
+
+/* strips on the board */
+.sb-strip { cursor: grab; }
+.sb-strip:active { cursor: grabbing; }
+.sb-strip .fps-strip {
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  transform-origin: center center;
+  will-change: transform;
+}
+/* hover zoom (suppressed while dragging so the ghost stays honest) */
+.sb-strip:hover { z-index: 30; }
+body:not(.sb-dragging) .sb-strip:hover .fps-strip {
+  transform: scale(2.1);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.65);
+}
+/* zoom outward from the board edge on the outer bays so they stay on screen */
+.sb-bay:first-child .fps-strip { transform-origin: left center; }
+.sb-bay:last-child  .fps-strip { transform-origin: right center; }
+
+.sb-strip.is-selected .fps-strip { outline: 2px solid var(--amber); outline-offset: 1px; }
+.sb-strip.is-dragging { opacity: 0.35; }
+
+/* drop indicators */
+.sb-drop-below { box-shadow: 0 5px 0 0 var(--amber); }
+.sb-drop-above { box-shadow: 0 -5px 0 0 var(--amber); }
+.sb-empty.sb-drop-here { background: rgba(255, 176, 0, 0.5); }
+
+@media (max-width: 640px) {
+  .sb-board { gap: 6px; padding: 6px; }
+  body:not(.sb-dragging) .sb-strip:hover .fps-strip { transform: scale(1.6); }
+}
