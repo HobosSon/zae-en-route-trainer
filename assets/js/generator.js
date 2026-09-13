@@ -327,6 +327,17 @@
   // only case that carries a plus time (14a): computed from the departure
   // gateway fix to the downstream posted fix.
   const DEP_GATEWAY = { KJAN: "MHZ", KJVW: "MHZ", KVKS: "MHZ", "0M8": "MHZ", KGWO: "SQS" };
+  // Byerley (0M8) departures fly a preplanned heading of 150 to join V427 east
+  // of HATER; the heading is coordinated, never depicted, so the route reads
+  // 0M8 plus the next VORTAC (MHZ eastbound, MLU westbound). Distances in nm
+  // from the join point to the first fix each way; adjust if the geometry differs.
+  const BYERLEY_JOIN = { toMHZ: 30, toHATER: 19 };
+  // 0M8 -> MLU (westbound) departures are switched off for now; flip to true
+  // to generate them again (route "0M8 MLU <dest>", next fix HATER).
+  const BYERLEY_WESTBOUND = false;
+  // Fixes on the MLU side of MHZ: a Byerley departure continuing past MHZ
+  // must not turn back toward them.
+  const WEST_OF_MHZ = { MLU: 1, HATER: 1, DORTS: 1, STUEE: 1, DINKY: 1, HEDUD: 1 };
   function genEnrouteDeparted(tier) {
     const apts = Object.keys(DEP_GATEWAY);
     for (let attempt = 0; attempt < 60; attempt++) {
@@ -577,18 +588,42 @@
       const gs = groundSpeed(tas);
 
       let aw, trav, startIdx, endIdx, entryNav, exitNav, origin, dest, originAirport = null, destAirport = null;
+      let legToFirst = 0;       // nm from the departure airport to its first fix (0 = not modelled)
+      let routeOverride = null; // departure routes that do not follow "APT GW AIRWAY EXIT DEST"
 
       if (kind === "departure") {
         const aptId = pick(DEP_AIRPORTS);
-        const gw = DEP_GATEWAY[aptId];
-        aw = pick(airwaysThrough(gw));
-        trav = traverse(aw, true);
-        let gi = trav.points.indexOf(gw);
-        if (gi >= trav.points.length - 1) { trav = traverse(aw, false); gi = trav.points.indexOf(gw); }
-        if (gi < 0 || gi >= trav.points.length - 1) continue;
-        startIdx = gi; endIdx = trav.points.length - 1;
-        entryNav = gw; exitNav = trav.points[endIdx];
-        originAirport = aptId; origin = aptId; dest = externalFor(exitNav);
+        originAirport = aptId; origin = aptId;
+        if (aptId === "0M8") {
+          if (!BYERLEY_WESTBOUND || chance(0.5)) {
+            // eastbound: V427 to MHZ, then any airway leaving MHZ away from the MLU side
+            const cont = pick(airwaysThrough("MHZ").filter(function (a) { return a.id !== "V427"; }));
+            trav = traverse(cont, true);
+            let mi = trav.points.indexOf("MHZ");
+            if (mi >= trav.points.length - 1) { trav = traverse(cont, false); mi = trav.points.indexOf("MHZ"); }
+            if (mi < 0 || mi >= trav.points.length - 1 || WEST_OF_MHZ[trav.points[mi + 1]]) continue;
+            aw = cont; startIdx = mi; endIdx = trav.points.length - 1;
+            entryNav = "MHZ"; exitNav = trav.points[endIdx]; dest = externalFor(exitNav);
+            legToFirst = BYERLEY_JOIN.toMHZ;
+          } else {
+            // westbound: V427 via HATER to MLU and out to ZFW
+            aw = ZAE.AIRWAYS.V427;
+            trav = traverse(aw, false); // MHZ -> HATER -> MLU
+            startIdx = trav.points.indexOf("HATER"); endIdx = trav.points.indexOf("MLU");
+            entryNav = "MLU"; exitNav = "MLU"; dest = externalFor("MLU");
+            legToFirst = BYERLEY_JOIN.toHATER;
+            routeOverride = "0M8 MLU " + dest;
+          }
+        } else {
+          const gw = DEP_GATEWAY[aptId];
+          aw = pick(airwaysThrough(gw));
+          trav = traverse(aw, true);
+          let gi = trav.points.indexOf(gw);
+          if (gi >= trav.points.length - 1) { trav = traverse(aw, false); gi = trav.points.indexOf(gw); }
+          if (gi < 0 || gi >= trav.points.length - 1) continue;
+          startIdx = gi; endIdx = trav.points.length - 1;
+          entryNav = gw; exitNav = trav.points[endIdx]; dest = externalFor(exitNav);
+        }
       } else if (kind === "arrival") {
         const aptId = pick(ARR_AIRPORTS);
         const feeder = airportEntryNav(aptId);
@@ -619,7 +654,7 @@
       let events = [];
       if (kind === "departure") {
         events.push({ posted: originAirport, i: startIdx, evt: "departure", bay: BAY_OF[originAirport] || BAY_OF[DEP_GATEWAY[originAirport]] });
-        postings.forEach(function (o) { if (o.i > startIdx) events.push({ posted: o.fix, i: o.i, evt: "enroute", bay: BAY_OF[o.fix] }); });
+        postings.forEach(function (o) { if (o.i >= startIdx) events.push({ posted: o.fix, i: o.i, evt: "enroute", bay: BAY_OF[o.fix] }); });
       } else if (kind === "arrival") {
         postings.forEach(function (o) {
           if (o.i === endIdx) events.push({ posted: o.fix, i: o.i, evt: "arrival", bay: BAY_OF[o.fix] });
@@ -639,14 +674,14 @@
       const alt = chooseAltitude(trav.course, mea, tier, ac);
       const conn = origin === "K" + entryNav ? " " : "./.";
       let routeStr;
-      if (kind === "departure") routeStr = originAirport + " " + entryNav + " " + aw.id + " " + exitNav + " " + dest;
+      if (kind === "departure") routeStr = routeOverride || (originAirport + " " + entryNav + " " + aw.id + " " + exitNav + " " + dest);
       else if (kind === "arrival") routeStr = origin + conn + entryNav + " " + aw.id + " " + exitNav + " " + destAirport;
       else routeStr = origin + conn + entryNav + " " + aw.id + " " + exitNav + " " + dest;
 
       // chain center-estimate times over compulsory fixes as offsets from the
       // start, then slide the whole flight into the scenario window so every
       // posted time on the board sits within 45 minutes of the others.
-      const rel = {}; let cur = 0, lastComp = startIdx; rel[startIdx] = 0;
+      const rel = {}; rel[startIdx] = legToFirst ? plusTime(legToFirst, gs) : 0; let cur = rel[startIdx], lastComp = startIdx;
       for (let k = startIdx + 1; k <= endIdx; k++) {
         if (isComp(trav.points[k])) { cur += plusTime(distanceBetween(trav, lastComp, k), gs); rel[k] = cur; lastComp = k; }
       }
@@ -666,6 +701,7 @@
       // all of their postings) until a clearance request comes in. A flight is
       // only posted as already departed when another strip carries its
       // next-fix estimate.
+      const firstFix = { fix: trav.points[startIdx], k: startIdx }; // first fix off the airport
       const depBay = kind === "departure" ? events[0].bay : null;
       const departed = kind === "departure" && events.length > 1 && chance(0.3);
       const suspense = kind === "departure" && !departed;
@@ -679,24 +715,27 @@
         s["20"] = altToHundreds(alt);
         s["25"] = routeStr;
 
-        const prevC = compBefore(trav, ev.i);
+        let prevC = compBefore(trav, ev.i);
+        // a departure's first posting is preceded by the airport itself, never
+        // by airway points behind the first fix
+        if (kind === "departure" && (ev.i === startIdx || (prevC && prevC.k < startIdx))) prevC = { fix: originAirport, k: -1, apt: true };
         const nextC = compAfter(trav, ev.i);
 
         if (ev.evt === "departure") {
           s["16"] = "↑";
-          s["21"] = nextC ? nextC.fix : dest;
+          s["21"] = firstFix.fix; // next fix is the first fix off the airport
           if (departed) {
             // already off: actual departure time (space 18) and the estimate
-            // to the next posted fix (space 15) instead of a proposed time
+            // over the first fix (space 15) instead of a proposed time
             s["18"] = toHHMM(baseT);
             s["19"] = originAirport;
-            if (nextC) s["15"] = toHHMM(timeAt[nextC.k]);
+            s["15"] = toHHMM(timeAt[firstFix.k]);
           } else {
             s["19"] = originAirport + " P" + toHHMM(baseT);
           }
         } else {
           s["11"] = prevC ? prevC.fix : entryNav;
-          s["12"] = toHHMM(prevC ? timeAt[prevC.k] : baseT);
+          s["12"] = toHHMM(prevC && !prevC.apt ? timeAt[prevC.k] : baseT);
           // actual off time goes on the first fix posting after departure
           if (departed && ev === events[1]) s["14"] = toHHMM(baseT);
           s["15"] = toHHMM(timeAt[ev.i]);
@@ -705,7 +744,8 @@
           else s["21"] = nextC ? nextC.fix : dest;
           // plus time ONLY on en route strips that follow a ZAE departure
           if (kind === "departure" && ev.evt === "enroute" && prevC) {
-            s["14a"] = "+" + plusTime(distanceBetween(trav, prevC.k, ev.i), gs);
+            const pt = prevC.apt ? (legToFirst ? plusTime(legToFirst, gs) : 0) : plusTime(distanceBetween(trav, prevC.k, ev.i), gs);
+            if (pt) s["14a"] = "+" + pt;
           }
         }
         if (ev === lastEvt && exitFacility) s["30"] = exitFacility;
@@ -737,7 +777,7 @@
           }
         } else if (kind === "departure" && ev.evt === "departure") {
           key.departureTime = toHHMM(baseT) + " (actual off " + originAirport + ")";
-          key.notes.push("Already departed: actual off time in space 18 and the estimate to " + (nextC ? nextC.fix : "the next fix") + " in space 15, so the strip is active below the bay header.");
+          key.notes.push("Already departed: actual off time in space 18 and the estimate over " + firstFix.fix + " in space 15, so the strip is active below the bay header.");
         }
         strips.push(strip);
       });
