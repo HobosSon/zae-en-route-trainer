@@ -179,7 +179,7 @@
   function chooseAltitude(course, mea, tier, ac) {
     const cap = Math.min(tier.altCap, aircraftCap(ac), ZAE.LOW_CEILING);
     const eastbound = (((course % 360) + 360) % 360) < 180; // 0-179 => odd thousands
-    const floorK = Math.ceil(mea / 1000);
+    const floorK = Math.max(5, Math.ceil(mea / 1000)); // never below 5,000 ft
     const opts = [];
     for (let k = floorK; k <= Math.floor(cap / 1000); k++) {
       const isOdd = k % 2 === 1;
@@ -327,11 +327,18 @@
   // only case that carries a plus time (14a): computed from the departure
   // gateway fix to the downstream posted fix.
   const DEP_GATEWAY = { KJAN: "MHZ", KJVW: "MHZ", KVKS: "MHZ", "0M8": "MHZ", KGWO: "SQS" };
-  // Byerley (0M8) departures fly a preplanned heading of 150 to join V427 east
-  // of HATER; the heading is coordinated, never depicted, so the route reads
-  // 0M8 plus the next VORTAC (MHZ eastbound, MLU westbound). Distances in nm
-  // from the join point to the first fix each way; adjust if the geometry differs.
-  const BYERLEY_JOIN = { toMHZ: 30, toHATER: 19 };
+  // Departures that reach MHZ on a preplanned, coordinated heading that is
+  // never depicted in the route: Byerley (0M8) flies 150 to join V427 east of
+  // HATER; Vicksburg (KVKS) flies 030 to join V417. nm is the approximate
+  // airport-to-MHZ distance, used only for the first-fix estimate; tune here.
+  const DEP_JOIN = { "0M8": { via: "V427", nm: 30 }, KVKS: { via: "V417", nm: 45 } };
+  const BYERLEY_TO_HATER_NM = 19; // westbound variant only
+  // Share of departure flights generated as already departed (active below the
+  // header). 0 = every departure posts in suspense.
+  const DEPARTED_SHARE = 0;
+  // Internal (Sector 66) NAVAIDs: overflights and arrivals must enter ZAE at a
+  // boundary NAVAID, never at one of these.
+  function isHub(id) { const n = ZAE.NAVAIDS[id]; return !!n && n.owner === "66"; }
   // 0M8 -> MLU (westbound) departures are switched off for now; flip to true
   // to generate them again (route "0M8 MLU <dest>", next fix HATER).
   const BYERLEY_WESTBOUND = false;
@@ -594,35 +601,28 @@
       if (kind === "departure") {
         const aptId = pick(DEP_AIRPORTS);
         originAirport = aptId; origin = aptId;
-        if (aptId === "0M8") {
-          if (!BYERLEY_WESTBOUND || chance(0.5)) {
-            // eastbound: V427 to MHZ, then any airway leaving MHZ away from the MLU side
-            const cont = pick(airwaysThrough("MHZ").filter(function (a) { return a.id !== "V427"; }));
-            trav = traverse(cont, true);
-            let mi = trav.points.indexOf("MHZ");
-            if (mi >= trav.points.length - 1) { trav = traverse(cont, false); mi = trav.points.indexOf("MHZ"); }
-            if (mi < 0 || mi >= trav.points.length - 1 || WEST_OF_MHZ[trav.points[mi + 1]]) continue;
-            aw = cont; startIdx = mi; endIdx = trav.points.length - 1;
-            entryNav = "MHZ"; exitNav = trav.points[endIdx]; dest = externalFor(exitNav);
-            legToFirst = BYERLEY_JOIN.toMHZ;
-          } else {
-            // westbound: V427 via HATER to MLU and out to ZFW
-            aw = ZAE.AIRWAYS.V427;
-            trav = traverse(aw, false); // MHZ -> HATER -> MLU
-            startIdx = trav.points.indexOf("HATER"); endIdx = trav.points.indexOf("MLU");
-            entryNav = "MLU"; exitNav = "MLU"; dest = externalFor("MLU");
-            legToFirst = BYERLEY_JOIN.toHATER;
-            routeOverride = "0M8 MLU " + dest;
-          }
+        const gw = DEP_GATEWAY[aptId];
+        const join = DEP_JOIN[aptId]; // preplanned heading to the gateway, not depicted
+        if (aptId === "0M8" && BYERLEY_WESTBOUND && chance(0.5)) {
+          // westbound: V427 via HATER to MLU and out to ZFW
+          aw = ZAE.AIRWAYS.V427;
+          trav = traverse(aw, false); // MHZ -> HATER -> MLU
+          startIdx = trav.points.indexOf("HATER"); endIdx = trav.points.indexOf("MLU");
+          entryNav = "MLU"; exitNav = "MLU"; dest = externalFor("MLU");
+          legToFirst = BYERLEY_TO_HATER_NM;
+          routeOverride = "0M8 MLU " + dest;
         } else {
-          const gw = DEP_GATEWAY[aptId];
+          // via the gateway VORTAC, then any airway leaving it; airports that
+          // join MHZ on a preplanned heading must not continue back west
           aw = pick(airwaysThrough(gw));
           trav = traverse(aw, true);
           let gi = trav.points.indexOf(gw);
           if (gi >= trav.points.length - 1) { trav = traverse(aw, false); gi = trav.points.indexOf(gw); }
           if (gi < 0 || gi >= trav.points.length - 1) continue;
+          if (join && WEST_OF_MHZ[trav.points[gi + 1]]) continue;
           startIdx = gi; endIdx = trav.points.length - 1;
           entryNav = gw; exitNav = trav.points[endIdx]; dest = externalFor(exitNav);
+          legToFirst = join ? join.nm : 0;
         }
       } else if (kind === "arrival") {
         const aptId = pick(ARR_AIRPORTS);
@@ -634,12 +634,14 @@
         if (fi <= 0) continue;
         startIdx = 0; endIdx = fi;
         entryNav = trav.points[0]; exitNav = feeder;
+        if (isHub(entryNav)) continue; // must enter ZAE at a boundary NAVAID
         destAirport = aptId; origin = externalFor(entryNav); dest = aptId;
       } else { // overflight
         aw = ZAE.AIRWAYS[pick(Object.keys(ZAE.AIRWAYS))];
         trav = traverse(aw, chance(0.5));
         startIdx = 0; endIdx = trav.points.length - 1;
         entryNav = trav.points[0]; exitNav = trav.points[endIdx];
+        if (isHub(entryNav) || isHub(exitNav)) continue; // transit boundary to boundary
         origin = externalFor(entryNav); dest = externalFor(exitNav);
       }
       if (!isComp(trav.points[startIdx])) continue; // need a compulsory anchor
@@ -701,9 +703,16 @@
       // all of their postings) until a clearance request comes in. A flight is
       // only posted as already departed when another strip carries its
       // next-fix estimate.
-      const firstFix = { fix: trav.points[startIdx], k: startIdx }; // first fix off the airport
+      // Next fix for a departure strip: the gateway VORTAC when it posts in a
+      // different bay (0M8, KVKS -> MHZ, which then gets its own posting);
+      // otherwise the departure strip already covers the gateway's bay
+      // (KJAN/KJVW at MHZ, KGWO at SQS) and the next fix is the one after it.
       const depBay = kind === "departure" ? events[0].bay : null;
-      const departed = kind === "departure" && events.length > 1 && chance(0.3);
+      const gwSameBay = kind === "departure" && BAY_OF[trav.points[startIdx]] === depBay;
+      const firstFix = gwSameBay
+        ? (compAfter(trav, startIdx) || { fix: trav.points[endIdx], k: endIdx })
+        : { fix: trav.points[startIdx], k: startIdx };
+      const departed = kind === "departure" && events.length > 1 && chance(DEPARTED_SHARE);
       const suspense = kind === "departure" && !departed;
 
       events.forEach(function (ev) {
@@ -712,7 +721,10 @@
         s["4"] = (ac.heavy ? "H/" : "") + ac.type + "/" + equip;
         s["5"] = "T" + tas;
         s["6"] = "66";
-        s["20"] = altToHundreds(alt);
+        // altitude: assigned in 20 once coordinated; a flight still in suspense
+        // only has the pilot's requested altitude, which goes in 24 on all its strips
+        if (kind === "departure" && !departed) s["24"] = altToHundreds(alt);
+        else s["20"] = altToHundreds(alt);
         s["25"] = routeStr;
 
         let prevC = compBefore(trav, ev.i);
@@ -734,8 +746,14 @@
             s["19"] = originAirport + " P" + toHHMM(baseT);
           }
         } else {
-          s["11"] = prevC ? prevC.fix : entryNav;
-          s["12"] = toHHMM(prevC && !prevC.apt ? timeAt[prevC.k] : baseT);
+          // a boundary posting (first fix inside ZAE on an overflight/arrival)
+          // has no previous fix in our airspace: its estimate is the one
+          // received from the adjacent facility
+          const atEntry = kind !== "departure" && ev.i === startIdx;
+          if (!atEntry) {
+            s["11"] = prevC ? prevC.fix : entryNav;
+            s["12"] = toHHMM(prevC && !prevC.apt ? timeAt[prevC.k] : baseT);
+          }
           // actual off time goes on the first fix posting after departure
           if (departed && ev === events[1]) s["14"] = toHHMM(baseT);
           s["15"] = toHHMM(timeAt[ev.i]);
@@ -756,9 +774,10 @@
         key.postedFix = ev.evt === "departure" ? (originAirport + " (departure)") : ev.posted;
         if (s["11"]) key.previousFix = s["11"];
         if (s["21"]) key.nextFix = s["21"];
-        key.altitude = altPlain(alt) + "  (MEA " + mea.toLocaleString() + " ft)";
+        key.altitude = (kind === "departure" && !departed ? "Requested " : "Assigned ") + altPlain(alt) + "  (MEA " + mea.toLocaleString() + " ft" + (kind === "departure" && !departed ? "; in space 24 until coordinated" : "") + ")";
         if (s["14a"]) key.estimateMath = "Est " + s["11"] + " " + s["12"] + " " + s["14a"] + " = " + ev.posted + " est " + s["15"];
-        else if (s["15"]) key.estimateMath = "Est " + s["11"] + " " + s["12"] + " → " + ev.posted + " est " + s["15"];
+        else if (s["15"] && s["11"]) key.estimateMath = "Est " + s["11"] + " " + s["12"] + " → " + ev.posted + " est " + s["15"];
+        else if (s["15"]) key.estimateMath = "Est over " + ev.posted + " " + s["15"] + " received from " + ((ZAE.NAVAIDS[ev.posted] || {}).owner || "the adjacent facility") + " (boundary posting: no previous fix in ZAE)";
         if (exitFacility && ev === lastEvt) key.notes.push("Leaving ZAE to " + exitFacility + " — noted in space 30.");
         if (events.length > 1) key.notes.push("Part of a " + events.length + "-bay flight (" + events.map(function (e) { return e.bay; }).join(" → ") + "); all strips are one plane.");
 
@@ -786,6 +805,18 @@
     return null;
   }
 
+  // Reject strips that break basic posting logic (guards the fallbacks):
+  // previous fix equal to the posted fix, or a ZAE airport as the origin of an
+  // en route/arrival strip (those are departures).
+  const INTERNAL_APT = { KJAN: 1, KHKS: 1, KJVW: 1, KTVR: 1, KVKS: 1, KGWO: 1, "0M8": 1 };
+  function stripSane(st, kind) {
+    const sp = st.spaces || {};
+    const posted = String(sp["19"] || "").split(" ")[0];
+    if (sp["11"] && posted && sp["11"] === posted) return false;
+    if (kind !== "departure" && INTERNAL_APT[String(sp["25"] || "").split(/[ ./]/)[0]]) return false;
+    return true;
+  }
+
   // ---- public API --------------------------------------------------------
   function generateOne(tierKey, forcedType) {
     const tier = TIERS[tierKey] || TIERS.trainee;
@@ -793,7 +824,8 @@
     if (type === "proposal") type = "departure"; // proposals retired: departures only
     const kind = type === "departure" ? "departure" : type === "arrival" ? "arrival" : "overflight";
     const f = generateFlight(tier, kind);
-    const s = (f && f[0]) || genEnroute(tier);
+    let s = (f && f[0]) || genEnroute(tier);
+    if (s && !stripSane(s, kind)) s = null;
     if (s && !s.bay) s.bay = bayForStrip(s);
     return s;
   }
@@ -814,7 +846,13 @@
       if (type === "proposal") type = "departure"; // proposals retired: departures only
       const kind = type === "departure" ? "departure" : type === "arrival" ? "arrival" : "overflight";
       let strips = generateFlight(tier, kind, win) || [];
-      if (!strips.length) { const s = genEnroute(tier); strips = s ? [s] : []; }
+      const sane = function (st) { return stripSane(st, kind); };
+      for (let tries = 0; tries < 3 && strips.length && !strips.every(sane); tries++) strips = generateFlight(tier, kind, win) || [];
+      if (!strips.every(sane)) strips = [];
+      // fallbacks: a windowed overflight keeps the board's 45-minute spread; the
+      // single-strip generator is the last resort
+      if (!strips.length) strips = (generateFlight(tier, "overflight", win) || []).filter(function (st) { return stripSane(st, "overflight"); });
+      if (!strips.length) { const s = genEnroute(tier); strips = s && stripSane(s, "overflight") ? [s] : []; }
       strips.forEach(function (s) {
         s.flight = i + 1;
         if (!s.bay) s.bay = bayForStrip(s);
