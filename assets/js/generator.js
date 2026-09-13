@@ -36,7 +36,10 @@
 
   // Quick Estimate Method (LP05): MPM = first two digits of GS / 6.
   function milesPerMinute(gs) {
-    const firstTwo = Math.floor(gs / (gs >= 100 ? 10 : 1)); // first two digits
+    // Quick Estimate Method: first two digits of the speed / 6. Speeds under
+    // 100 kt have no "first two digits", so use the true value (gs / 60):
+    // 95 kt is 1.6 MPM, not 15.8.
+    const firstTwo = gs >= 100 ? Math.floor(gs / 10) : gs / 10;
     const mpm = Math.round((firstTwo / 6) * 10) / 10;
     return Math.max(0.5, mpm);
   }
@@ -118,6 +121,7 @@
   }
 
   function callsign(ac) {
+    if (ac.mil) return pick(ZAE.MIL_CALLSIGNS) + rint(10, 99); // military: word + two digits
     if (!ac.ga) {
       // airline: ICAO prefix + 1-4 digit flight number
       return pick(ZAE.AIRLINES) + rint(1, 3999);
@@ -728,9 +732,10 @@
         s["25"] = routeStr;
 
         let prevC = compBefore(trav, ev.i);
-        // a departure's first posting is preceded by the airport itself, never
-        // by airway points behind the first fix
-        if (kind === "departure" && (ev.i === startIdx || (prevC && prevC.k < startIdx))) prevC = { fix: originAirport, k: -1, apt: true };
+        // the strip directly after a departure strip is preceded by the airport
+        // itself: previous fix is the airport and the previous time is its
+        // proposed time (P-time), never the gateway VORTAC
+        if (kind === "departure" && ev === events[1]) prevC = { fix: originAirport, k: -1, apt: true };
         const nextC = compAfter(trav, ev.i);
 
         if (ev.evt === "departure") {
@@ -752,7 +757,7 @@
           const atEntry = kind !== "departure" && ev.i === startIdx;
           if (!atEntry) {
             s["11"] = prevC ? prevC.fix : entryNav;
-            s["12"] = toHHMM(prevC && !prevC.apt ? timeAt[prevC.k] : baseT);
+            s["12"] = prevC && !prevC.apt ? toHHMM(timeAt[prevC.k]) : ((departed ? "" : "P") + toHHMM(baseT));
           }
           // actual off time goes on the first fix posting after departure
           if (departed && ev === events[1]) s["14"] = toHHMM(baseT);
@@ -762,7 +767,7 @@
           else s["21"] = nextC ? nextC.fix : dest;
           // plus time ONLY on en route strips that follow a ZAE departure
           if (kind === "departure" && ev.evt === "enroute" && prevC) {
-            const pt = prevC.apt ? (legToFirst ? plusTime(legToFirst, gs) : 0) : plusTime(distanceBetween(trav, prevC.k, ev.i), gs);
+            const pt = prevC.apt ? (rel[ev.i] || 0) : plusTime(distanceBetween(trav, prevC.k, ev.i), gs);
             if (pt) s["14a"] = "+" + pt;
           }
         }

@@ -200,50 +200,70 @@
   // ---- Aircraft types ----------------------------------------------------
   // cat: J=jet, T=turboprop, P=piston. tas=[min,max] filed true airspeed.
   // ga: general-aviation (files ETE, usually flies N-number).
+  // Aircraft from the Block 1 "SH00 Aircraft Characteristic Study Guide"
+  // (Course 50148001, V.2025-02). tas is the guide's true airspeed; types the
+  // guide lists as 460+ file 480. Heavies and supers (B763, B772, A343, A388,
+  // B742, B1, B2, C5, C17, K35R, B52) are omitted for now; if they return,
+  // remember a heavy files with "H/" before the type in space 4.
+  // cat: P piston, T turboprop, J jet. ga: N-number call sign. mil: military.
   const AIRCRAFT = [
-    // Jets (airline / bizjet)
-    { type: "B738", cat: "J", tas: [430, 460], ga: false, heavy: false },
-    { type: "B739", cat: "J", tas: [430, 460], ga: false, heavy: false },
-    { type: "A320", cat: "J", tas: [430, 455], ga: false, heavy: false },
-    { type: "A319", cat: "J", tas: [425, 450], ga: false, heavy: false },
-    { type: "B752", cat: "J", tas: [440, 470], ga: false, heavy: false },
-    { type: "B721", cat: "J", tas: [400, 430], ga: false, heavy: false },
-    { type: "MD80", cat: "J", tas: [420, 450], ga: false, heavy: false },
-    { type: "CRJ2", cat: "J", tas: [400, 430], ga: false, heavy: false },
-    { type: "CRJ7", cat: "J", tas: [410, 440], ga: false, heavy: false },
-    { type: "E145", cat: "J", tas: [400, 430], ga: false, heavy: false },
-    { type: "E170", cat: "J", tas: [420, 450], ga: false, heavy: false },
-    { type: "B763", cat: "J", tas: [450, 480], ga: false, heavy: true },
-    // Bizjets (may be GA registration)
-    { type: "LJ35", cat: "J", tas: [400, 440], ga: true, heavy: false },
-    { type: "C550", cat: "J", tas: [370, 400], ga: true, heavy: false },
-    { type: "C560", cat: "J", tas: [380, 410], ga: true, heavy: false },
-    { type: "C750", cat: "J", tas: [450, 480], ga: true, heavy: false },
-    { type: "BE40", cat: "J", tas: [390, 420], ga: true, heavy: false },
+    // Single-engine piston (160 kt column; overrides per guide)
+    { type: "BE36", cat: "P", tas: [160, 160], ga: true, heavy: false },
+    { type: "C172", cat: "P", tas: [120, 120], ga: true, heavy: false },
+    { type: "C182", cat: "P", tas: [120, 120], ga: true, heavy: false },
+    { type: "C210", cat: "P", tas: [160, 160], ga: true, heavy: false },
+    { type: "PA24", cat: "P", tas: [120, 120], ga: true, heavy: false },
+    { type: "PA32", cat: "P", tas: [160, 160], ga: true, heavy: false },
+    { type: "PA46", cat: "P", tas: [160, 160], ga: true, heavy: false },
+    { type: "SR22", cat: "P", tas: [160, 160], ga: true, heavy: false },
+    // Twin-engine piston
+    { type: "BE58", cat: "P", tas: [160, 160], ga: true, heavy: false },
+    { type: "C421", cat: "P", tas: [200, 200], ga: true, heavy: false },
+    { type: "PA31", cat: "P", tas: [160, 160], ga: true, heavy: false },
+    { type: "PA34", cat: "P", tas: [160, 160], ga: true, heavy: false },
     // Turboprops
-    { type: "BE20", cat: "T", tas: [250, 290], ga: true, heavy: false },
-    { type: "C208", cat: "T", tas: [160, 185], ga: true, heavy: false },
-    { type: "PC12", cat: "T", tas: [250, 285], ga: true, heavy: false },
-    { type: "SF34", cat: "T", tas: [250, 280], ga: false, heavy: false },
-    { type: "AT72", cat: "T", tas: [270, 290], ga: false, heavy: false },
-    { type: "TBM8", cat: "T", tas: [290, 320], ga: true, heavy: false },
-    // Piston / GA
-    { type: "C172", cat: "P", tas: [110, 125], ga: true, heavy: false },
-    { type: "C182", cat: "P", tas: [140, 160], ga: true, heavy: false },
-    { type: "C210", cat: "P", tas: [165, 190], ga: true, heavy: false },
-    { type: "PA28", cat: "P", tas: [120, 140], ga: true, heavy: false },
-    { type: "PA32", cat: "P", tas: [150, 170], ga: true, heavy: false },
-    { type: "BE36", cat: "P", tas: [160, 180], ga: true, heavy: false },
-    { type: "BE58", cat: "P", tas: [180, 200], ga: true, heavy: false },
-    { type: "M20P", cat: "P", tas: [150, 175], ga: true, heavy: false }
+    { type: "C208", cat: "T", tas: [160, 160], ga: true, heavy: false },
+    { type: "PC12", cat: "T", tas: [200, 200], ga: true, heavy: false },
+    { type: "BE9T", cat: "T", tas: [200, 200], ga: true, heavy: false },
+    { type: "B350", cat: "T", tas: [270, 270], ga: true, heavy: false },
+    { type: "C441", cat: "T", tas: [240, 240], ga: true, heavy: false },
+    { type: "B190", cat: "T", tas: [240, 240], ga: false, heavy: false },
+    { type: "SW4",  cat: "T", tas: [240, 240], ga: false, heavy: false },
+    { type: "DH8",  cat: "T", tas: [240, 240], ga: false, heavy: false },
+    { type: "DH8D", cat: "T", tas: [270, 270], ga: false, heavy: false },
+    { type: "SF34", cat: "T", tas: [240, 240], ga: false, heavy: false },
+    { type: "C130", cat: "T", tas: [300, 300], ga: false, heavy: false, mil: true },
+    // Jets: bizjets (GA registration)
+    { type: "C510", cat: "J", tas: [320, 320], ga: true, heavy: false },
+    { type: "EA50", cat: "J", tas: [320, 320], ga: true, heavy: false },
+    { type: "BE40", cat: "J", tas: [430, 430], ga: true, heavy: false },
+    { type: "LJ55", cat: "J", tas: [430, 430], ga: true, heavy: false },
+    { type: "C750", cat: "J", tas: [480, 480], ga: true, heavy: false },
+    { type: "GLF4", cat: "J", tas: [480, 480], ga: true, heavy: false },
+    // Jets: military
+    { type: "T37",  cat: "J", tas: [320, 320], ga: false, heavy: false, mil: true },
+    { type: "T38",  cat: "J", tas: [480, 480], ga: false, heavy: false, mil: true },
+    { type: "F16",  cat: "J", tas: [480, 480], ga: false, heavy: false, mil: true },
+    // Jets: airline
+    { type: "CRJ2", cat: "J", tas: [400, 400], ga: false, heavy: false },
+    { type: "CRJ9", cat: "J", tas: [430, 430], ga: false, heavy: false },
+    { type: "E145", cat: "J", tas: [430, 430], ga: false, heavy: false },
+    { type: "E190", cat: "J", tas: [430, 430], ga: false, heavy: false },
+    { type: "A320", cat: "J", tas: [430, 430], ga: false, heavy: false },
+    { type: "B712", cat: "J", tas: [430, 430], ga: false, heavy: false },
+    { type: "B738", cat: "J", tas: [430, 430], ga: false, heavy: false },
+    { type: "MD82", cat: "J", tas: [430, 430], ga: false, heavy: false },
+    { type: "B753", cat: "J", tas: [480, 480], ga: false, heavy: false }
   ];
 
   // Airline callsign prefixes (ICAO 3-letter) for non-GA jets/turboprops.
   const AIRLINES = ["AAL", "DAL", "UAL", "SWA", "JBU", "AAY", "NKS", "FDX", "UPS", "ASH", "SKW", "RPA", "ENY", "GJS"];
+  // Military tactical call signs (word + two digits) for the guide's military types.
+  const MIL_CALLSIGNS = ["REACH", "SABER", "VIPER", "HAWK", "TALON", "COLT", "DEMON", "TREND"];
 
   root.ZAE = {
     NAVAIDS, FIXES, AIRWAYS, JETROUTES, AIRPORTS, EXTERNAL_AIRPORTS,
-    SECTORS_LOW, APPROACHES, EQUIP, AIRCRAFT, AIRLINES,
+    SECTORS_LOW, APPROACHES, EQUIP, AIRCRAFT, AIRLINES, MIL_CALLSIGNS,
     LOW_CEILING: 23000, // ZAE low sectors: FL230 and below
 
     // Convenience: resolve a fix/navaid id to a display + description.
