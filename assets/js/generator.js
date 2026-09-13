@@ -102,17 +102,18 @@
     const ga = chance(tier.gaChance);
     let pool = ZAE.AIRCRAFT.filter(function (a) { return ga ? a.ga : true; });
     if (!ga) pool = ZAE.AIRCRAFT.filter(function (a) { return a.cat === "J" || a.cat === "T"; });
-    // TUX is uncommon at Aero Center: hold it to roughly 7% of draws.
-    const tux = pool.filter(function (a) { return a.type === "TUX"; });
-    const rest = pool.filter(function (a) { return a.type !== "TUX"; });
-    if (tux.length && (!rest.length || chance(0.07))) return pick(tux);
-    return pick(rest.length ? rest : pool);
+    return pick(pool);
   }
 
+  // "TUX" aircraft (equipment suffix /T, /U, or /X: no DME) are uncommon at
+  // Aero Center, so hold them to roughly 7% of draws regardless of tier pool.
+  const NON_DME = { T: 1, U: 1, X: 1 };
   function chooseEquip(tier, ac) {
-    // GA piston rarely has TACAN; keep it plausible but driven by the tier pool.
-    let s = pick(tier.equip);
-    if (ac.cat === "P" && (s === "M" || s === "N" || s === "P")) s = pick(["A", "U", "T", "D"]);
+    const tux = tier.equip.filter(function (x) { return NON_DME[x]; });
+    const rest = tier.equip.filter(function (x) { return !NON_DME[x]; });
+    let s = (tux.length && (!rest.length || chance(0.07))) ? pick(tux) : pick(rest.length ? rest : tier.equip);
+    // GA piston rarely has TACAN; keep it plausible without adding a TUX suffix.
+    if (ac.cat === "P" && (s === "M" || s === "N" || s === "P")) s = pick(["A", "D"]);
     return s;
   }
 
