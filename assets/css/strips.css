@@ -144,6 +144,7 @@
   /* slashed zeros where the font supports it (belt-and-suspenders: JS also substitutes) */
   font-feature-settings: "zero" 1;
   overflow: hidden;
+  container-type: inline-size; /* enables cqw text sizing below */
 }
 .fps-grid { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .fps-grid line, .fps-grid rect { stroke: #4d6b48; stroke-width: 1; fill: none; vector-effect: non-scaling-stroke; }
@@ -155,28 +156,31 @@
   white-space: pre;
   overflow: hidden;
 }
-.fps-cell.aid { font-weight: 700; font-size: 15px; letter-spacing: 0.5px; }
-.fps-cell.type, .fps-cell.tas { font-size: 13px; }
-.fps-cell.big { font-size: 14px; font-weight: 700; }
-.fps-cell.mid { font-size: 13px; }
-.fps-cell.sm { font-size: 11px; }
-.fps-cell.arrow { font-size: 40px; font-weight: 900; text-align: right; line-height: 0.85; -webkit-text-stroke: 1.2px currentColor; }
-.fps-cell.dir { font-size: 16px; font-weight: 700; text-align: center; line-height: 1; }
+/* Text is sized in container-query units so it scales with the strip's width
+   (1cqw = 1% of the strip). Values are the original pixel sizes at the 900px
+   design width divided by 9. */
+.fps-cell.aid { font-weight: 700; font-size: 1.67cqw; letter-spacing: 0.06cqw; }
+.fps-cell.type, .fps-cell.tas { font-size: 1.44cqw; }
+.fps-cell.big { font-size: 1.56cqw; font-weight: 700; }
+.fps-cell.mid { font-size: 1.44cqw; }
+.fps-cell.sm { font-size: 1.22cqw; }
+.fps-cell.arrow { font-size: 4.44cqw; font-weight: 900; text-align: right; line-height: 0.85; -webkit-text-stroke: 0.13cqw currentColor; }
+.fps-cell.dir { font-size: 1.78cqw; font-weight: 700; text-align: center; line-height: 1; }
 .fps-cell.pfv { display: flex; align-items: center; text-align: left; }
 /* space 15 center estimate: larger hours, raised smaller minutes, lighter weight */
 .fps-cell.est { font-weight: 500; }
-.fps-cell.est .hh { font-size: 24px; }
-.fps-cell.est .mm { font-size: 16px; position: relative; top: -8px; margin-left: 1px; }
-.fps-cell.route { font-size: 12px; white-space: normal; line-height: 1.25; }
-.fps-cell.rem { font-size: 11px; white-space: normal; line-height: 1.2; }
+.fps-cell.est .hh { font-size: 2.67cqw; }
+.fps-cell.est .mm { font-size: 1.78cqw; position: relative; top: -0.9cqw; margin-left: 0.1cqw; }
+.fps-cell.route { font-size: 1.33cqw; white-space: normal; line-height: 1.25; }
+.fps-cell.rem { font-size: 1.22cqw; white-space: normal; line-height: 1.2; }
 
 /* optional field-number overlay */
 .fps-num {
   position: absolute;
   font-family: var(--mono);
-  font-size: 8px;
+  font-size: 0.89cqw;
   color: #b23b2e;
-  transform: translate(-1px, -9px);
+  transform: translate(-0.1cqw, -1cqw);
   pointer-events: none;
   opacity: 0.8;
 }

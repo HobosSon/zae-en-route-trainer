@@ -58,7 +58,7 @@
     trainee: {
       label: "Trainee",
       countRange: [1, 2],
-      types: ["departure", "departure", "enroute", "enroute", "enroute"],
+      types: ["departure", "departure", "enroute", "enroute", "arrival"],
       equip: ["A", "A", "A", "U", "B"],
       altCap: 17000,
       allowBlocks: false,
@@ -70,7 +70,7 @@
     developmental: {
       label: "Developmental",
       countRange: [2, 4],
-      types: ["departure", "departure", "enroute", "enroute", "arrival"],
+      types: ["departure", "departure", "enroute", "enroute", "arrival", "arrival"],
       equip: ["A", "A", "U", "B", "D", "T", "Y", "C", "I"],
       altCap: 20000,
       allowBlocks: false,
@@ -81,7 +81,7 @@
     cpc: {
       label: "CPC",
       countRange: [3, 6],
-      types: ["departure", "departure", "enroute", "enroute", "arrival", "enroute"],
+      types: ["departure", "departure", "enroute", "enroute", "arrival", "arrival", "enroute"],
       equip: ["A", "U", "B", "D", "T", "X", "Y", "C", "I", "M", "N", "P"],
       altCap: 23000,
       allowBlocks: true,
@@ -102,8 +102,11 @@
     const ga = chance(tier.gaChance);
     let pool = ZAE.AIRCRAFT.filter(function (a) { return ga ? a.ga : true; });
     if (!ga) pool = ZAE.AIRCRAFT.filter(function (a) { return a.cat === "J" || a.cat === "T"; });
-    const ac = pick(pool);
-    return ac;
+    // TUX is uncommon at Aero Center: hold it to roughly 7% of draws.
+    const tux = pool.filter(function (a) { return a.type === "TUX"; });
+    const rest = pool.filter(function (a) { return a.type !== "TUX"; });
+    if (tux.length && (!rest.length || chance(0.07))) return pick(tux);
+    return pick(rest.length ? rest : pool);
   }
 
   function chooseEquip(tier, ac) {
@@ -565,7 +568,7 @@
   const FACILITY_OF_EXIT = { MLU: "ZFW", MCB: "ZHU", HEZ: "ZHU", GCV: "ZHU" };
 
   // Returns an ARRAY of strips for ONE plane — one per ZAE bay it transits.
-  function generateFlight(tier, kind) {
+  function generateFlight(tier, kind, win) {
     for (let attempt = 0; attempt < 60; attempt++) {
       const ac = chooseAircraft(tier);
       const equip = chooseEquip(tier, ac);
@@ -614,7 +617,7 @@
       // one event per bay
       let events = [];
       if (kind === "departure") {
-        events.push({ posted: originAirport, i: startIdx, evt: "departure", bay: BAY_OF[DEP_GATEWAY[originAirport]] });
+        events.push({ posted: originAirport, i: startIdx, evt: "departure", bay: BAY_OF[originAirport] || BAY_OF[DEP_GATEWAY[originAirport]] });
         postings.forEach(function (o) { if (o.i > startIdx) events.push({ posted: o.fix, i: o.i, evt: "enroute", bay: BAY_OF[o.fix] }); });
       } else if (kind === "arrival") {
         postings.forEach(function (o) {
@@ -639,18 +642,32 @@
       else if (kind === "arrival") routeStr = origin + conn + entryNav + " " + aw.id + " " + exitNav + " " + destAirport;
       else routeStr = origin + conn + entryNav + " " + aw.id + " " + exitNav + " " + dest;
 
-      // chain center-estimate times over compulsory fixes from the start
-      const baseT = rint(0, 1439);
-      const timeAt = {}; let cur = baseT, lastComp = startIdx; timeAt[startIdx] = baseT;
+      // chain center-estimate times over compulsory fixes as offsets from the
+      // start, then slide the whole flight into the scenario window so every
+      // posted time on the board sits within 45 minutes of the others.
+      const rel = {}; let cur = 0, lastComp = startIdx; rel[startIdx] = 0;
       for (let k = startIdx + 1; k <= endIdx; k++) {
-        if (isComp(trav.points[k])) { cur += plusTime(distanceBetween(trav, lastComp, k), gs); timeAt[k] = cur; lastComp = k; }
+        if (isComp(trav.points[k])) { cur += plusTime(distanceBetween(trav, lastComp, k), gs); rel[k] = cur; lastComp = k; }
       }
+      const span = events.reduce(function (m, e) { return Math.max(m, rel[e.i] || 0); }, 0);
+      if (win && span > win.span && attempt < 40) continue; // prefer flights that fit the window
+      const baseT = win ? win.start + rint(0, Math.max(0, win.span - span)) : rint(0, 1439);
+      const timeAt = {};
+      Object.keys(rel).forEach(function (k) { timeAt[k] = (baseT + rel[k]) % 1440; });
 
       const cs = callsign(ac);
       const equipStr = "/" + equip + " — " + equipMeaning(equip);
       const exitFacility = (kind !== "arrival") ? FACILITY_OF_EXIT[exitNav] : null;
       const lastEvt = events[events.length - 1];
       const strips = [];
+
+      // Departures are "in suspense" (held above the bay header together with
+      // all of their postings) until a clearance request comes in. A flight is
+      // only posted as already departed when another strip carries its
+      // next-fix estimate.
+      const depBay = kind === "departure" ? events[0].bay : null;
+      const departed = kind === "departure" && events.length > 1 && chance(0.3);
+      const suspense = kind === "departure" && !departed;
 
       events.forEach(function (ev) {
         const s = {};
@@ -666,11 +683,21 @@
 
         if (ev.evt === "departure") {
           s["16"] = "↑";
-          s["19"] = originAirport + " P" + toHHMM(baseT);
           s["21"] = nextC ? nextC.fix : dest;
+          if (departed) {
+            // already off: actual departure time (space 18) and the estimate
+            // to the next posted fix (space 15) instead of a proposed time
+            s["18"] = toHHMM(baseT);
+            s["19"] = originAirport;
+            if (nextC) s["15"] = toHHMM(timeAt[nextC.k]);
+          } else {
+            s["19"] = originAirport + " P" + toHHMM(baseT);
+          }
         } else {
           s["11"] = prevC ? prevC.fix : entryNav;
           s["12"] = toHHMM(prevC ? timeAt[prevC.k] : baseT);
+          // actual off time goes on the first fix posting after departure
+          if (departed && ev === events[1]) s["14"] = toHHMM(baseT);
           s["15"] = toHHMM(timeAt[ev.i]);
           s["19"] = ev.posted;
           if (ev.evt === "arrival") { s["16"] = "↓"; s["21"] = destAirport; }
@@ -694,7 +721,24 @@
         if (exitFacility && ev === lastEvt) key.notes.push("Leaving ZAE to " + exitFacility + " — noted in space 30.");
         if (events.length > 1) key.notes.push("Part of a " + events.length + "-bay flight (" + events.map(function (e) { return e.bay; }).join(" → ") + "); all strips are one plane.");
 
-        strips.push({ type: ev.evt, spaces: s, meta: key, bay: ev.bay });
+        const strip = { type: ev.evt, spaces: s, meta: key, bay: ev.bay, homeBay: ev.bay };
+        // every strip of a departure flight carries an explicit suspense flag so
+        // an already-departed departure strip posts below the header, not above
+        if (kind === "departure") strip.suspense = suspense;
+        if (suspense) {
+          strip.suspense = true;
+          strip.suspenseTime = parseInt(toHHMM(baseT), 10); // HHMM, groups the flight above the header
+          strip.bay = depBay;
+          if (ev.evt === "departure") {
+            key.proposedTime = "P" + toHHMM(baseT) + " (proposed departure; strip in suspense above the " + depBay + " bay header)";
+          } else {
+            key.notes.push("Departure still in suspense: this posting is held directly above the departure strip in the " + depBay + " bay until a clearance request comes in; it normally posts under " + ev.bay + ".");
+          }
+        } else if (kind === "departure" && ev.evt === "departure") {
+          key.departureTime = toHHMM(baseT) + " (actual off " + originAirport + ")";
+          key.notes.push("Already departed: actual off time in space 18 and the estimate to " + (nextC ? nextC.fix : "the next fix") + " in space 15, so the strip is active below the bay header.");
+        }
+        strips.push(strip);
       });
       return strips;
     }
@@ -719,12 +763,16 @@
     const tier = TIERS[tierKey] || TIERS.trainee;
     let count = opts.count;
     if (!count) count = rint(tier.countRange[0], tier.countRange[1]);
+    // Scenario window: every posted time (P-times, fix and airport estimates
+    // inside ZAE) lands within 45 minutes so the board reads as one problem.
+    // Start early enough that the window never crosses midnight.
+    const win = { start: rint(0, 1380), span: 45 };
     const out = [];
     for (let i = 0; i < count; i++) {
       let type = opts.type && opts.type !== "any" ? opts.type : pick(tier.types);
       if (type === "proposal") type = "departure"; // proposals retired: departures only
       const kind = type === "departure" ? "departure" : type === "arrival" ? "arrival" : "overflight";
-      let strips = generateFlight(tier, kind) || [];
+      let strips = generateFlight(tier, kind, win) || [];
       if (!strips.length) { const s = genEnroute(tier); strips = s ? [s] : []; }
       strips.forEach(function (s) {
         s.flight = i + 1;

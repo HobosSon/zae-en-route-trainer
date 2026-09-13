@@ -31,7 +31,7 @@
     { k: "act", f: "14", x: 15.8, y: 55, w: 6, cls: "mid", n: "14" },
     { k: "plus", f: "14a", x: 15.8, y: 78, w: 6, cls: "mid", n: "14a" },
     // Column C [23.8-40.2]: center estimate / arrow / 17-18 box / posted fix
-    { k: "centerest", f: "15", x: 24.5, y: 4, w: 10, cls: "est", n: "15" },
+    { k: "centerest", f: "15", x: 24.5, y: 4, w: 11.5, cls: "est", n: "15" },
     { k: "arrow", f: "16", x: 35, y: 1, w: 4.5, cls: "arrow", n: "16" },
     { k: "box17", f: "17", x: 24.5, y: 63, w: 4, cls: "sm", n: "17" },
     { k: "box18", f: "18", x: 30, y: 63, w: 9, cls: "sm", n: "18" },

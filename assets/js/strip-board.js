@@ -1,8 +1,10 @@
 /*
  * Strip bay board. Posts flight strips into the ZAE bays (VKS / MHZ / SQS)
- * the way a nonradar controller keeps them: departures stacked above the bay
- * label, en route and arrival postings below it, and within each stack the
- * earliest estimate at the bottom reading upward. Any strip can be dragged to
+ * the way a nonradar controller keeps them: strips in suspense (a departure
+ * awaiting its clearance request, plus every posting that belongs to it)
+ * stacked above the bay label, active postings below it, and within each
+ * stack the earliest time at the bottom reading upward. A suspense flight is
+ * kept together: its departure strip lowest, its postings directly above it. Any strip can be dragged to
  * any bay and any position. Shared by the generator page and scenarios.
  *
  *   const board = StripBoard.create(containerEl, { showNums, onSelect, onChange });
@@ -62,11 +64,23 @@
         const uid = uidOf(st);
         state.byUid[uid] = st;
         const bay = BAYS.indexOf(st.bay) >= 0 ? st.bay : BAYS[1];
-        (st.type === "departure" ? state.bays[bay].above : state.bays[bay].below).push(uid);
+        // generator marks suspense explicitly; fall back to type for older data
+        const above = st.suspense != null ? !!st.suspense : st.type === "departure";
+        (above ? state.bays[bay].above : state.bays[bay].below).push(uid);
       });
+      // Above the header, order by the flight's proposed time so each suspense
+      // flight stays together, departure strip lowest and its postings stacked
+      // directly above it by estimate. Below, plain estimate order.
+      function aboveKey(st) {
+        const t = sortTime(st);
+        return [st.suspenseTime != null ? st.suspenseTime : t, st.type === "departure" ? -1 : t];
+      }
       BAYS.forEach(function (b) {
         const by = function (uid) { return sortTime(state.byUid[uid]); };
-        state.bays[b].above.sort(function (a, c) { return by(a) - by(c); });
+        state.bays[b].above.sort(function (a, c) {
+          const ka = aboveKey(state.byUid[a]), kc = aboveKey(state.byUid[c]);
+          return (ka[0] - kc[0]) || (ka[1] - kc[1]);
+        });
         state.bays[b].below.sort(function (a, c) { return by(a) - by(c); });
       });
       render();
@@ -163,6 +177,8 @@
           slot.dataset.uid = item;
           slot.dataset.k = k;
           slot.dataset.type = st.type || "";
+          slot.dataset.flight = st.flight != null ? String(st.flight) : "";
+          slot.dataset.suspense = st.suspense ? "1" : "";
           slot.draggable = true;
           if (state.selected === item) slot.classList.add("is-selected");
           slot.appendChild(FPSStrip.render(st.spaces, { showNums: state.showNums }));
