@@ -14,6 +14,9 @@
  *   board.getStrip(uid);
  *   board.toggleFlag(uid?);    // flag/unflag a strip (default: the selected one)
  *   board.getFlags();          // uids currently flagged
+ *   board.deselect();          // clear the selection (also: click anywhere off a strip)
+ * opts.keepSelectionWithin: selector for elements whose clicks must not
+ * deselect (e.g. the panel showing the selected strip's details).
  * Flags: with a strip selected (clicked), F or Space toggles a red corner
  * flag on it. The flag lives on the strip object, so it survives drags.
  */
@@ -249,6 +252,23 @@
       return st.flagged;
     }
 
+    function deselect() {
+      if (!state.selected) return;
+      state.selected = null;
+      Array.prototype.forEach.call(container.querySelectorAll(".sb-strip.is-selected"), function (n) { n.classList.remove("is-selected"); });
+      if (opts.onSelect) opts.onSelect(null);
+    }
+
+    // Clicking anywhere that is not a strip clears the selection.
+    document.addEventListener("click", function (e) {
+      if (!state.selected || !document.body.contains(container)) return;
+      const t = e.target;
+      if (!t || !t.closest) return;
+      if (t.closest(".sb-strip")) return;
+      if (opts.keepSelectionWithin && t.closest(opts.keepSelectionWithin)) return;
+      deselect();
+    });
+
     function getFlags() {
       return Object.keys(state.byUid).filter(function (u) { return state.byUid[u].flagged; });
     }
@@ -276,6 +296,7 @@
       getStrip: function (uid) { return state.byUid[uid]; },
       toggleFlag: toggleFlag,
       getFlags: getFlags,
+      deselect: deselect,
       render: render
     };
   }
