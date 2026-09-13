@@ -12,6 +12,10 @@
  *   board.setShowNums(bool);   // toggle the field-number overlay in place
  *   board.getLayout();         // { VKS: { above: [uid..], below: [uid..] }, ... }
  *   board.getStrip(uid);
+ *   board.toggleFlag(uid?);    // flag/unflag a strip (default: the selected one)
+ *   board.getFlags();          // uids currently flagged
+ * Flags: with a strip selected (clicked), F or Space toggles a red corner
+ * flag on it. The flag lives on the strip object, so it survives drags.
  */
 (function (root) {
   "use strict";
@@ -181,6 +185,7 @@
           slot.dataset.suspense = st.suspense ? "1" : "";
           slot.draggable = true;
           if (state.selected === item) slot.classList.add("is-selected");
+          if (st.flagged) slot.classList.add("is-flagged");
           slot.appendChild(FPSStrip.render(st.spaces, { showNums: state.showNums }));
 
           slot.addEventListener("click", function () {
@@ -233,6 +238,35 @@
       });
     }
 
+    function toggleFlag(uid) {
+      uid = uid || state.selected;
+      const st = uid && state.byUid[uid];
+      if (!st) return false;
+      st.flagged = !st.flagged;
+      const slot = container.querySelector('.sb-strip[data-uid="' + uid + '"]');
+      if (slot) slot.classList.toggle("is-flagged", st.flagged);
+      if (opts.onFlag) opts.onFlag(st, st.flagged);
+      return st.flagged;
+    }
+
+    function getFlags() {
+      return Object.keys(state.byUid).filter(function (u) { return state.byUid[u].flagged; });
+    }
+
+    // F or Space flags the selected strip. Ignored while typing in a field or
+    // an editable blank strip, and once this board is gone from the page.
+    document.addEventListener("keydown", function (e) {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (!state.selected || !document.body.contains(container)) return;
+      const t = e.target;
+      const tag = t && t.tagName;
+      if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA" || (t && t.isContentEditable)) return;
+      if (e.key === "f" || e.key === "F" || e.key === " ") {
+        e.preventDefault();
+        toggleFlag();
+      }
+    });
+
     function setShowNums(v) { state.showNums = !!v; render(); }
 
     return {
@@ -240,6 +274,8 @@
       setShowNums: setShowNums,
       getLayout: getLayout,
       getStrip: function (uid) { return state.byUid[uid]; },
+      toggleFlag: toggleFlag,
+      getFlags: getFlags,
       render: render
     };
   }

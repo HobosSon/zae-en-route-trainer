@@ -159,7 +159,7 @@
 /* Text is sized in container-query units so it scales with the strip's width
    (1cqw = 1% of the strip). Values are the original pixel sizes at the 900px
    design width divided by 9. */
-.fps-cell.aid { font-weight: 700; font-size: 1.67cqw; letter-spacing: 0.06cqw; }
+.fps-cell.aid { font-weight: 700; font-size: 2.55cqw; letter-spacing: 0; } /* 7-char call sign fits the 13cqw cell */
 .fps-cell.type, .fps-cell.tas { font-size: 1.44cqw; }
 .fps-cell.big { font-size: 1.56cqw; font-weight: 700; }
 .fps-cell.mid { font-size: 1.44cqw; }

@@ -70,3 +70,17 @@ body:not(.sb-dragging) .sb-strip:hover .fps-strip {
   .sb-board { gap: 6px; padding: 6px; }
   body:not(.sb-dragging) .sb-strip:hover .fps-strip { transform: scale(1.6); }
 }
+
+/* flagged strip: red corner in the top-right (sized in strip units so it scales) */
+.sb-strip.is-flagged .fps-strip::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 0 3.2cqw 3.2cqw 0;
+  border-color: transparent #e0231a transparent transparent;
+  pointer-events: none;
+}
