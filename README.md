@@ -27,7 +27,7 @@ and its **Sector 66 "Jackson Low"** non-radar environment.
   circles), the restrictions, reports to solicit, coordination and phraseology.
 - **Stripmarking** — a selected board strip stays enlarged (two enlarged
   strips push each other apart) and can be marked up: red or black pen,
-  circles (both colours can stack) and black strikes on highlighted text,
+  circles (both colours can stack), black strikes and red or black underlines on highlighted text,
   a ^ in the route with an amendment under it, free text in space 26, and
   control-data chips (D-A, H-, VR, APCH, 67, Z, V, C, RLS, SYD, CTL, E)
   dragged or clicked into spaces 27-30; H- opens the holding box (fix,

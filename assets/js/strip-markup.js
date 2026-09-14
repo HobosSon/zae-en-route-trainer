@@ -150,7 +150,7 @@
   function layoutMarks(stripEl, strip) {
     const layer = stripEl.querySelector(".sm-layer"); if (!layer) return;
     const m = model(strip);
-    Array.prototype.forEach.call(layer.querySelectorAll(".sm-circ, .sm-strike"), function (n) { n.remove(); });
+    Array.prototype.forEach.call(layer.querySelectorAll(".sm-circ, .sm-strike, .sm-ul"), function (n) { n.remove(); });
     const s = stripEl.getBoundingClientRect();
     if (!s.width) return;
     const aspect = s.width / s.height;
@@ -161,8 +161,9 @@
       const rects = rg.getClientRects();
       if (!rects.length) return;
       let padIdx = 0;
-      if (rk.kind !== "strike") {
-        m.ranges.forEach(function (o) { if (o !== rk && o.kind !== "strike" && o.seq < rk.seq && sameTarget(o.target, rk.target) && o.start < rk.end && rk.start < o.end) padIdx++; });
+      const isCircle = function (k) { return k.indexOf("circ-") === 0; };
+      if (isCircle(rk.kind)) {
+        m.ranges.forEach(function (o) { if (o !== rk && isCircle(o.kind) && o.seq < rk.seq && sameTarget(o.target, rk.target) && o.start < rk.end && rk.start < o.end) padIdx++; });
       }
       // one box per visual line: rects that overlap vertically are merged
       const lines = [];
@@ -177,6 +178,12 @@
         if (rk.kind === "strike") {
           const d = el("div", "sm-strike");
           d.style.left = p.left + "%"; d.style.width = p.width + "%"; d.style.top = (p.top + p.height / 2) + "%";
+          layer.appendChild(d);
+          return;
+        }
+        if (rk.kind.indexOf("ul-") === 0) { // underline (red for IAFDOF, TUX suffix, FRC; black also allowed)
+          const d = el("div", "sm-ul sm-" + rk.kind.slice(3));
+          d.style.left = p.left + "%"; d.style.width = p.width + "%"; d.style.top = (p.top + p.height - 0.8) + "%";
           layer.appendChild(d);
           return;
         }
@@ -356,13 +363,15 @@
     const acts = el("div", "sm-acts");
     const circ = el("button", "btn btn-ghost sm-act", "◯ Circle"); circ.type = "button"; circ.title = "Highlight text on the strip, then circle it in the pen colour (again to remove)";
     const strike = el("button", "btn btn-ghost sm-act", "— Strike"); strike.type = "button"; strike.title = "Highlight text, then line it through (always black; again to remove)";
+    const ul = el("button", "btn btn-ghost sm-act", "_ Underline"); ul.type = "button"; ul.title = "Highlight text, then underline it in the pen colour (IAFDOF altitude, TUX suffix, FRC in red; again to remove)";
+    ul.addEventListener("click", function () { applySelection("ul-" + ui.pen); });
     const caret = el("button", "btn btn-ghost sm-act", "^ Route"); caret.type = "button"; caret.title = "Click a spot in the route (space 25), then insert a ^ with an amendment under it";
     const clear = el("button", "btn btn-ghost sm-act", "Clear strip"); clear.type = "button"; clear.title = "Remove every mark on this strip";
     circ.addEventListener("click", function () { applySelection("circ-" + ui.pen); });
     strike.addEventListener("click", function () { applySelection("strike"); });
     caret.addEventListener("click", insertCaret);
     clear.addEventListener("click", function () { if (!ui.strip) return; if (!confirm("Clear all marks on " + (ui.strip.spaces["3"] || "this strip") + "?")) return; ui.strip.markup = null; closeHold(); apply(ui.stripEl, ui.strip); });
-    [circ, strike, caret, clear].forEach(function (b) { acts.appendChild(b); });
+    [circ, strike, ul, caret, clear].forEach(function (b) { acts.appendChild(b); });
     tb.appendChild(acts);
     const pal = el("div", "sm-palette");
     pal.appendChild(el("span", "sm-pal-label", "27–30:"));
@@ -375,7 +384,7 @@
       pal.appendChild(c);
     });
     tb.appendChild(pal);
-    const hint = el("div", "sm-hint", "Select text on the strip to circle or strike it · click in the route then ^ Route · type in space 26 · drop chips into 27–30");
+    const hint = el("div", "sm-hint", "Select text on the strip to circle, strike or underline it · click in the route then ^ Route · type in space 26 · drop chips into 27–30");
     tb.appendChild(hint);
     return tb;
   }
