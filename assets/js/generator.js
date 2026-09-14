@@ -225,8 +225,23 @@
     return floor;
   }
 
-  function altitudeOptions(trav, floor, tier, ac) {
-    const cap = Math.min(tier.altCap, aircraftCap(ac), ZAE.LOW_CEILING);
+  // Highest altitude usable on this traversal: the always-active MOAs
+  // (Columbus 3 on V11 toward HLI, Meridian 1 West on V245 toward IGB) start
+  // at 8,000, so aircraft continuing onto those segments stay at or below 7,000.
+  function altitudeCap(trav, fromIdx, toIdx, tier, ac) {
+    let cap = Math.min(tier.altCap, aircraftCap(ac), ZAE.LOW_CEILING);
+    const pts = trav.points.slice(fromIdx == null ? 0 : fromIdx, (toIdx == null ? trav.points.length - 1 : toIdx) + 1);
+    Object.keys(ZAE.MOA).forEach(function (k) {
+      ZAE.MOA[k].airways.forEach(function (seg) {
+        if (trav.aw.id !== seg.airway) return;
+        const fi = pts.indexOf(seg.from), ti = pts.indexOf(seg.toward);
+        if (fi !== -1 && ti !== -1 && ti > fi) cap = Math.min(cap, ZAE.MOA[k].floor - 1000);
+      });
+    });
+    return cap;
+  }
+  function altitudeOptions(trav, floor, tier, ac, cap) {
+    if (cap == null) cap = Math.min(tier.altCap, aircraftCap(ac), ZAE.LOW_CEILING);
     const odd = wantsOdd(trav);
     const floorK = Math.ceil(floor / 1000);
     const opts = [];
@@ -235,8 +250,8 @@
     }
     return opts;
   }
-  function chooseAltitude(trav, floor, tier, ac) {
-    const opts = altitudeOptions(trav, floor, tier, ac);
+  function chooseAltitude(trav, floor, tier, ac, cap) {
+    const opts = altitudeOptions(trav, floor, tier, ac, cap);
     if (!opts.length) return Math.ceil(floor / 1000) * 1000;
     return pick(opts);
   }
@@ -418,8 +433,9 @@
 
       // ---- altitude
       const floor = altitudeFloor(trav, startIdx, endIdx);
-      const alt = chooseAltitude(trav, floor, tier, ac);
-      const cap = Math.min(tier.altCap, aircraftCap(ac), ZAE.LOW_CEILING);
+      const cap = altitudeCap(trav, startIdx, endIdx, tier, ac);
+      if (cap < floor) continue; // e.g. V245 northeast of MHZ: 6,000 floor, 7,000 cap, parity may leave nothing
+      const alt = chooseAltitude(trav, floor, tier, ac, cap);
       let iafdofAlt = null;
       if (kind === "overflight" && tier.iafdofChance && chance(tier.iafdofChance)) {
         const w = wrongParityNear(alt, floor, cap);

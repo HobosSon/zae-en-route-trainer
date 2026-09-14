@@ -321,6 +321,28 @@
     "V9:BOOSI": { nm: 5, dir: "SE" }, "V11:BOOSI": { nm: 5, dir: "SE" }, "V555:ARGUW": { nm: 7, dir: "SE" }
   };
 
+  // Holding pattern airspace (H00 Color Card Stock Map): the distance from
+  // the holding fix, along each radial, at which an aircraft is clear of the
+  // published holding pattern's protected airspace (template 8). `apch` is
+  // the larger distance that also clears the KGWO approach and missed
+  // approach airspace (V11 and V278 east of SQS). Airport radials are the
+  // direct legs to/from the fields under the pattern.
+  const HPA = {
+    MHZ: { hold: "NW", radial: 300, clear: { 320: 17, 335: 13, 350: 9, 5: 7, 49: 6, 91: 6, 106: 6, 129: 6, 164: 7, 179: 7, 194: 8, 223: 9, 251: 14, 266: 17, 281: 17, 153: 7, 190: 7, 220: 9 } },
+    SQS: { hold: "SW", radial: 256, clear: { 273: 17, 341: 8, 7: 8, 23: 7, 86: 7, 156: 7, 171: 5, 186: 7, 76: 7 }, apch: { 23: 10, 86: 14 } },
+    // other published patterns and the point that misses them (card notes)
+    DINKY: { hold: "NE on V18", miss: [{ airway: "V18", text: "X 48 NE MLU" }, { airway: "V427", text: "X 45 NE MLU" }] },
+    VKS: { hold: "SW on the 195 bearing", miss: [{ airway: "V417", text: "X 37 SW MHZ" }, { airway: "HEZ026R", text: "X 25 NE HEZ" }] }
+  };
+
+  // Special use airspace that is always active at Aero Center (course
+  // direction): Columbus 3 MOA over KGWO and northeast of SQS on V11, and
+  // Meridian 1 West on V245 northeast of MHZ (both 8,000 up to FL180).
+  const MOA = {
+    CBM3: { floor: 8000, ceiling: 17999, kgwoClear: { nm: 8, dir: "NE", alt: 7000 }, airways: [{ airway: "V11", from: "SQS", toward: "HLI" }] },
+    MEI1W: { floor: 8000, ceiling: 17999, airways: [{ airway: "V245", from: "MHZ", toward: "IGB" }] }
+  };
+
   // Preplanned departure paths that are never depicted on the strip: the leg
   // from the airport to its first NAVAID/airway. [point, nm, via]. Byerley
   // flies 150 to join V427 near HATER (about 8 nm), then V427 to MHZ.
@@ -340,7 +362,7 @@
   root.ZAE = {
     NAVAIDS, FIXES, AIRWAYS, JETROUTES, AIRPORTS, EXTERNAL_AIRPORTS,
     SECTORS_LOW, APPROACHES, EQUIP, AIRCRAFT, AIRLINES, MIL_CALLSIGNS,
-    RADIALS, DIVERGENCE, BOUNDARIES, SQS_CLEAR, DEP_PATHS, J417,
+    RADIALS, DIVERGENCE, BOUNDARIES, SQS_CLEAR, HPA, MOA, DEP_PATHS, J417,
     LOW_CEILING: 23000, // ZAE low sectors: FL230 and below
 
     // Convenience: resolve a fix/navaid id to a display + description.

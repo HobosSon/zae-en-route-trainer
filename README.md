@@ -18,7 +18,10 @@ and its **Sector 66 "Jackson Low"** non-radar environment.
   are never moved (unless IAFDOF), departures/arrivals get crossing
   restrictions or an altitude within 2,000 ft of the request, successive
   departures use the 2-minute rule (never 1 minute) or the 44/22-knot rules,
-  10 min / 20 DME longitudinal, JAN/MLU approach and Columbus 3 MOA airspace.
+  10 min / 20 DME longitudinal, JAN/MLU approach airspace, the always-active
+  Columbus 3 and Meridian 1 West MOAs, and the MHZ/SQS holding pattern
+  airspace (protected from 10 minutes before an arrival's estimate until it is
+  tower jurisdiction or landed, with the Color Card Stock Map clear distances).
   The answer key shows the completed strip (restriction bar, red W's,
   report-passing reminders, departure instructions, void times, coordination
   circles), the restrictions, reports to solicit, coordination and phraseology.

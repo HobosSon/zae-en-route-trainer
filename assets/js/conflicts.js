@@ -37,9 +37,13 @@
     ALT_CHANGE_MAX: 2000,               // a departure may be held this far from its request without penalty
     OPP_BUFFER_MIN: 10,                 // vertical needed from 10 min before until 10 min after passing
     JAN_TOP: 5000, MLU_TOP: 6000,       // nonradar vertical limits of the approach controls
-    CBM3_ACTIVE: true,                  // Columbus 3 MOA (8,000 to FL180) over KGWO
+    CBM3_ACTIVE: true,                  // Columbus 3 MOA (8,000 to FL180) over KGWO — always active at Aero Center
+    MEI1W_ACTIVE: true,                 // Meridian 1 West MOA on V245 northeast of MHZ — always active
     KGWO_MOA_CLEAR: { nm: 8, dir: "NE", alt: 7000 },
-    KJAN_NW_BELOW_50: true,             // KJAN/KJVW departures bound NW stay at/below 5,000 to the JAN boundary
+    HPA_BEFORE_MIN: 10,                 // holding pattern airspace is protected from 10 min before the holder's fix estimate
+    HPA_AFTER_JAN_MIN: 2,               // ...until JAN/MLU approach reports tower jurisdiction (2 min past the estimate)
+    HPA_AFTER_GWO_MIN: 7,               // ...until a KGWO arrival has landed (7 min past the SQS estimate)
+    HPA_DEFAULT_CLEAR: 8,               // clear distance for a radial the card does not list
     JAN_LOWEST: 6000,                   // lowest ARTCC altitude at MHZ for JAN arrivals
     KGWO_HOLD_ALT: 7000,                // KGWO arrivals cross SQS at or below 7,000 / hold at 7,000
     EDC_MIN: 10, VOID_MIN: 10, ADVISE_MIN: 10
@@ -127,15 +131,16 @@
   // final altitude (nonradar: climb rate is never used for separation) unless
   // a crossing restriction caps it; an arrival is anywhere between its
   // clearance altitude and cruise (pilot's discretion) unless held level.
-  function restrictionCovers(f, r, i) {
+  function restrictionCoversD(f, r, d) {
     const ni = nodeIndex(f, r.node); if (ni < 0) return false;
-    const n = f.nodes[i], N = f.nodes[ni];
+    const N = f.nodes[ni];
     const nm = r.nm || 0;
-    if (r.kind === "maintain") return n.d <= N.d + nm + 0.01;   // level until nm past the node
-    if (r.limit === "above") return n.d >= N.d - nm - 0.01;     // at/above from nm before the node onward
-    return n.d <= N.d + nm + 0.01;                              // at/below through nm past the node
+    if (r.kind === "maintain") return d <= N.d + nm + 0.01;   // level until nm past the node
+    if (r.limit === "above") return d >= N.d - nm - 0.01;     // at/above from nm before the node onward
+    return d <= N.d + nm + 0.01;                              // at/below through nm past the node
   }
-  function bandAt(f, i, plan) {
+  // Band at a distance `d` along the flight's path (nm from its first node).
+  function bandAtD(f, d, plan) {
     const p = plan[f.id];
     if (f.kind === "overflight") {
       if (f.iafdof) return [Math.min(f.alt, p.finalAlt), Math.max(f.alt, p.finalAlt)];
@@ -144,21 +149,23 @@
     if (f.kind === "departure") {
       let lo = 0, hi = p.finalAlt;
       p.restrictions.forEach(function (r) {
-        if (r.limit === "below" && restrictionCovers(f, r, i)) hi = Math.min(hi, r.alt);
-        if (r.limit === "above" && restrictionCovers(f, r, i)) lo = Math.max(lo, r.alt);
+        if (r.limit === "below" && restrictionCoversD(f, r, d)) hi = Math.min(hi, r.alt);
+        if (r.limit === "above" && restrictionCoversD(f, r, d)) lo = Math.max(lo, r.alt);
       });
       return [lo, Math.max(lo, hi)];
     }
-    // arrival
+    // arrival: "cross nm before N at or below" applies from that point on
     let lo = p.arrivalAlt, hi = f.alt;
     p.restrictions.forEach(function (r) {
       const ni = nodeIndex(f, r.node); if (ni < 0) return;
-      const n = f.nodes[i], N = f.nodes[ni];
-      if (r.kind === "maintain" && n.d <= N.d + (r.nm || 0) + 0.01) { lo = hi = f.alt; }
-      if (r.kind !== "maintain" && r.limit === "below" && n.d >= N.d - (r.nm || 0) - 0.01) hi = Math.min(hi, r.alt);
+      const N = f.nodes[ni];
+      if (r.kind === "maintain" && d <= N.d + (r.nm || 0) + 0.01) { lo = hi = f.alt; }
+      if (r.kind !== "maintain" && r.limit === "below" && d >= N.d - (r.nm || 0) - 0.01) hi = Math.min(hi, r.alt);
     });
     return [lo, Math.max(lo, hi)];
   }
+  function bandAt(f, i, plan) { return bandAtD(f, f.nodes[i].d, plan); }
+  function unionBand(a, b) { return [Math.min(a[0], b[0]), Math.max(a[1], b[1])]; }
 
   // ---- shared geometry --------------------------------------------------
   // Runs of nodes two flights have in common, in A's order: same-direction,
@@ -212,12 +219,56 @@
     return { min: min, nm: nm, rule: rule, dme: dme };
   }
 
+  // ---- holding pattern airspace ------------------------------------------
+  // An arrival cleared to MHZ (hold NW as published) or to KGWO via SQS
+  // activates the published holding pattern airspace at its fix from 10
+  // minutes before its estimate until it is tower jurisdiction / landed.
+  // Every other aircraft is inside that airspace from the card's clear
+  // distance before the fix to the clear distance after it.
+  function holdFix(f) { return f.kind === "arrival" ? f.nodes[f.nodes.length - 2].id : null; }
+  function hpaWindow(f) {
+    const N = holdFix(f); if (!N) return null;
+    const t = f.nodes[f.nodes.length - 2].t;
+    return { node: N, from: t - RULES.HPA_BEFORE_MIN, to: t + (f.destAirport === "KGWO" ? RULES.HPA_AFTER_GWO_MIN : RULES.HPA_AFTER_JAN_MIN) };
+  }
+  function hpaClear(N, radial, apch) {
+    const h = ZAE.HPA[N]; if (!h || radial == null) return RULES.HPA_DEFAULT_CLEAR;
+    const r = ((radial % 360) + 360) % 360;
+    if (apch && h.apch && h.apch[r] != null) return h.apch[r];
+    return h.clear[r] != null ? h.clear[r] : RULES.HPA_DEFAULT_CLEAR;
+  }
+  // [enter, exit] times of flight X inside the pattern at node index i, plus the clear distances used
+  function hpaOccupancy(X, i, N) {
+    const inR = i > 0 ? radialToward(X, i, i - 1) : null, outR = i < X.nodes.length - 1 ? radialToward(X, i, i + 1) : null;
+    const cin = i > 0 ? Math.min(hpaClear(N, inR), X.nodes[i].d - X.nodes[i - 1].d) : 0;
+    const cout = i < X.nodes.length - 1 ? Math.min(hpaClear(N, outR), X.nodes[i + 1].d - X.nodes[i].d) : 0;
+    return { from: X.nodes[i].t - cin / X.mpm, to: X.nodes[i].t + cout / X.mpm, cin: cin, cout: cout, inR: inR, outR: outR };
+  }
+  function hpaConflict(arr, X, xi, plan) {
+    const w = hpaWindow(arr); if (!w) return null;
+    if ((plan[arr.id].stackedWith || []).indexOf(X.id) !== -1) return null; // already stacked in the pattern
+    const N = w.node;
+    const ai = arr.nodes.length - 2;
+    const occ = hpaOccupancy(X, xi, N);
+    // X occupies the pattern from the clear distance before the fix to the clear distance after it
+    const dN = X.nodes[xi].d;
+    let xb = bandAtD(X, dN, plan);
+    xb = unionBand(xb, bandAtD(X, dN - occ.cin, plan));
+    xb = unionBand(xb, bandAtD(X, dN + occ.cout, plan));
+    if (!bandsOverlap(bandAt(arr, ai, plan), xb)) return null;
+    if (occ.to < w.from || occ.from > w.to) return null;
+    return { a: arr, b: X, type: "hpa", node: N, i: ai, j: xi, occ: occ, window: w, dt: Math.abs(arr.nodes[ai].t - X.nodes[xi].t) };
+  }
+
   // ---- conflict detection --------------------------------------------------
   function pairConflicts(A, B, plan) {
     const out = [];
     sharedRuns(A, B).forEach(function (run) {
       if (run.dir === "cross" || run.pairs.length === 1) {
         const i = run.pairs[0][0], j = run.pairs[0][1];
+        // at an arrival's holding fix the pattern airspace is what must be protected
+        if (A.kind === "arrival" && holdFix(A) === A.nodes[i].id) { const c = hpaConflict(A, B, j, plan); if (c) out.push(c); return; }
+        if (B.kind === "arrival" && holdFix(B) === B.nodes[j].id) { const c = hpaConflict(B, A, i, plan); if (c) { out.push(c); } return; }
         if (!bandsOverlap(bandAt(A, i, plan), bandAt(B, j, plan))) return;
         const dt = Math.abs(A.nodes[i].t - B.nodes[j].t);
         if (dt < RULES.LONG_MIN) out.push({ a: A, b: B, type: "cross", i: i, j: j, node: A.nodes[i].id, dt: dt, run: run });
@@ -268,22 +319,16 @@
         if (RULES.CBM3_ACTIVE && p.finalAlt >= 8000) {
           const outAw = f.nodes[gwIdx + 1] ? f.nodes[gwIdx + 1].via : null;
           const ne = outAw && ["V11", "V278", "V535"].indexOf(outAw) !== -1 && (radialToward(f, gwIdx, gwIdx + 1) < 90);
-          if (f.dme) p.restrictions.push({ kind: "cross", node: "SQS", nm: RULES.KGWO_MOA_CLEAR.nm, dir: RULES.KGWO_MOA_CLEAR.dir, on: ne ? outAw : null, limit: "below", alt: RULES.KGWO_MOA_CLEAR.alt, why: "airspace", label: "Columbus 3 MOA (8,000 and above over KGWO)" });
+          if (f.dme) addRestriction(p, { kind: "cross", node: "SQS", nm: RULES.KGWO_MOA_CLEAR.nm, dir: RULES.KGWO_MOA_CLEAR.dir, on: ne ? outAw : null, limit: "below", alt: RULES.KGWO_MOA_CLEAR.alt, why: "airspace", label: "Columbus 3 MOA (8,000 to FL180 over KGWO, always active)" });
           else p.restrictions.push({ kind: "crossfix", node: "SQS", limit: "below", alt: RULES.KGWO_MOA_CLEAR.alt, why: "airspace", label: "Columbus 3 MOA — fix restriction, aircraft has no DME" });
         }
         const mi = nodeIndex(f, "MHZ");
         if (mi > 0) {
           const b = boundaryFrom(f.nodes[mi].via, "MHZ", "JAN");
-          if (b) p.restrictions.push({ kind: "cross", node: "MHZ", nm: b.nm, dir: b.dir, limit: "above", alt: RULES.JAN_TOP + 1000, why: "airspace", label: "JAN Approach airspace (5,000 and below)" });
+          if (b) addRestriction(p, { kind: "cross", node: "MHZ", nm: b.nm, dir: b.dir, limit: "above", alt: RULES.JAN_TOP + 1000, why: "airspace", label: "JAN Approach airspace (5,000 and below)" });
         }
       } else if (apt === "KJAN" || apt === "KJVW") {
         p.restrictions.push({ kind: "crossfix", node: "MHZ", limit: "below", alt: RULES.JAN_TOP, why: "loa", tower: true, label: "JAN LOA: tower clears departures direct MHZ, cross MHZ at or below 5,000" });
-        const r = RULES.KJAN_NW_BELOW_50 ? nwBound(f) : null;
-        if (r != null) {
-          const aw = f.nodes[nodeIndex(f, "MHZ") + 1].via;
-          const b = boundaryFrom(aw, "MHZ", "JAN");
-          if (b) p.restrictions.push({ kind: "cross", node: "MHZ", nm: b.nm, dir: b.dir, limit: "below", alt: RULES.JAN_TOP, why: "airspace", label: "MHZ holding pattern / JAN Approach boundary on " + aw });
-        }
         if (f.exitNav === "MLU") {
           const b = boundaryFrom(f.aw, "MLU", "MLUAPCH");
           if (b) p.restrictions.push({ kind: "cross", node: "MLU", nm: b.nm, dir: b.dir, limit: "above", alt: RULES.MLU_TOP + 1000, why: "airspace", label: "MLU Approach airspace (6,000 and below)" });
@@ -291,16 +336,16 @@
       } else if (apt === "0M8") {
         p.depInstr = SYM.enterCA + " 150 " + SYM.join + " V427";
         p.depInstrPhr = "when entering controlled airspace fly heading one five zero until joining Victor Four Twenty-seven, Victor Four Twenty-seven Magnolia";
-        p.restrictions.push({ kind: "cross", node: "MHZ", nm: 18, dir: "NW", on: "V427", limit: "above", alt: RULES.JAN_TOP + 1000, why: "airspace", label: "JAN Approach airspace (5,000 and below)" });
+        addRestriction(p, { kind: "cross", node: "MHZ", nm: 18, dir: "NW", on: "V427", limit: "above", alt: RULES.JAN_TOP + 1000, why: "airspace", label: "JAN Approach airspace (5,000 and below)" });
       } else if (apt === "KVKS") {
         if (f.exitNav === "MLU" && nodeIndex(f, "MHZ") < 0) {
           p.depInstr = SYM.depart + " NE TL 330 " + SYM.join + " V417";
           p.depInstrPhr = "depart northeast, turn left, fly heading three three zero until joining Victor Four Seventeen, Victor Four Seventeen Monroe";
-          p.restrictions.push({ kind: "cross", node: "MLU", nm: 31, dir: "SE", on: "V417", limit: "above", alt: RULES.MLU_TOP + 1000, why: "airspace", label: "MLU Approach airspace (6,000 and below)" });
+          addRestriction(p, { kind: "cross", node: "MLU", nm: 31, dir: "SE", on: "V417", limit: "above", alt: RULES.MLU_TOP + 1000, why: "airspace", label: "MLU Approach airspace (6,000 and below)" });
         } else {
           p.depInstr = SYM.depart + " NE TR 030 " + SYM.join + " V417";
           p.depInstrPhr = "depart northeast, turn right, fly heading zero three zero until joining Victor Four Seventeen, Victor Four Seventeen Magnolia";
-          p.restrictions.push({ kind: "cross", node: "MHZ", nm: 20, dir: "SW", on: "V417", limit: "above", alt: RULES.JAN_TOP + 1000, why: "airspace", label: "JAN Approach airspace (5,000 and below)" });
+          addRestriction(p, { kind: "cross", node: "MHZ", nm: 20, dir: "SW", on: "V417", limit: "above", alt: RULES.JAN_TOP + 1000, why: "airspace", label: "JAN Approach airspace (5,000 and below)" });
         }
       }
       if (apt === "0M8" || apt === "KVKS") {
@@ -329,9 +374,14 @@
         // JAN arrivals: cleared to MHZ, lowest ARTCC altitude, hold NW as published
         p.clearanceLimit = "MHZ";
         p.holdPhr = "hold northwest as published, no delay expected";
-        const b = boundaryFrom(entryLegAw, "MHZ", "JAN") || boundaryFrom(f.aw, "MHZ", "JAN");
-        p.tcp = b ? b.nm + " " + b.dir + " MHZ on " + (entryLegAw || f.aw) : "the JAN boundary";
-        p.tcpPhr = b ? b.nm + " miles " + DIR_WORD[b.dir] + " of Magnolia VORTAC on " + (entryLegAw || f.aw) : "the boundary";
+        // the JAN boundary on the side the arrival comes from (V9/V555/V557 cross it twice)
+        const fi = f.nodes.length - 2;
+        const inR = radialToward(f, fi, fi - 1);
+        const inAw = f.nodes[fi].via;
+        let b = null;
+        (ZAE.BOUNDARIES[inAw] || []).forEach(function (x) { if (x.nav === "MHZ" && x.to === "JAN" && (!b || (inR != null && x.dir === dirLabel(inR)))) b = x; });
+        p.tcp = b ? b.nm + " " + b.dir + " MHZ on " + inAw : "the JAN boundary";
+        p.tcpPhr = b ? b.nm + " miles " + DIR_WORD[b.dir] + " of Magnolia VORTAC on " + inAw : "the boundary";
         const inbound = radialToward(f, f.nodes.length - 2, f.nodes.length - 3);
         if (inbound != null && (inbound >= 271 || inbound === 360)) { p.levelAt = { nm: 9, dir: "NW" }; }
       }
@@ -385,15 +435,19 @@
     if (inR != null && outR != null && dirLabel(inR) === dirLabel(outR)) return aw;
     return null;
   }
+  // Restrictions at the same NAVAID with the same sense within 5 flying miles
+  // are combined (Lab Procedures III-4A): the farther point, the tighter altitude.
   function addRestriction(p, r) {
-    // merge with an equal restriction at the same node/limit: keep the tighter altitude
     for (let k = 0; k < p.restrictions.length; k++) {
       const x = p.restrictions[k];
-      if (x.node === r.node && x.limit === r.limit && x.kind === r.kind && (x.nm || 0) === (r.nm || 0)) {
-        if (r.limit === "below" ? r.alt < x.alt : r.alt > x.alt) { x.alt = r.alt; x.vs = (x.vs || []).concat(r.vs || []); x.why = "traffic"; }
-        else x.vs = (x.vs || []).concat(r.vs || []);
-        return true;
-      }
+      if (x.node !== r.node || x.limit !== r.limit || x.kind !== r.kind || x.tower) continue;
+      if (Math.abs((x.nm || 0) - (r.nm || 0)) > 5) continue;
+      if (r.limit === "below" ? r.alt < x.alt : r.alt > x.alt) { x.alt = r.alt; x.why = "traffic"; }
+      x.nm = Math.max(x.nm || 0, r.nm || 0);
+      x.on = x.on || r.on;
+      x.vs = (x.vs || []).concat(r.vs || []);
+      if (r.label && x.label !== r.label) x.label = x.label + "; " + r.label;
+      return true;
     }
     p.restrictions.push(r);
     return true;
@@ -455,6 +509,71 @@
       if (!parityOK || other < f.floor || other > f.cap) return false;
       p.finalAlt = other; state.flipped[f.id] = true; return true;
     };
+
+    if (c.type === "hpa") {
+      // c.a is the arrival that owns the pattern; c.b is inside it
+      const arr = c.a, X = c.b, N = c.node, xi = c.j;
+      const pa = plan[arr.id];
+      const band = bandAt(arr, c.i, plan);
+      const label = arr.cs + " inbound " + N + " " + toHHMM(arr.nodes[c.i].t) + " (holding pattern airspace protected " + toHHMM(c.window.from) + "–" + toHHMM(c.window.to) + ")";
+      if (X.kind === "departure") {
+        const p = plan[X.id];
+        const below = band[0] - RULES.VERT;
+        if (c.occ.outR != null && below >= minDepAlt(X, xi)) {
+          addRestriction(p, { kind: "cross", node: N, nm: c.occ.cout, dir: dirLabel(c.occ.outR), on: onAirwayNote(X, xi, c.occ.cout), limit: "below", alt: below, why: "traffic", vs: [arr.cs], label: "holding pattern airspace: " + label + " — stay under it until clear of the pattern" });
+          p.warnings.push(arr.cs);
+          return { ok: true };
+        }
+        const above = band[1] + RULES.VERT;
+        if (X.dme && c.occ.inR != null && above <= p.finalAlt && (X.nodes[xi].d - c.occ.cin) >= 25) {
+          addRestriction(p, { kind: "cross", node: N, nm: c.occ.cin, dir: dirLabel(c.occ.inR), limit: "above", alt: above, why: "traffic", vs: [arr.cs], label: "holding pattern airspace: " + label + " — above it before entering the pattern" });
+          p.warnings.push(arr.cs);
+          return { ok: true };
+        }
+        return { ok: false, reason: X.cs + " (departure) cannot be kept clear of " + arr.cs + "'s holding pattern airspace at " + N };
+      }
+      if (X.kind === "overflight" && !X.iafdof) {
+        // never move the level aircraft: get under it before entering the pattern...
+        const under = X.alt - RULES.VERT;
+        if (arr.dme && under >= pa.arrivalAlt && c.i > 0) {
+          const inR = radialToward(arr, c.i, c.i - 1);
+          const cin = Math.min(hpaClear(N, inR), arr.nodes[c.i].d - arr.nodes[c.i - 1].d);
+          const bnd = boundaryFrom(arr.nodes[c.i].via, N);
+          if (inR != null && (!bnd || cin < bnd.nm)) {
+            addRestriction(pa, { kind: "cross", node: N, nm: cin, dir: dirLabel(inR), limit: "below", alt: under, why: "traffic", vs: [X.cs], label: "holding pattern airspace: " + X.cs + " level at " + hundreds(X.alt) + " through the pattern — be under it before entering" });
+            pa.warnings.push(X.cs);
+            return { ok: true };
+          }
+        }
+        // ...or hold above it (lowest ARTCC altitude available)
+        const want = X.alt + RULES.VERT;
+        if (arr.destAirport !== "KGWO" && want <= arr.alt && want <= RULES.JAN_LOWEST + 2000 && pa.arrivalAlt < want) {
+          pa.arrivalAlt = want; pa.warnings.push(X.cs); pa.altNote = "lowest ARTCC altitude available with " + X.cs + " at " + hundreds(X.alt) + " through the holding pattern airspace";
+          return { ok: true };
+        }
+        return { ok: false, reason: X.cs + " (level) passes through " + arr.cs + "'s holding pattern airspace at " + N + " at " + hundreds(X.alt) };
+      }
+      if (X.kind === "overflight" && X.iafdof) { if (tryFlip(X)) return { ok: true }; return { ok: false, reason: X.cs + " (IAFDOF) conflicts with " + arr.cs + "'s holding pattern airspace at " + N }; }
+      if (X.kind === "arrival") {
+        // two arrivals sharing the fix: the later one takes the next altitude up
+        const later = arr.nodes[c.i].t >= X.nodes[xi].t ? arr : X;
+        const earlier = later === arr ? X : arr;
+        const pl = plan[later.id];
+        if (later.destAirport !== "KGWO") {
+          const want = plan[earlier.id].arrivalAlt + RULES.VERT;
+          if (want <= later.alt && want <= RULES.JAN_LOWEST + 2000 && pl.arrivalAlt <= want) {
+            pl.arrivalAlt = want; pl.warnings.push(earlier.cs);
+            pl.altNote = "lowest ARTCC altitude available (" + earlier.cs + " holding at " + hundreds(plan[earlier.id].arrivalAlt) + ")";
+            // stacked in the pattern: the earlier one is at its altitude by the time the later one arrives
+            pl.stackedWith = (pl.stackedWith || []).concat([earlier.id]);
+            plan[earlier.id].stackedWith = (plan[earlier.id].stackedWith || []).concat([later.id]);
+            return { ok: true };
+          }
+        }
+        return { ok: false, reason: arr.cs + " and " + X.cs + " both need the holding pattern at " + N };
+      }
+      return { ok: false, reason: "unhandled holding pattern conflict" };
+    }
 
     if (c.type === "cross") {
       const i = c.i, j = c.j;
@@ -691,8 +810,10 @@
       for (let a = 0; a < flights.length; a++) for (let b = a + 1; b < flights.length; b++) {
         const A = flights[a], B = flights[b];
         if (A.kind === "departure" && B.kind === "departure" && A.originAirport === B.originAirport) continue; // departure rules
-        if (A.kind !== B.kind && (A.originAirport || A.destAirport) && (A.originAirport || A.destAirport) === (B.originAirport || B.destAirport) && (A.kind !== "overflight" && B.kind !== "overflight")) {
-          return { ok: false, unsolvable: [A.cs + " and " + B.cs + " are an arrival and a departure at the same airport (not modelled yet)"], plan: plan, pairs: [] };
+        // KGWO departure vs KGWO arrival (tower visual separation, approach airspace reports) is not modelled yet;
+        // JAN-airport pairs are handled by the LOA (departures cross MHZ at or below 5,000) and the holding pattern logic
+        if (A.kind !== B.kind && A.kind !== "overflight" && B.kind !== "overflight" && (A.originAirport || A.destAirport) === "KGWO" && (B.originAirport || B.destAirport) === "KGWO") {
+          return { ok: false, unsolvable: [A.cs + " and " + B.cs + " are an arrival and a departure at KGWO (not modelled yet)"], plan: plan, pairs: [] };
         }
         if (A.kind === "arrival" && B.kind === "arrival" && A.destAirport === "KGWO" && B.destAirport === "KGWO") {
           return { ok: false, unsolvable: [A.cs + " and " + B.cs + " are two KGWO arrivals (holding stack not modelled yet)"], plan: plan, pairs: [] };
@@ -701,6 +822,9 @@
       }
       const open = pairs.filter(function (c) { return !c.ok; });
       if (!open.length) break;
+      const sig = open[0].type + "|" + open[0].a.id + "|" + open[0].b.id + "|" + open[0].node;
+      if (state.lastSig === sig) { unsolvable.push("no usable resolution (" + open[0].type + ") for " + open[0].a.cs + " / " + open[0].b.cs + " at " + open[0].node); break; }
+      state.lastSig = sig;
       const r = resolveConflict(open[0], plan, state);
       if (!r.ok) { unsolvable.push(r.reason); break; }
       if (iter === 23) unsolvable.push("could not settle " + open[0].a.cs + " / " + open[0].b.cs);
