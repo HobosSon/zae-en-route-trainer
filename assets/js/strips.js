@@ -110,9 +110,18 @@
     });
   }
 
+  // The details panel never shrinks: closing and reopening an answer key keeps
+  // the page where it is instead of yanking it up (extra room stays below).
+  let detailsMinHeight = 0;
+  function holdDetailsHeight() {
+    if (!details) return;
+    detailsMinHeight = Math.max(detailsMinHeight, details.offsetHeight);
+    details.style.minHeight = detailsMinHeight + "px";
+  }
   function showDetails(strip) {
     selected = strip;
     if (!details) return;
+    holdDetailsHeight();
     details.innerHTML = "";
     if (!strip) {
       details.appendChild(el("p", "empty-note", "Click a strip on the board to see its answer key."));
@@ -201,17 +210,23 @@
     const hint = el("p", "board-hint",
       "Strips in suspense (a departure awaiting its clearance request, with its postings stacked directly above it) sit above the bay label; " +
       "active postings sit below, earliest time at the bottom. Hover a strip to enlarge it, click it for its answer key, drag it to any bay or position. " +
-      "With a strip selected, press F or Space to flag it as a reminder; click anywhere else to deselect.");
+      "A selected strip stays enlarged and can be marked up with the tools above it; press F or Space to flag it as a reminder; click anywhere else to deselect.");
     out.appendChild(hint);
     const boardEl = el("div");
     out.appendChild(boardEl);
     details = el("div", "strip-details");
     out.appendChild(details);
 
+    StripMarkup.attach();
     board = StripBoard.create(boardEl, {
       showNums: numsToggle.checked,
-      keepSelectionWithin: ".strip-details", // reading the answer key must not deselect
-      onSelect: function (strip) { if (!revealAllToggle.checked) showDetails(strip); }
+      keepSelectionWithin: ".strip-details, .sm-ui", // reading the answer key or using the marking tools must not deselect
+      onSelect: function (strip, slot) {
+        if (!revealAllToggle.checked) showDetails(strip);
+        if (strip) StripMarkup.activate(strip, slot); else StripMarkup.deactivate();
+      },
+      onMove: function () { StripMarkup.reposition(); },
+      onRender: function (slot) { StripMarkup.rebind(slot); }
     });
     board.setStrips(current);
     if (revealAllToggle.checked) renderAllKeys();
@@ -231,6 +246,8 @@
 
   function applyScenario(sc) {
     scenario = sc;
+    detailsMinHeight = 0;
+    StripMarkup.deactivate();
     current = sc.strips;
     codeInput.value = sc.code;
     // reflect the code's settings in the controls

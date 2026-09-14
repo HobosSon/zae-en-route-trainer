@@ -342,3 +342,53 @@
 .traffic-summary h4 { margin: 0 0 0.4rem; font-size: 0.9rem; }
 .traffic-summary ul { margin: 0; padding-left: 1.1rem; }
 .traffic-summary .ok { color: var(--green); }
+
+/* ---------- Stripmarking editor (board strips) ---------- */
+.sm-layer { position: absolute; inset: 0; pointer-events: none; z-index: 4; font-family: "Caveat", "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive; }
+.sm-layer .sm-edit { pointer-events: auto; }
+.sb-strip:not(.is-selected) .sm-layer .sm-edit { pointer-events: none; }
+.sm-red { color: #cf1f14; }
+.sm-blk { color: #111; }
+.sm-circ { position: absolute; border: 0.22cqw solid; border-radius: 50%; box-sizing: border-box; }
+.sm-circ.sm-red { border-color: #cf1f14; }
+.sm-circ.sm-blk { border-color: #111; }
+.sm-strike { position: absolute; border-top: 0.24cqw solid #111; height: 0; }
+.sm-caret { position: absolute; overflow: visible; pointer-events: auto; cursor: pointer; }
+.sm-caret polyline { fill: none; stroke: currentColor; stroke-width: 1.1; stroke-linecap: round; stroke-linejoin: round; }
+.sm-caret-text { position: absolute; min-height: 1.6cqw; font-size: 1.5cqw; line-height: 1.1; text-align: center; font-weight: 700; outline: none; white-space: nowrap; }
+.sm-caret-text:empty::before { content: "amend"; opacity: 0.35; font-weight: 400; }
+.sm-caret-text:focus { background: rgba(255, 255, 255, 0.35); }
+.sm-text26 { position: absolute; left: 67%; top: 50%; width: 23.5%; height: 46%; font-size: 1.35cqw; line-height: 1.15; font-weight: 700; padding: 0.2cqw 0.3cqw; outline: none; overflow: hidden; white-space: pre-wrap; word-break: break-word; }
+.sb-strip.is-selected .sm-text26:empty::before { content: "26"; color: rgba(0, 0, 0, 0.18); font-weight: 400; }
+.sb-strip.is-selected .sm-text26:focus { background: rgba(255, 255, 255, 0.35); }
+.sm-gbox { position: absolute; left: 91.2%; top: 2%; width: 8.6%; height: 96%; display: flex; flex-direction: column; gap: 0.15cqw; padding: 0.2cqw 0.2cqw; box-sizing: border-box; pointer-events: auto; overflow: hidden; }
+.sb-strip.is-selected .sm-gbox.sm-over { background: rgba(255, 176, 0, 0.35); }
+.sm-chip { display: flex; align-items: flex-start; gap: 0.3cqw; font-size: 1.35cqw; font-weight: 700; line-height: 1.05; cursor: pointer; white-space: nowrap; }
+.sm-chip .sm-chip-text { outline: none; min-width: 1cqw; }
+.sm-chip .sm-hold-lines { display: flex; flex-direction: column; font-size: 1.05cqw; line-height: 1.05; }
+.sm-toolbar {
+  position: fixed; z-index: 500; display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.8rem;
+  max-width: 900px; padding: 0.45rem 0.7rem; background: var(--bg-panel); border: 1px solid var(--border-bright);
+  border-radius: 8px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5); font-size: 0.8rem;
+}
+.sm-pen { display: flex; border: 1px solid var(--border-bright); border-radius: 6px; overflow: hidden; }
+.sm-pen-btn { background: var(--bg-card); color: var(--text-dim); border: none; padding: 0.3rem 0.7rem; font-family: var(--mono); font-size: 0.78rem; cursor: pointer; }
+.sm-pen-btn.is-on.sm-pen-red { background: #cf1f14; color: #fff; }
+.sm-pen-btn.is-on.sm-pen-blk { background: #111; color: #fff; }
+.sm-acts { display: flex; gap: 0.35rem; }
+.sm-acts .btn { padding: 0.3rem 0.6rem; font-size: 0.78rem; }
+.sm-palette { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; }
+.sm-pal-label { font-family: var(--mono); font-size: 0.7rem; color: var(--text-dim); }
+.sm-pal-chip { padding: 0.15rem 0.45rem; background: #cfe9b8; color: #111; border-radius: 4px; font-family: "Caveat", "Segoe Print", cursive; font-weight: 700; font-size: 0.95rem; cursor: grab; user-select: none; }
+.sm-pal-chip.sm-red { color: #cf1f14; }
+.sm-hint { flex-basis: 100%; font-family: var(--mono); font-size: 0.66rem; color: var(--text-faint); }
+.sm-hold { position: fixed; z-index: 501; width: 250px; padding: 0.7rem 0.8rem; background: var(--bg-panel); border: 1px solid var(--border-bright); border-radius: 8px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5); font-size: 0.8rem; }
+.sm-hold-title { font-family: var(--mono); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); margin-bottom: 0.4rem; }
+.sm-hold-presets { display: flex; gap: 0.3rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.sm-hold-presets .btn { padding: 0.2rem 0.5rem; font-size: 0.72rem; }
+.sm-hold-form label { display: grid; grid-template-columns: 1fr; gap: 0.1rem; margin-bottom: 0.4rem; }
+.sm-hold-form label > span { font-family: var(--mono); font-size: 0.66rem; text-transform: uppercase; color: var(--text-dim); }
+.sm-hold-form small { color: var(--text-faint); font-size: 0.68rem; }
+.sm-hold-form input, .sm-hold-form select { background: var(--bg-card); color: var(--text); border: 1px solid var(--border-bright); border-radius: 5px; padding: 0.3rem 0.45rem; font-family: var(--mono); font-size: 0.82rem; text-transform: uppercase; }
+.sm-hold-actions { display: flex; gap: 0.4rem; margin-top: 0.3rem; }
+.sm-hold-actions .btn { padding: 0.3rem 0.7rem; font-size: 0.78rem; }

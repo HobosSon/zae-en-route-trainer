@@ -186,17 +186,27 @@
           slot.dataset.type = st.type || "";
           slot.dataset.flight = st.flight != null ? String(st.flight) : "";
           slot.dataset.suspense = st.suspense ? "1" : "";
-          slot.draggable = true;
+          slot.draggable = state.selected !== item; // the selected strip is being marked up, not dragged
           if (state.selected === item) slot.classList.add("is-selected");
           if (st.flagged) slot.classList.add("is-flagged");
-          slot.appendChild(FPSStrip.render(st.spaces, { showNums: state.showNums }));
+          const stripEl = FPSStrip.render(st.spaces, { showNums: state.showNums });
+          slot.appendChild(stripEl);
+          if (root.StripMarkup && st.markup) root.StripMarkup.apply(stripEl, st);
 
           slot.addEventListener("click", function () {
+            if (state.selected === item) return; // clicks inside the selected strip are for marking
+            const prev = state.selected;
             state.selected = item;
-            Array.prototype.forEach.call(container.querySelectorAll(".sb-strip.is-selected"), function (n) { n.classList.remove("is-selected"); });
+            Array.prototype.forEach.call(container.querySelectorAll(".sb-strip.is-selected"), function (n) { n.classList.remove("is-selected"); n.draggable = true; });
             slot.classList.add("is-selected");
-            if (opts.onSelect) opts.onSelect(st);
+            slot.draggable = false;
+            clearPush();
+            if (opts.onSelect) opts.onSelect(st, slot);
           });
+          // enlarged strips share the space: push the selected one and the
+          // hovered one apart while they would overlap
+          slot.addEventListener("mouseenter", function () { if (state.selected && state.selected !== item) pushApart(slot); });
+          slot.addEventListener("mouseleave", function () { if (state.selected !== item) clearPush(); });
           slot.addEventListener("dragstart", function (e) {
             drag = item;
             slot.classList.add("is-dragging");
@@ -239,6 +249,49 @@
 
         container.appendChild(col);
       });
+      if (opts.onRender) opts.onRender(selectedSlot());
+    }
+
+    // ---- push-apart -------------------------------------------------------
+    function scaleOf() { return window.matchMedia && window.matchMedia("(max-width: 640px)").matches ? 1.6 : 2.1; }
+    // The rectangle a slot's strip covers once enlarged (before any push).
+    function enlargedRect(slot) {
+      const r = slot.getBoundingClientRect();
+      const k = scaleOf();
+      const bay = slot.parentNode;
+      const first = bay === container.firstElementChild, last = bay === container.lastElementChild;
+      const w = r.width * k, h = r.height * k;
+      const x = first ? r.left : last ? r.right - w : r.left + r.width / 2 - w / 2;
+      const y = r.top + r.height / 2 - h / 2;
+      return { left: x, top: y, right: x + w, bottom: y + h, width: w, height: h };
+    }
+    function setPush(slot, x, y) {
+      const el = slot.querySelector(".fps-strip");
+      if (!el) return;
+      el.style.setProperty("--px", x + "px");
+      el.style.setProperty("--py", y + "px");
+    }
+    function clearPush() {
+      Array.prototype.forEach.call(container.querySelectorAll(".fps-strip"), function (el) { el.style.removeProperty("--px"); el.style.removeProperty("--py"); });
+      if (opts.onMove) opts.onMove();
+    }
+    function pushApart(hovered) {
+      const sel = container.querySelector('.sb-strip[data-uid="' + state.selected + '"]');
+      if (!sel || sel === hovered) return;
+      const a = enlargedRect(sel), b = enlargedRect(hovered);
+      const ox = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+      const oy = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+      if (ox <= 0 || oy <= 0) return;
+      const gap = 8;
+      // push along the axis that needs the smaller move; each strip takes half
+      if (oy <= ox) {
+        const d = (oy + gap) / 2, sign = a.top <= b.top ? -1 : 1;
+        setPush(sel, 0, sign * d); setPush(hovered, 0, -sign * d);
+      } else {
+        const d = (ox + gap) / 2, sign = a.left <= b.left ? -1 : 1;
+        setPush(sel, sign * d, 0); setPush(hovered, -sign * d, 0);
+      }
+      if (opts.onMove) opts.onMove();
     }
 
     function toggleFlag(uid) {
@@ -255,7 +308,8 @@
     function deselect() {
       if (!state.selected) return;
       state.selected = null;
-      Array.prototype.forEach.call(container.querySelectorAll(".sb-strip.is-selected"), function (n) { n.classList.remove("is-selected"); });
+      Array.prototype.forEach.call(container.querySelectorAll(".sb-strip.is-selected"), function (n) { n.classList.remove("is-selected"); n.draggable = true; });
+      clearPush();
       if (opts.onSelect) opts.onSelect(null);
     }
 
@@ -268,6 +322,8 @@
       if (opts.keepSelectionWithin && t.closest(opts.keepSelectionWithin)) return;
       deselect();
     });
+
+    function selectedSlot() { return state.selected ? container.querySelector('.sb-strip[data-uid="' + state.selected + '"]') : null; }
 
     function getFlags() {
       return Object.keys(state.byUid).filter(function (u) { return state.byUid[u].flagged; });
@@ -297,6 +353,7 @@
       toggleFlag: toggleFlag,
       getFlags: getFlags,
       deselect: deselect,
+      selectedSlot: selectedSlot,
       render: render
     };
   }

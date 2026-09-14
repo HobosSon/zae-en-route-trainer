@@ -48,10 +48,15 @@
   transform-origin: center center;
   will-change: transform;
 }
-/* hover zoom (suppressed while dragging so the ghost stays honest) */
+/* hover zoom (suppressed while dragging so the ghost stays honest); the
+   selected strip stays enlarged so it can be marked up. --px/--py push two
+   enlarged strips apart when they would overlap. */
 .sb-strip:hover { z-index: 30; }
-body:not(.sb-dragging) .sb-strip:hover .fps-strip {
-  transform: scale(2.1);
+.sb-strip.is-selected { z-index: 31; }
+.sb-strip:hover.is-selected, .sb-strip.is-selected:hover { z-index: 32; }
+body:not(.sb-dragging) .sb-strip:hover .fps-strip,
+.sb-strip.is-selected .fps-strip {
+  transform: translate(var(--px, 0px), var(--py, 0px)) scale(2.1);
   box-shadow: 0 10px 32px rgba(0, 0, 0, 0.65);
 }
 /* zoom outward from the board edge on the outer bays so they stay on screen */
@@ -59,6 +64,9 @@ body:not(.sb-dragging) .sb-strip:hover .fps-strip {
 .sb-bay:last-child  .fps-strip { transform-origin: right center; }
 
 .sb-strip.is-selected .fps-strip { outline: 2px solid var(--amber); outline-offset: 1px; }
+.sb-strip.is-selected { cursor: default; }
+.sb-strip.is-selected .fps-cell { cursor: text; user-select: text; -webkit-user-select: text; }
+.sb-strip:not(.is-selected) .fps-cell { user-select: none; -webkit-user-select: none; }
 .sb-strip.is-dragging { opacity: 0.35; }
 
 /* drop indicators */
@@ -68,7 +76,7 @@ body:not(.sb-dragging) .sb-strip:hover .fps-strip {
 
 @media (max-width: 640px) {
   .sb-board { gap: 6px; padding: 6px; }
-  body:not(.sb-dragging) .sb-strip:hover .fps-strip { transform: scale(1.6); }
+  body:not(.sb-dragging) .sb-strip:hover .fps-strip, .sb-strip.is-selected .fps-strip { transform: translate(var(--px, 0px), var(--py, 0px)) scale(1.6); }
 }
 
 /* flagged strip: red corner in the top-right (sized in strip units so it scales) */

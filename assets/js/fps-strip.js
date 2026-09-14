@@ -111,6 +111,7 @@
     wrap.appendChild(gridSvg());
     CELLS.forEach(function (c) {
       const cell = el("div", "fps-cell " + c.cls);
+      cell.dataset.f = c.f; // space number (the markup editor finds cells by it)
       if (marks && marks[c.f] && marks[c.f].length && (MARK_HIDES_BASE[c.f] || marks[c.f].some(function (m) { return m.replace; }))) cell.classList.add("mk-hidden");
       cell.style.left = c.x + "%";
       cell.style.top = c.y + "%";

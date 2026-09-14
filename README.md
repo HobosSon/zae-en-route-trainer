@@ -25,6 +25,13 @@ and its **Sector 66 "Jackson Low"** non-radar environment.
   The answer key shows the completed strip (restriction bar, red W's,
   report-passing reminders, departure instructions, void times, coordination
   circles), the restrictions, reports to solicit, coordination and phraseology.
+- **Stripmarking** — a selected board strip stays enlarged (two enlarged
+  strips push each other apart) and can be marked up: red or black pen,
+  circles (both colours can stack) and black strikes on highlighted text,
+  a ^ in the route with an amendment under it, free text in space 26, and
+  control-data chips (D-A, H-, VR, APCH, 67, Z, V, C, RLS, SYD, CTL, E)
+  dragged or clicked into spaces 27-30; H- opens the holding box (fix,
+  direction, radial/bearing/airway, turns, EFC) with VKS/MHZ/SQS/DINKY presets.
 - **Scenario codes** — every board has a code such as `D3A-K7Q2MX` (tier,
   aircraft count, type, seed). Load a code (or open `strips.html#D3A-K7Q2MX`)
   to get the identical scenario later or on another machine, e.g. one person
@@ -32,6 +39,15 @@ and its **Sector 66 "Jackson Low"** non-radar environment.
 
 Planned modules (stubbed as "Coming soon" on the menu): Practice Scenarios,
 Facility Reference, Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
+
+## Planned
+
+- KVKS and MLU (DINKY) arrivals: routes, approach/holding clearances, the
+  VKS and DINKY holding pattern miss points (37 SW MHZ, 25 NE HEZ, 48 NE
+  MLU, 45 NE MLU), FSS/MLU Approach coordination and remote reports.
+- KGWO departure vs. KGWO arrival (tower visual separation, approach
+  airspace reports), KGWO holding stacks.
+- Grading the controller's actions against the answer key.
 
 ## Running locally
 
