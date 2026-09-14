@@ -277,3 +277,68 @@
   font-family: var(--mono);
   font-size: 0.8rem;
 }
+
+/* ---------- Stripmarking overlays (answer-key "completed" strip) ---------- */
+/* Red = preplanned / warnings / coordination circles; black = issued to the pilot. */
+.fps-marks {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25cqw;
+  padding: 0.2cqw 0.4cqw;
+  font-family: "Caveat", "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive;
+  font-size: 1.5cqw;
+  line-height: 1.15;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 3;
+}
+.fps-marks.mk-sp20 { font-size: 1.3cqw; }
+.fps-marks.mk-sp20 .mk-alt { font-size: 2cqw; }
+.fps-marks.mk-sp15 { font-size: 1.45cqw; }
+.fps-marks.mk-sp26 { font-size: 1.35cqw; }
+.fps-marks.mk-sp23 { font-size: 2.6cqw; align-items: center; }
+.fps-marks.mk-sp28 { font-size: 1.05cqw; }
+.fps-marks.mk-sp28 .mk { white-space: normal; line-height: 1.05; }
+.fps-marks.mk-sp24, .fps-marks.mk-sp12, .fps-marks.mk-sp14, .fps-marks.mk-sp18 { font-size: 1.4cqw; }
+.fps-marks.mk-sp24 { align-items: flex-end; }
+.mk { white-space: nowrap; font-weight: 700; padding: 0 0.3cqw; border-radius: 50%; }
+.mk-red { color: #cf1f14; }
+.mk-blk { color: #111; }
+.mk-circ-red { border: 0.22cqw solid #cf1f14; padding: 0.05cqw 0.6cqw; }
+.mk-circ-blk { border: 0.22cqw solid #111; padding: 0.05cqw 0.6cqw; }
+.mk-ul-red { text-decoration: underline; text-decoration-color: #cf1f14; text-decoration-thickness: 0.25cqw; text-underline-offset: 0.2cqw; }
+.mk-strike { text-decoration: line-through; text-decoration-thickness: 0.22cqw; }
+.mk-corner { align-self: flex-end; margin-top: auto; }
+.mk-big { font-size: 2.2cqw; }
+.mk-alt { font-size: 2cqw; }
+.mk-bar { display: block; width: 100%; border-top: 0.22cqw solid #111; margin: 0.2cqw 0 0.15cqw; }
+.fps-cell.mk-hidden { visibility: hidden; }
+.fps-strip.marked .fps-cell.dir { visibility: hidden; }
+
+/* ---------- Scenario header / answer key panel ---------- */
+.scenario-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1.2rem;
+  padding: 0.7rem 1rem; margin: 0 0 1rem;
+  background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px;
+  font-family: var(--mono); font-size: 0.82rem; color: var(--text-dim);
+}
+.scenario-bar .code { color: var(--green); font-weight: 700; font-size: 1rem; letter-spacing: 1px; }
+.scenario-bar .btn-ghost { padding: 0.3rem 0.7rem; font-size: 0.78rem; }
+.scenario-bar .rules { color: var(--text-faint); font-size: 0.74rem; }
+.control input[type="text"] {
+  background: var(--bg-card); color: var(--text); border: 1px solid var(--border-bright);
+  border-radius: 5px; padding: 0.45rem 0.6rem; font-family: var(--mono); font-size: 0.9rem; min-width: 8.5rem; text-transform: uppercase;
+}
+.ctrl-key h5 { margin: 0.9rem 0 0.35rem; font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-dim); }
+.ctrl-key ul { margin: 0; padding-left: 1.1rem; font-size: 0.86rem; line-height: 1.45; }
+.ctrl-key li { margin: 0.2rem 0; }
+.ctrl-key .phr { font-style: italic; color: var(--text); }
+.ctrl-key .warn { color: var(--danger); font-weight: 700; }
+.completed-strip { margin: 0.6rem 0 0.2rem; }
+.completed-strip .cap { font-family: var(--mono); font-size: 0.7rem; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.3rem; }
+.traffic-summary { margin: 0 0 1rem; padding: 0.8rem 1rem; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; font-size: 0.86rem; }
+.traffic-summary h4 { margin: 0 0 0.4rem; font-size: 0.9rem; }
+.traffic-summary ul { margin: 0; padding-left: 1.1rem; }
+.traffic-summary .ok { color: var(--green); }

@@ -10,10 +10,22 @@ and its **Sector 66 "Jackson Low"** non-radar environment.
 ## Status
 
 - **Menu screen** (`index.html`) — hub for the study modules (expandable).
-- **Flight Strip Generator** (`strips.html`) — generates randomized nonradar flight
-  progress strips (proposal / departure / en route / arrival) at three difficulty
-  tiers, each with a reveal-able answer key (fix postings, MEA/altitude parity,
-  plus-time and posted-fix estimate math via the Quick Estimate Method).
+- **Flight Strip Generator** (`strips.html`) — generates a nonradar traffic
+  scenario (departures in suspense, en route, arrivals) on the VKS/MHZ/SQS bay
+  board at three difficulty tiers. Every scenario is run through the conflict
+  engine (`assets/js/conflicts.js`) before it is shown, so it can be worked
+  without a separation error under the course rules: level en route aircraft
+  are never moved (unless IAFDOF), departures/arrivals get crossing
+  restrictions or an altitude within 2,000 ft of the request, successive
+  departures use the 2-minute rule (never 1 minute) or the 44/22-knot rules,
+  10 min / 20 DME longitudinal, JAN/MLU approach and Columbus 3 MOA airspace.
+  The answer key shows the completed strip (restriction bar, red W's,
+  report-passing reminders, departure instructions, void times, coordination
+  circles), the restrictions, reports to solicit, coordination and phraseology.
+- **Scenario codes** — every board has a code such as `D3A-K7Q2MX` (tier,
+  aircraft count, type, seed). Load a code (or open `strips.html#D3A-K7Q2MX`)
+  to get the identical scenario later or on another machine, e.g. one person
+  as the Remote and one as the Controller.
 
 Planned modules (stubbed as "Coming soon" on the menu): Practice Scenarios,
 Facility Reference, Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
@@ -47,7 +59,8 @@ assets/
   data/zae.js           ZAE facility model (NAVAIDs, airways, fixes,
                         mileages, MEAs, airports, sectors, equipment,
                         aircraft) — the single source of truth
-  js/generator.js       Strip generation + difficulty scaling
+  js/generator.js       Seeded flight/strip generation + scenario assembly
+  js/conflicts.js       Nonradar conflict detection, resolution, answer-key marks
   js/strips.js          Flight strip page controller / rendering
 ```
 

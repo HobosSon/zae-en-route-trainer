@@ -1,0 +1,875 @@
+/*
+ * ZAE nonradar conflict engine.
+ *
+ * Given the flights of a generated scenario (see generator.js for the flight
+ * model: aircraft, path nodes with distances/times, altitude, kind), it
+ *   1. applies the course's airspace restrictions (JAN/MLU approach
+ *      boundaries, Columbus 3 MOA over KGWO, the JAN and MLU LOAs),
+ *   2. finds every pair of aircraft that is traffic for each other —
+ *      same altitude within 10 minutes at a crossing fix, on the same
+ *      course, or head-on on the same airway — using JO 7110.65 Chapter 6
+ *      nonradar minima as taught in Lessons 16-19,
+ *   3. resolves each conflict the way Aero Center expects: level en route
+ *      aircraft are never moved (unless IAFDOF); departures and arrivals get
+ *      crossing restrictions, altitude changes within 2,000 ft, position or
+ *      DME reports, and successive departures use the 2-minute rule,
+ *   4. reports the scenario as unworkable when no such resolution exists,
+ *      so the generator can draw a different flight.
+ *
+ * decorate() then writes the completed answer-key strips: restrictions under
+ * the restriction bar, red W's (lined through), report-passing reminders,
+ * departure instructions, void times, coordination circles.
+ *
+ * Exposed as the global `ZAEConflicts`. Requires ZAE (assets/data/zae.js).
+ */
+(function (root) {
+  "use strict";
+  const ZAE = root.ZAE;
+
+  // ---- rule table (tune here) --------------------------------------------
+  const RULES = {
+    LONG_MIN: 10,                       // standard longitudinal, minutes (JO 7110.65 6-4-2)
+    DME_NM: 20,                         // standard DME/ATD longitudinal, nm
+    RULE44: { kt: 44, min: 3, nm: 5 },  // lead at least 44 kt faster
+    RULE22: { kt: 22, min: 5, nm: 10 }, // lead at least 22 kt faster
+    VERT: 1000,                         // vertical minimum below FL290
+    DEP_RULE_MIN: 2,                    // successive departures: the 2-minute rule only (never 1 minute)
+    ALT_CHANGE_MAX: 2000,               // a departure may be held this far from its request without penalty
+    OPP_BUFFER_MIN: 10,                 // vertical needed from 10 min before until 10 min after passing
+    JAN_TOP: 5000, MLU_TOP: 6000,       // nonradar vertical limits of the approach controls
+    CBM3_ACTIVE: true,                  // Columbus 3 MOA (8,000 to FL180) over KGWO
+    KGWO_MOA_CLEAR: { nm: 8, dir: "NE", alt: 7000 },
+    KJAN_NW_BELOW_50: true,             // KJAN/KJVW departures bound NW stay at/below 5,000 to the JAN boundary
+    JAN_LOWEST: 6000,                   // lowest ARTCC altitude at MHZ for JAN arrivals
+    KGWO_HOLD_ALT: 7000,                // KGWO arrivals cross SQS at or below 7,000 / hold at 7,000
+    EDC_MIN: 10, VOID_MIN: 10, ADVISE_MIN: 10
+  };
+
+  // Symbols from the Aero Center Phraseology and Stripmarking Guide (H00 p.3)
+  const SYM = { climb: "↑", descend: "↓", above: "⤒", below: "⤓", at: "@", cross: "X", join: "⌒", depart: "T→", enterCA: "⊿", warn: "W" };
+
+  // ---- helpers ------------------------------------------------------------
+  function pad2(n) { return String(n).padStart(2, "0"); }
+  function toHHMM(mins) { mins = ((Math.round(mins) % 1440) + 1440) % 1440; return pad2(Math.floor(mins / 60)) + pad2(mins % 60); }
+  function hundreds(alt) { return String(alt / 100); }
+  function spoken(alt) {
+    const th = Math.floor(alt / 1000), hd = (alt % 1000) / 100;
+    const digits = String(th).split("").map(function (d) { return ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "niner"][+d]; }).join(" ");
+    return digits + " thousand" + (hd ? " " + ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "niner"][hd] + " hundred" : "");
+  }
+  function dirLabel(radial) {
+    radial = ((radial % 360) + 360) % 360; if (radial === 0) radial = 360;
+    if (radial === 360) return "N"; if (radial < 90) return "NE"; if (radial === 90) return "E";
+    if (radial < 180) return "SE"; if (radial === 180) return "S"; if (radial < 270) return "SW";
+    if (radial === 270) return "W"; return "NW";
+  }
+  const DIR_WORD = { N: "north", NE: "northeast", E: "east", SE: "southeast", S: "south", SW: "southwest", W: "west", NW: "northwest" };
+  const AIRWAY_SPOKEN = { V9: "Victor Niner", V11: "Victor Eleven", V18: "Victor Eighteen", V74: "Victor Seventy-four", V245: "Victor Two Forty-five", V278: "Victor Two Seventy-eight", V417: "Victor Four Seventeen", V427: "Victor Four Twenty-seven", V535: "Victor Five Thirty-five", V555: "Victor Five Fifty-five", V557: "Victor Five Fifty-seven" };
+  function spokenAirway(id) { return AIRWAY_SPOKEN[id] || String(id || ""); }
+  function navName(id) { const n = ZAE.NAVAIDS[id]; if (!n) return id + (ZAE.FIXES[id] ? " intersection" : ""); return n.name + " " + (n.kind === "VOR/DME" ? "VOR/DME" : n.kind === "NDB" ? "radio beacon" : "VORTAC"); }
+  function angleBetween(a, b) { let d = Math.abs(((a - b) % 360 + 360) % 360); if (d > 180) d = 360 - d; return d; }
+  // Lateral divergence distance (nm) for radials of the same NAVAID diverging
+  // by `angle` degrees; null under 15 degrees (no lateral separation).
+  function divergenceNm(angle) {
+    if (angle > 90) angle = 90;
+    for (let i = 0; i < ZAE.DIVERGENCE.length; i++) if (angle >= ZAE.DIVERGENCE[i][0]) return ZAE.DIVERGENCE[i][1];
+    return null;
+  }
+  // Outbound radial from node i of flight f toward node j (adjacent).
+  function radialToward(f, i, j) {
+    const from = f.nodes[i], to = f.nodes[j];
+    const via = j > i ? to.via : from.via;
+    const tbl = ZAE.RADIALS[from.id];
+    if (!tbl) return null;
+    if (via === "HDG") return null;
+    const key = via === "DCT" || !tbl[via] ? "DCT" : via;
+    return tbl[key] && tbl[key][to.id] != null ? tbl[key][to.id] : null;
+  }
+  function radialsAt(f, i) {
+    const out = [];
+    if (i > 0) { const r = radialToward(f, i, i - 1); if (r != null) out.push({ r: r, side: "in", node: f.nodes[i - 1].id }); }
+    if (i < f.nodes.length - 1) { const r = radialToward(f, i, i + 1); if (r != null) out.push({ r: r, side: "out", node: f.nodes[i + 1].id }); }
+    return out;
+  }
+  function isAirport(id) { return !!ZAE.AIRPORTS[id]; }
+  function isNavaid(id) { return !!ZAE.NAVAIDS[id]; }
+  function bandsOverlap(a, b) { return !(a[0] >= b[1] + RULES.VERT || b[0] >= a[1] + RULES.VERT); }
+  function nodeIndex(f, id) { for (let i = 0; i < f.nodes.length; i++) if (f.nodes[i].id === id) return i; return -1; }
+  // Boundary mileage from `nav` along `airway` toward facility `to` (or the first listed).
+  function boundaryFrom(airway, nav, to) {
+    const list = ZAE.BOUNDARIES[airway] || [];
+    for (let i = 0; i < list.length; i++) if (list[i].nav === nav && (!to || list[i].to === to)) return list[i];
+    return null;
+  }
+  function arrivalFloor(f) {
+    if (f.destAirport === "KGWO") return Math.min(f.alt, RULES.KGWO_HOLD_ALT);
+    return RULES.JAN_LOWEST;
+  }
+
+  // ---- restriction text ------------------------------------------------
+  // r: { kind: 'cross'|'crossfix'|'maintain', node, nm, dir, on, limit: 'below'|'above'|'at', alt }
+  function restrictionMark(r) {
+    if (r.kind === "maintain") return "M " + hundreds(r.alt) + " / " + r.nm + " " + r.dir + " " + r.node;
+    const sym = r.limit === "above" ? SYM.above : r.limit === "at" ? SYM.at : SYM.below;
+    if (r.kind === "crossfix") return SYM.cross + " " + r.node + " " + sym + " " + hundreds(r.alt);
+    return SYM.cross + " " + r.nm + " " + r.dir + " " + r.node + (r.on ? " ." : "") + " " + sym + " " + hundreds(r.alt);
+  }
+  function restrictionPhr(r) {
+    if (r.kind === "maintain") return "maintain " + spoken(r.alt) + " until " + r.nm + " miles " + DIR_WORD[r.dir] + " of " + navName(r.node);
+    const lim = r.limit === "above" ? "at or above" : r.limit === "at" ? "at and maintain" : "at or below";
+    if (r.kind === "crossfix") return "cross " + navName(r.node) + " " + lim + " " + spoken(r.alt);
+    return "cross " + r.nm + " miles " + DIR_WORD[r.dir] + " of " + navName(r.node) + (r.on ? " established on " + r.on : "") + " " + lim + " " + spoken(r.alt);
+  }
+
+  // ---- bands ---------------------------------------------------------------
+  // The altitudes a flight may occupy at node i under the current plan:
+  // level en route [alt, alt]; a departure climbs from the ground to its
+  // final altitude (nonradar: climb rate is never used for separation) unless
+  // a crossing restriction caps it; an arrival is anywhere between its
+  // clearance altitude and cruise (pilot's discretion) unless held level.
+  function restrictionCovers(f, r, i) {
+    const ni = nodeIndex(f, r.node); if (ni < 0) return false;
+    const n = f.nodes[i], N = f.nodes[ni];
+    const nm = r.nm || 0;
+    if (r.kind === "maintain") return n.d <= N.d + nm + 0.01;   // level until nm past the node
+    if (r.limit === "above") return n.d >= N.d - nm - 0.01;     // at/above from nm before the node onward
+    return n.d <= N.d + nm + 0.01;                              // at/below through nm past the node
+  }
+  function bandAt(f, i, plan) {
+    const p = plan[f.id];
+    if (f.kind === "overflight") {
+      if (f.iafdof) return [Math.min(f.alt, p.finalAlt), Math.max(f.alt, p.finalAlt)];
+      return [f.alt, f.alt];
+    }
+    if (f.kind === "departure") {
+      let lo = 0, hi = p.finalAlt;
+      p.restrictions.forEach(function (r) {
+        if (r.limit === "below" && restrictionCovers(f, r, i)) hi = Math.min(hi, r.alt);
+        if (r.limit === "above" && restrictionCovers(f, r, i)) lo = Math.max(lo, r.alt);
+      });
+      return [lo, Math.max(lo, hi)];
+    }
+    // arrival
+    let lo = p.arrivalAlt, hi = f.alt;
+    p.restrictions.forEach(function (r) {
+      const ni = nodeIndex(f, r.node); if (ni < 0) return;
+      const n = f.nodes[i], N = f.nodes[ni];
+      if (r.kind === "maintain" && n.d <= N.d + (r.nm || 0) + 0.01) { lo = hi = f.alt; }
+      if (r.kind !== "maintain" && r.limit === "below" && n.d >= N.d - (r.nm || 0) - 0.01) hi = Math.min(hi, r.alt);
+    });
+    return [lo, Math.max(lo, hi)];
+  }
+
+  // ---- shared geometry --------------------------------------------------
+  // Runs of nodes two flights have in common, in A's order: same-direction,
+  // opposite-direction, or isolated crossings. Airport nodes are excluded
+  // (same-airport pairs are handled separately).
+  // Only points where Sector 66 must provide the separation count: fixes and
+  // NAVAIDs inside the sector, plus Monroe for aircraft converging on it
+  // (Lab Procedures III-65: the restriction would have to happen in 66).
+  function relevant(f, i) {
+    const id = f.nodes[i].id;
+    if (isAirport(id)) return false;
+    const nav = ZAE.NAVAIDS[id];
+    if (nav && nav.owner !== "66") return id === "MLU" && i === f.nodes.length - 1;
+    return true;
+  }
+  function sharedRuns(A, B) {
+    const bIdx = {};
+    B.nodes.forEach(function (n, j) { if (relevant(B, j) && bIdx[n.id] == null) bIdx[n.id] = j; });
+    const runs = [];
+    let cur = null;
+    for (let i = 0; i < A.nodes.length; i++) {
+      const id = A.nodes[i].id;
+      if (!relevant(A, i) || bIdx[id] == null) { if (cur) { runs.push(cur); cur = null; } continue; }
+      const j = bIdx[id];
+      if (cur) {
+        const last = cur.pairs[cur.pairs.length - 1];
+        if (last[0] === i - 1 && ((cur.dir === "same" || cur.dir === null) && j === last[1] + 1)) { cur.dir = "same"; cur.pairs.push([i, j]); continue; }
+        if (last[0] === i - 1 && ((cur.dir === "opp" || cur.dir === null) && j === last[1] - 1)) { cur.dir = "opp"; cur.pairs.push([i, j]); continue; }
+        runs.push(cur);
+      }
+      cur = { dir: null, pairs: [[i, j]] };
+    }
+    if (cur) runs.push(cur);
+    runs.forEach(function (r) { if (!r.dir) r.dir = "cross"; });
+    return runs;
+  }
+
+  // Required longitudinal spacing (minutes) between a leader and a trailer on
+  // the same course; reduced minima when the leader is faster. Returns
+  // { min, dme } — `dme` when DME minima (both aircraft DME) are what apply.
+  function requiredSpacing(lead, trail) {
+    const diff = lead.gs - trail.gs;
+    let min = RULES.LONG_MIN, nm = RULES.DME_NM, rule = null;
+    if (diff >= RULES.RULE44.kt) { min = RULES.RULE44.min; nm = RULES.RULE44.nm; rule = "44K"; }
+    else if (diff >= RULES.RULE22.kt) { min = RULES.RULE22.min; nm = RULES.RULE22.nm; rule = "22K"; }
+    let dme = false;
+    if (lead.dme && trail.dme) {
+      const dmeMin = nm / trail.mpm;
+      if (dmeMin < min) { min = dmeMin; dme = true; }
+    }
+    return { min: min, nm: nm, rule: rule, dme: dme };
+  }
+
+  // ---- conflict detection --------------------------------------------------
+  function pairConflicts(A, B, plan) {
+    const out = [];
+    sharedRuns(A, B).forEach(function (run) {
+      if (run.dir === "cross" || run.pairs.length === 1) {
+        const i = run.pairs[0][0], j = run.pairs[0][1];
+        if (!bandsOverlap(bandAt(A, i, plan), bandAt(B, j, plan))) return;
+        const dt = Math.abs(A.nodes[i].t - B.nodes[j].t);
+        if (dt < RULES.LONG_MIN) out.push({ a: A, b: B, type: "cross", i: i, j: j, node: A.nodes[i].id, dt: dt, run: run });
+        return;
+      }
+      if (run.dir === "same") {
+        const first = run.pairs[0];
+        const lead = A.nodes[first[0]].t <= B.nodes[first[1]].t ? A : B;
+        const trail = lead === A ? B : A;
+        const req = requiredSpacing(lead, trail);
+        let overlap = false, worst = Infinity, sign = null, overtake = false;
+        run.pairs.forEach(function (pr) {
+          if (!bandsOverlap(bandAt(A, pr[0], plan), bandAt(B, pr[1], plan))) return;
+          overlap = true;
+          const g = B.nodes[pr[1]].t - A.nodes[pr[0]].t;
+          if (sign == null) sign = g >= 0 ? 1 : -1; else if ((g >= 0 ? 1 : -1) !== sign) overtake = true;
+          worst = Math.min(worst, Math.abs(g));
+        });
+        if (!overlap) return;
+        if (overtake || worst < req.min) out.push({ a: A, b: B, type: "same", run: run, lead: lead, trail: trail, req: req, gap: worst, node: A.nodes[first[0]].id, overtake: overtake });
+        else if (req.dme) out.push({ a: A, b: B, type: "same-dme-ok", run: run, lead: lead, trail: trail, req: req, gap: worst, node: A.nodes[first[0]].id, ok: true });
+        else if (req.rule) out.push({ a: A, b: B, type: "same-rule-ok", run: run, lead: lead, trail: trail, req: req, gap: worst, node: A.nodes[first[0]].id, ok: true });
+        return;
+      }
+      // opposite direction: they pass somewhere on the run unless one is gone
+      const fa = run.pairs[0], la = run.pairs[run.pairs.length - 1];
+      const aIn = [A.nodes[fa[0]].t, A.nodes[la[0]].t], bIn = [B.nodes[la[1]].t, B.nodes[fa[1]].t];
+      const meet = !(aIn[1] + RULES.OPP_BUFFER_MIN < bIn[0] || bIn[1] + RULES.OPP_BUFFER_MIN < aIn[0]);
+      if (!meet) return;
+      let overlap = false;
+      run.pairs.forEach(function (pr) { if (bandsOverlap(bandAt(A, pr[0], plan), bandAt(B, pr[1], plan))) overlap = true; });
+      if (overlap) out.push({ a: A, b: B, type: "opp", run: run, node: A.nodes[fa[0]].id });
+    });
+    return out;
+  }
+
+  // ---- airspace restrictions (traffic independent) -------------------------
+  function nwBound(f) { // KJAN/KJVW departures toward the MHZ holding pattern side
+    const i = nodeIndex(f, "MHZ"); if (i < 0 || i >= f.nodes.length - 1) return null;
+    const r = radialToward(f, i, i + 1); if (r == null) return null;
+    return (r >= 271 || r === 360) ? r : null; // 271-360: NW/N quadrant (V74 320, V557 335, V9 350, V427 281)
+  }
+  function airspacePlan(f, p) {
+    if (f.kind === "departure") {
+      const apt = f.originAirport;
+      const gwIdx = 1 + (apt === "0M8" ? 1 : 0); // index of the gateway VORTAC
+      if (apt === "KGWO") {
+        if (RULES.CBM3_ACTIVE && p.finalAlt >= 8000) {
+          const outAw = f.nodes[gwIdx + 1] ? f.nodes[gwIdx + 1].via : null;
+          const ne = outAw && ["V11", "V278", "V535"].indexOf(outAw) !== -1 && (radialToward(f, gwIdx, gwIdx + 1) < 90);
+          if (f.dme) p.restrictions.push({ kind: "cross", node: "SQS", nm: RULES.KGWO_MOA_CLEAR.nm, dir: RULES.KGWO_MOA_CLEAR.dir, on: ne ? outAw : null, limit: "below", alt: RULES.KGWO_MOA_CLEAR.alt, why: "airspace", label: "Columbus 3 MOA (8,000 and above over KGWO)" });
+          else p.restrictions.push({ kind: "crossfix", node: "SQS", limit: "below", alt: RULES.KGWO_MOA_CLEAR.alt, why: "airspace", label: "Columbus 3 MOA — fix restriction, aircraft has no DME" });
+        }
+        const mi = nodeIndex(f, "MHZ");
+        if (mi > 0) {
+          const b = boundaryFrom(f.nodes[mi].via, "MHZ", "JAN");
+          if (b) p.restrictions.push({ kind: "cross", node: "MHZ", nm: b.nm, dir: b.dir, limit: "above", alt: RULES.JAN_TOP + 1000, why: "airspace", label: "JAN Approach airspace (5,000 and below)" });
+        }
+      } else if (apt === "KJAN" || apt === "KJVW") {
+        p.restrictions.push({ kind: "crossfix", node: "MHZ", limit: "below", alt: RULES.JAN_TOP, why: "loa", tower: true, label: "JAN LOA: tower clears departures direct MHZ, cross MHZ at or below 5,000" });
+        const r = RULES.KJAN_NW_BELOW_50 ? nwBound(f) : null;
+        if (r != null) {
+          const aw = f.nodes[nodeIndex(f, "MHZ") + 1].via;
+          const b = boundaryFrom(aw, "MHZ", "JAN");
+          if (b) p.restrictions.push({ kind: "cross", node: "MHZ", nm: b.nm, dir: b.dir, limit: "below", alt: RULES.JAN_TOP, why: "airspace", label: "MHZ holding pattern / JAN Approach boundary on " + aw });
+        }
+        if (f.exitNav === "MLU") {
+          const b = boundaryFrom(f.aw, "MLU", "MLUAPCH");
+          if (b) p.restrictions.push({ kind: "cross", node: "MLU", nm: b.nm, dir: b.dir, limit: "above", alt: RULES.MLU_TOP + 1000, why: "airspace", label: "MLU Approach airspace (6,000 and below)" });
+        }
+      } else if (apt === "0M8") {
+        p.depInstr = SYM.enterCA + " 150 " + SYM.join + " V427";
+        p.depInstrPhr = "when entering controlled airspace fly heading one five zero until joining Victor Four Twenty-seven, Victor Four Twenty-seven Magnolia";
+        p.restrictions.push({ kind: "cross", node: "MHZ", nm: 18, dir: "NW", on: "V427", limit: "above", alt: RULES.JAN_TOP + 1000, why: "airspace", label: "JAN Approach airspace (5,000 and below)" });
+      } else if (apt === "KVKS") {
+        if (f.exitNav === "MLU" && nodeIndex(f, "MHZ") < 0) {
+          p.depInstr = SYM.depart + " NE TL 330 " + SYM.join + " V417";
+          p.depInstrPhr = "depart northeast, turn left, fly heading three three zero until joining Victor Four Seventeen, Victor Four Seventeen Monroe";
+          p.restrictions.push({ kind: "cross", node: "MLU", nm: 31, dir: "SE", on: "V417", limit: "above", alt: RULES.MLU_TOP + 1000, why: "airspace", label: "MLU Approach airspace (6,000 and below)" });
+        } else {
+          p.depInstr = SYM.depart + " NE TR 030 " + SYM.join + " V417";
+          p.depInstrPhr = "depart northeast, turn right, fly heading zero three zero until joining Victor Four Seventeen, Victor Four Seventeen Magnolia";
+          p.restrictions.push({ kind: "cross", node: "MHZ", nm: 20, dir: "SW", on: "V417", limit: "above", alt: RULES.JAN_TOP + 1000, why: "airspace", label: "JAN Approach airspace (5,000 and below)" });
+        }
+      }
+      if (apt === "0M8" || apt === "KVKS") {
+        p.voidTime = f.baseT + RULES.VOID_MIN;
+        p.verify = true;
+      }
+      p.edc = f.baseT + RULES.EDC_MIN;
+    } else if (f.kind === "arrival") {
+      const feeder = f.nodes[f.nodes.length - 2].id;
+      const entryLegAw = f.nodes[1] ? f.nodes[1].via : f.aw;
+      if (f.destAirport === "KGWO") {
+        p.approach = "VR"; p.approachPhr = "cleared VOR runway five approach circle to runway two three";
+        // descend only inside Sector 66: maintain cruise to our boundary on the entry airway
+        const si = nodeIndex(f, "SQS");
+        let prevNav = null;
+        for (let k = si - 1; k >= 0; k--) if (isNavaid(f.nodes[k].id)) { prevNav = f.nodes[k]; break; }
+        const b = prevNav && ZAE.NAVAIDS[prevNav.id].owner !== "66" ? boundaryFrom(f.nodes[si].via, "SQS", ZAE.NAVAIDS[prevNav.id].owner) : null;
+        if (b && f.alt > RULES.KGWO_HOLD_ALT && f.dme) {
+          p.restrictions.push({ kind: "maintain", node: "SQS", nm: b.nm, dir: b.dir, alt: f.alt, why: "airspace", label: "descend only inside Sector 66 (boundary with sector " + b.to + " at " + b.nm + " " + b.dir + " SQS)" });
+        }
+        if (f.alt > RULES.KGWO_HOLD_ALT) p.restrictions.push({ kind: "crossfix", node: "SQS", limit: "below", alt: RULES.KGWO_HOLD_ALT, why: "approach", label: "KGWO approach / SQS holding airspace (block 7,000 and below with D67)" });
+        p.coord.push({ to: "GWO Tower 120.2", what: "Inbound: " + f.cs + ", " + f.type + ", estimated Greenwood Airport " + toHHMM(f.nodes[f.nodes.length - 1].t) + ", VOR approach" });
+        p.coord.push({ to: "D67 (GLH Low)", what: "APREQ: block " + spoken(Math.min(f.alt, RULES.KGWO_HOLD_ALT)) + " and below for holding and approach at Sidon" });
+        p.block67 = Math.min(f.alt, RULES.KGWO_HOLD_ALT);
+      } else {
+        // JAN arrivals: cleared to MHZ, lowest ARTCC altitude, hold NW as published
+        p.clearanceLimit = "MHZ";
+        p.holdPhr = "hold northwest as published, no delay expected";
+        const b = boundaryFrom(entryLegAw, "MHZ", "JAN") || boundaryFrom(f.aw, "MHZ", "JAN");
+        p.tcp = b ? b.nm + " " + b.dir + " MHZ on " + (entryLegAw || f.aw) : "the JAN boundary";
+        p.tcpPhr = b ? b.nm + " miles " + DIR_WORD[b.dir] + " of Magnolia VORTAC on " + (entryLegAw || f.aw) : "the boundary";
+        const inbound = radialToward(f, f.nodes.length - 2, f.nodes.length - 3);
+        if (inbound != null && (inbound >= 271 || inbound === 360)) { p.levelAt = { nm: 9, dir: "NW" }; }
+      }
+    }
+  }
+
+  // ---- resolution ----------------------------------------------------------
+  function restrictionPoint(dep, i, other, j) {
+    // divergence between the departure's outbound radial at node i and the
+    // other aircraft's radials at the same NAVAID
+    const outR = i < dep.nodes.length - 1 ? radialToward(dep, i, i + 1) : null;
+    if (outR == null) return null;
+    const theirs = radialsAt(other, j);
+    if (!theirs.length) return null;
+    let angle = 180;
+    theirs.forEach(function (x) { angle = Math.min(angle, angleBetween(outR, x.r)); });
+    // same next node = same course, no lateral
+    if (i < dep.nodes.length - 1 && theirs.some(function (x) { return x.node === dep.nodes[i + 1].id; })) return null;
+    const nm = divergenceNm(angle);
+    if (nm == null) return null;
+    return { nm: nm, dir: dirLabel(outR), angle: angle, radial: outR };
+  }
+  function entryPoint(f, i, other, j) {
+    // divergence before node i (inbound side): where f enters the other's protected airspace
+    const inR = i > 0 ? radialToward(f, i, i - 1) : null;
+    if (inR == null) return null;
+    const theirs = radialsAt(other, j);
+    if (!theirs.length) return null;
+    let angle = 180;
+    theirs.forEach(function (x) { angle = Math.min(angle, angleBetween(inR, x.r)); });
+    if (i > 0 && theirs.some(function (x) { return x.node === f.nodes[i - 1].id; })) return null;
+    const nm = divergenceNm(angle);
+    if (nm == null) return null;
+    return { nm: nm, dir: dirLabel(inR), angle: angle, radial: inR };
+  }
+  // Lowest altitude a departure may be restricted to at/through node i.
+  function minDepAlt(dep, i) {
+    const id = dep.nodes[i].id;
+    if (id === "MHZ" && dep.originAirport !== "KJAN" && dep.originAirport !== "KJVW") return RULES.JAN_TOP + 1000;
+    if (id === "MLU") return RULES.MLU_TOP + 1000;
+    return 5000;
+  }
+  // "established on (airway)" goes with the restriction when the point could
+  // be confused: KGWO departures 10 nm or less NE of SQS (LP18 note), or when
+  // the aircraft arrives at and leaves the NAVAID in the same compass direction.
+  function onAirwayNote(dep, i, nm) {
+    const aw = dep.nodes[i + 1] ? dep.nodes[i + 1].via : null;
+    if (!aw || !/^V\d+$/.test(aw)) return null;
+    if (dep.nodes[i].id === "SQS" && nm <= 10 && ["V11", "V278", "V535"].indexOf(aw) !== -1) return aw;
+    const inR = i > 0 ? radialToward(dep, i, i - 1) : null, outR = radialToward(dep, i, i + 1);
+    if (inR != null && outR != null && dirLabel(inR) === dirLabel(outR)) return aw;
+    return null;
+  }
+  function addRestriction(p, r) {
+    // merge with an equal restriction at the same node/limit: keep the tighter altitude
+    for (let k = 0; k < p.restrictions.length; k++) {
+      const x = p.restrictions[k];
+      if (x.node === r.node && x.limit === r.limit && x.kind === r.kind && (x.nm || 0) === (r.nm || 0)) {
+        if (r.limit === "below" ? r.alt < x.alt : r.alt > x.alt) { x.alt = r.alt; x.vs = (x.vs || []).concat(r.vs || []); x.why = "traffic"; }
+        else x.vs = (x.vs || []).concat(r.vs || []);
+        return true;
+      }
+    }
+    p.restrictions.push(r);
+    return true;
+  }
+  function conflictNote(p, text) { p.notes.push(text); }
+
+  function resolveDepVsBand(dep, i, other, j, band, plan, c) {
+    // `band` is what the other aircraft occupies at the shared NAVAID
+    const p = plan[dep.id];
+    const T = band[0], Thi = band[1];
+    const belowAlt = T - RULES.VERT, aboveAlt = Thi + RULES.VERT;
+    const node = dep.nodes[i];
+    const tag = other.cs + " " + hundreds(T) + (Thi !== T ? "-" + hundreds(Thi) : "") + " at " + node.id + " " + toHHMM(other.nodes[j].t);
+    // 1. below, until laterally clear past the NAVAID
+    if (dep.dme) {
+      const pt = restrictionPoint(dep, i, other, j);
+      if (pt && belowAlt >= minDepAlt(dep, i)) {
+        addRestriction(p, { kind: "cross", node: node.id, nm: pt.nm, dir: pt.dir, on: onAirwayNote(dep, i, pt.nm), limit: "below", alt: belowAlt, why: "traffic", vs: [other.cs], label: "traffic: " + tag + " — vertical until " + pt.nm + " nm past " + node.id + " (radials diverge " + pt.angle + "°)" });
+        p.warnings.push(other.cs);
+        return true;
+      }
+      // 2. above, before entering the other's protected airspace (needs room to climb)
+      const ep = entryPoint(dep, i, other, j);
+      if (ep && aboveAlt <= p.finalAlt && (node.d - ep.nm) >= 25) {
+        addRestriction(p, { kind: "cross", node: node.id, nm: ep.nm, dir: ep.dir, limit: "above", alt: aboveAlt, why: "traffic", vs: [other.cs], label: "traffic: " + tag + " — above it before " + ep.nm + " nm from " + node.id });
+        p.warnings.push(other.cs);
+        return true;
+      }
+    }
+    // 3. altitude not available: stop the climb below the traffic (within 2,000 ft of the request)
+    if (belowAlt >= dep.floor && dep.reqAlt - belowAlt <= RULES.ALT_CHANGE_MAX && belowAlt >= minDepAlt(dep, i)) {
+      // keep the departure's parity where possible: prefer T-1000 if it matches, else T-2000
+      let assign = belowAlt;
+      const odd = dep.wantsOdd;
+      if (((assign / 1000) % 2 === 1) !== odd && assign - 1000 >= dep.floor && dep.reqAlt - (assign - 1000) <= RULES.ALT_CHANGE_MAX) assign -= 1000;
+      if (assign < p.finalAlt) {
+        p.finalAlt = assign;
+        p.altNotAvail = { requested: dep.reqAlt, assigned: assign, vs: other.cs, expectAt: "when clear of " + other.cs };
+        p.warnings.push(other.cs);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function resolveConflict(c, plan, state) {
+    const A = c.a, B = c.b;
+    const kinds = [A.kind, B.kind];
+    const moving = function (f) { return f.kind !== "overflight" || f.iafdof; };
+    // ---- same-airport successive departures are handled up front (see departureRules)
+    if (!moving(A) && !moving(B)) return { ok: false, reason: "two level en route aircraft would be traffic at " + c.node + " (" + A.cs + " / " + B.cs + ") and en route aircraft are not moved" };
+
+    // IAFDOF: try the other direction once
+    const tryFlip = function (f) {
+      if (!(f.kind === "overflight" && f.iafdof) || state.flipped[f.id]) return false;
+      const p = plan[f.id];
+      const alt = f.alt, other = p.finalAlt === alt + 1000 ? alt - 1000 : alt + 1000;
+      const parityOK = ((other / 1000) % 2 === 1) === f.wantsOdd;
+      if (!parityOK || other < f.floor || other > f.cap) return false;
+      p.finalAlt = other; state.flipped[f.id] = true; return true;
+    };
+
+    if (c.type === "cross") {
+      const i = c.i, j = c.j;
+      const order = A.kind === "departure" ? [[A, i, B, j], [B, j, A, i]] : [[B, j, A, i], [A, i, B, j]];
+      for (let k = 0; k < order.length; k++) {
+        const dep = order[k][0], di = order[k][1], oth = order[k][2], oj = order[k][3];
+        if (dep.kind === "departure") {
+          if (oth.kind === "departure") continue; // two climbing aircraft: only time separates them
+          if (oth.kind === "arrival") {
+            // hold the arrival level at cruise across the fix, then keep the departure under it
+            const pa = plan[oth.id];
+            const feederIdx = oth.nodes.length - 2;
+            if (oj !== feederIdx && !state.leveled[oth.id + ":" + oth.nodes[oj].id]) {
+              const pt = restrictionPoint(oth, oj, dep, di);
+              if (pt) {
+                addRestriction(pa, { kind: "maintain", node: oth.nodes[oj].id, nm: pt.nm, dir: pt.dir, alt: oth.alt, why: "traffic", vs: [dep.cs], label: "traffic: " + dep.cs + " climbing through " + oth.nodes[oj].id + " — stay level at cruise until laterally clear" });
+                pa.warnings.push(dep.cs);
+                state.leveled[oth.id + ":" + oth.nodes[oj].id] = true;
+                return { ok: true };
+              }
+            }
+          }
+          if (resolveDepVsBand(dep, di, oth, oj, bandAt(oth, oj, plan), plan, c)) return { ok: true };
+        }
+      }
+      // arrival vs level traffic / IAFDOF
+      const arrFirst = A.kind === "arrival" ? [[A, i, B, j], [B, j, A, i]] : [[B, j, A, i], [A, i, B, j]];
+      for (let k = 0; k < arrFirst.length; k++) {
+        const arr = arrFirst[k][0], ai = arrFirst[k][1], oth = arrFirst[k][2], oj = arrFirst[k][3];
+        if (arr.kind !== "arrival") continue;
+        const pa = plan[arr.id];
+        const band = bandAt(oth, oj, plan);
+        if (oth.kind === "arrival") {
+          // two arrivals: same airport at the feeder -> the later one gets the next lowest altitude
+          if (arr.destAirport === oth.destAirport && ai === arr.nodes.length - 2) {
+            const later = arr.nodes[ai].t >= oth.nodes[oj].t ? arr : oth;
+            const pl = plan[later.id];
+            if (later.destAirport !== "KGWO") {
+              const otherAlt = plan[later === arr ? oth.id : arr.id].arrivalAlt;
+              const want = otherAlt + 1000;
+              if (want < later.alt && want <= RULES.JAN_LOWEST + 2000 && pl.arrivalAlt < want) { pl.arrivalAlt = want; pl.warnings.push((later === arr ? oth : arr).cs); pl.altNote = "lowest ARTCC altitude available (" + (later === arr ? oth : arr).cs + " at " + hundreds(otherAlt) + ")"; return { ok: true }; }
+            }
+          }
+          continue;
+        }
+        if (oth.kind === "departure") continue; // handled above
+        // level (or IAFDOF) traffic in the arrival's descent band
+        const T = band[0], Thi = band[1];
+        const feederIdx = arr.nodes.length - 2;
+        // (a) descend under it before entering its airspace
+        if (arr.dme) {
+          const ep = entryPoint(arr, ai, oth, oj);
+          if (ep && T - RULES.VERT >= pa.arrivalAlt) {
+            // the point must be inside Sector 66
+            const prev = arr.nodes[ai - 1];
+            const legAw = arr.nodes[ai].via;
+            const bnd = prev && !isNavaid(prev.id) ? null : boundaryFrom(legAw, arr.nodes[ai].id);
+            const inside = !bnd || ep.nm < bnd.nm;
+            if (ai > 0 && inside) {
+              addRestriction(pa, { kind: "cross", node: arr.nodes[ai].id, nm: ep.nm, dir: ep.dir, limit: "below", alt: T - RULES.VERT, why: "traffic", vs: [oth.cs], label: "traffic: " + oth.cs + " " + hundreds(T) + " at " + arr.nodes[ai].id + " " + toHHMM(oth.nodes[oj].t) + " — under it before " + ep.nm + " nm from " + arr.nodes[ai].id, before: true });
+              pa.warnings.push(oth.cs);
+              return { ok: true };
+            }
+          }
+          // (b) stay level at cruise past it (not at the feeder)
+          if (ai !== feederIdx && Thi < arr.alt && !state.leveled[arr.id + ":" + arr.nodes[ai].id]) {
+            const pt = restrictionPoint(arr, ai, oth, oj);
+            if (pt) {
+              addRestriction(pa, { kind: "maintain", node: arr.nodes[ai].id, nm: pt.nm, dir: pt.dir, alt: arr.alt, why: "traffic", vs: [oth.cs], label: "traffic: " + oth.cs + " " + hundreds(T) + " at " + arr.nodes[ai].id + " — stay level at cruise until laterally clear" });
+              pa.warnings.push(oth.cs);
+              state.leveled[arr.id + ":" + arr.nodes[ai].id] = true;
+              return { ok: true };
+            }
+          }
+        }
+        // (c) lowest available altitude one higher (JAN arrivals)
+        if (arr.destAirport !== "KGWO" && Thi + RULES.VERT <= arr.alt && Thi + RULES.VERT <= RULES.JAN_LOWEST + 2000 && pa.arrivalAlt <= Thi) {
+          pa.arrivalAlt = Thi + RULES.VERT; pa.warnings.push(oth.cs);
+          pa.altNote = "lowest ARTCC altitude available (" + oth.cs + " at " + hundreds(T) + ")";
+          return { ok: true };
+        }
+        if (tryFlip(oth)) return { ok: true };
+        return { ok: false, reason: arr.cs + " (arrival) cannot be separated from " + oth.cs + " at " + arr.nodes[ai].id };
+      }
+      if (tryFlip(A) || tryFlip(B)) return { ok: true };
+      return { ok: false, reason: A.cs + " and " + B.cs + " are traffic at " + c.node + " (" + Math.round(c.dt) + " min apart) with no available restriction" };
+    }
+
+    if (c.type === "same") {
+      const lead = c.lead, trail = c.trail;
+      // a departure trailing / leading level traffic on the same course
+      const dep = A.kind === "departure" ? A : B.kind === "departure" ? B : null;
+      const oth = dep === A ? B : A;
+      if (dep && oth.kind !== "departure") {
+        const p = plan[dep.id];
+        const band = bandAt(oth, c.run.pairs[0][dep === A ? 1 : 0], plan);
+        const T = band[0];
+        const belowAlt = T - RULES.VERT;
+        if (belowAlt >= dep.floor && dep.reqAlt - belowAlt <= RULES.ALT_CHANGE_MAX && belowAlt < p.finalAlt) {
+          let assign = belowAlt;
+          if (((assign / 1000) % 2 === 1) !== dep.wantsOdd && assign - 1000 >= dep.floor && dep.reqAlt - (assign - 1000) <= RULES.ALT_CHANGE_MAX) assign -= 1000;
+          p.finalAlt = assign;
+          p.altNotAvail = { requested: dep.reqAlt, assigned: assign, vs: oth.cs, expectAt: "when clear of " + oth.cs };
+          p.warnings.push(oth.cs);
+          return { ok: true };
+        }
+        return { ok: false, reason: dep.cs + " would join " + oth.cs + "'s course at " + c.node + " with " + Math.round(c.gap) + " min (" + c.req.min.toFixed(0) + " needed)" };
+      }
+      const arr = A.kind === "arrival" ? A : B.kind === "arrival" ? B : null;
+      if (arr && (arr === A ? B : A).kind === "overflight") {
+        const o = arr === A ? B : A;
+        if (tryFlip(o)) return { ok: true };
+        // descend under before the run starts is only possible inside the sector — not modelled
+        return { ok: false, reason: arr.cs + " (arrival) follows/leads " + o.cs + " on the same course inside " + Math.round(c.gap) + " min" };
+      }
+      if (tryFlip(A) || tryFlip(B)) return { ok: true };
+      return { ok: false, reason: A.cs + " and " + B.cs + " on the same course " + Math.round(c.gap) + " min apart (" + Math.round(c.req.min) + " needed)" };
+    }
+
+    if (c.type === "opp") {
+      const dep = A.kind === "departure" ? A : B.kind === "departure" ? B : null;
+      const oth = dep === A ? B : A;
+      if (dep && oth.kind === "overflight") {
+        const p = plan[dep.id];
+        const band = bandAt(oth, c.run.pairs[0][dep === A ? 1 : 0], plan);
+        const belowAlt = band[0] - RULES.VERT;
+        if (belowAlt >= dep.floor && dep.reqAlt - belowAlt <= RULES.ALT_CHANGE_MAX && belowAlt < p.finalAlt) {
+          p.finalAlt = belowAlt;
+          p.altNotAvail = { requested: dep.reqAlt, assigned: belowAlt, vs: oth.cs, expectAt: "after passing " + oth.cs };
+          p.warnings.push(oth.cs);
+          return { ok: true };
+        }
+      }
+      const arr = A.kind === "arrival" ? A : B.kind === "arrival" ? B : null;
+      if (arr && (arr === A ? B : A).kind === "overflight") {
+        const o = arr === A ? B : A;
+        const pa = plan[arr.id];
+        const pr = c.run.pairs[c.run.pairs.length - 1];
+        const lastIdx = arr === A ? pr[0] : pr[1];
+        const band = bandAt(o, arr === A ? pr[1] : pr[0], plan);
+        if (lastIdx !== arr.nodes.length - 2 && band[1] < arr.alt && !state.leveled[arr.id + ":" + arr.nodes[lastIdx].id]) {
+          const oIdx = arr === A ? pr[1] : pr[0];
+          const pt = restrictionPoint(arr, lastIdx, o, oIdx) || { nm: 5, dir: dirLabel(radialToward(arr, lastIdx, lastIdx + 1) || 0) };
+          addRestriction(pa, { kind: "maintain", node: arr.nodes[lastIdx].id, nm: pt.nm, dir: pt.dir, alt: arr.alt, why: "traffic", vs: [o.cs], label: "opposite direction " + o.cs + " at " + hundreds(band[0]) + " — stay level at cruise until past it" });
+          pa.warnings.push(o.cs);
+          state.leveled[arr.id + ":" + arr.nodes[lastIdx].id] = true;
+          return { ok: true };
+        }
+        if (tryFlip(o)) return { ok: true };
+      }
+      if (tryFlip(A) || tryFlip(B)) return { ok: true };
+      return { ok: false, reason: A.cs + " and " + B.cs + " opposite direction on the same airway at overlapping altitudes" };
+    }
+    return { ok: false, reason: "unhandled conflict type" };
+  }
+
+  // Successive departures from the same airport: the 2-minute rule (courses
+  // diverge within 5 minutes after takeoff), never if the second is faster,
+  // or the 44/22-knot rule when the FIRST is faster; then the second must
+  // end up below the first unless it is slower.
+  function departureRules(flights, plan) {
+    const deps = flights.filter(function (f) { return f.kind === "departure"; });
+    for (let a = 0; a < deps.length; a++) for (let b = a + 1; b < deps.length; b++) {
+      const F = deps[a], S = deps[b];
+      if (F.originAirport !== S.originAirport) continue;
+      let first = F.baseT <= S.baseT ? F : S, second = first === F ? S : F;
+      if (F.baseT === S.baseT) { first = F.gs >= S.gs ? F : S; second = first === F ? S : F; } // faster first
+      if (second.baseT - first.baseT < 0) continue;
+      const pf = plan[first.id], ps = plan[second.id];
+      // proposals 10 or more minutes apart are separated by time; no rule needed
+      if (second.baseT - first.baseT >= RULES.LONG_MIN) continue;
+      const diff = first.gs - second.gs;
+      let rule;
+      if (diff >= RULES.RULE44.kt) rule = { min: RULES.RULE44.min, text: "RLS " + RULES.RULE44.min + " MIN < " + first.cs, phr: second.cs + " released three minutes after " + first.cs + " departs (44-knot rule)", kind: "44K" };
+      else if (diff >= RULES.RULE22.kt) rule = { min: RULES.RULE22.min, text: "RLS " + RULES.RULE22.min + " MIN < " + first.cs, phr: second.cs + " released five minutes after " + first.cs + " departs (22-knot rule)", kind: "22K" };
+      else if (second.gs <= first.gs) rule = { min: RULES.DEP_RULE_MIN, text: "RLS " + RULES.DEP_RULE_MIN + " MIN < " + first.cs, phr: second.cs + " released two minutes after " + first.cs + " departs", kind: "2MIN" };
+      else return { ok: false, reason: second.cs + " is faster than " + first.cs + " off " + first.originAirport + " — the 2-minute rule cannot be used behind a slower aircraft" };
+      if (second.baseT - first.baseT < rule.min) return { ok: false, reason: first.originAirport + " departures " + first.cs + "/" + second.cs + " proposed " + (second.baseT - first.baseT) + " min apart (" + rule.min + " needed)" };
+      ps.depRule = rule;
+      ps.warnings.push(first.cs); pf.warnings.push(second.cs);
+      if (first.originAirport === "KGWO") { pf.depInstr = SYM.depart + " SW–SQS"; ps.depInstr = SYM.depart + " SW–SQS"; pf.depInstrPhr = ps.depInstrPhr = "depart southwest direct Sidon"; }
+      // after the initial rule, the trailer must stay under the leader unless a speed rule applies
+      if (rule.kind === "2MIN" && ps.finalAlt >= pf.finalAlt && sharesCourse(first, second)) {
+        const want = pf.finalAlt - RULES.VERT;
+        const assign = ((want / 1000) % 2 === 1) === second.wantsOdd ? want : want - 1000;
+        if (assign >= second.floor && second.reqAlt - assign <= RULES.ALT_CHANGE_MAX) { ps.finalAlt = assign; ps.altNotAvail = { requested: second.reqAlt, assigned: assign, vs: first.cs, expectAt: "when " + first.cs + " is clear" }; }
+        else return { ok: false, reason: second.cs + " requests " + hundreds(second.reqAlt) + " behind " + first.cs + " at " + hundreds(pf.finalAlt) + " on the same course off " + first.originAirport };
+      }
+    }
+    return { ok: true };
+  }
+  function sharesCourse(a, b) { return sharedRuns(a, b).some(function (r) { return r.dir === "same" && r.pairs.length >= 2; }); }
+
+  // ---- reports ------------------------------------------------------------
+  // Position/DME reports the controller must solicit for the separation used.
+  function reportsFor(flights, plan, pairs) {
+    pairs.forEach(function (c) {
+      if (!c.ok && c.type !== "cross-ok") return;
+      const A = c.a, B = c.b;
+      if (c.type === "same-dme-ok") {
+        [A, B].forEach(function (f) { plan[f.id].reports.push({ text: "SAY DME " + c.node, phr: f.cs + ", say DME from " + navName(c.node), why: "DME separation (" + c.req.nm + " nm) with " + (f === A ? B.cs : A.cs), at: toHHMM(f.nodes[nodeIndex(f, c.node)].t) }); });
+      }
+      if (c.type === "cross-ok" || c.type === "same-rule-ok") {
+        [A, B].forEach(function (f) {
+          if (f.kind !== "departure") return;
+          const gw = f.nodes[f.originAirport === "0M8" ? 2 : 1].id;
+          if (c.node !== gw) return;
+          const other = f === A ? B : A;
+          plan[f.id].reports.push({ text: "RP " + gw, record: gw + "/" + toHHMM(f.nodes[nodeIndex(f, gw)].t), phr: f.cs + ", report passing " + navName(gw), why: "airport and VORTAC are not co-located: a " + gw + " report (or DME) proves the " + Math.round(c.dt != null ? c.dt : c.gap) + " min from " + other.cs, at: toHHMM(f.nodes[nodeIndex(f, gw)].t) });
+        });
+      }
+    });
+  }
+
+  // ---- analysis -----------------------------------------------------------
+  function initPlan(flights) {
+    const plan = {};
+    flights.forEach(function (f) {
+      plan[f.id] = { finalAlt: f.kind === "overflight" && f.iafdof ? f.appropriateAlt : f.alt, restrictions: [], reports: [], warnings: [], notes: [], coord: [], depRule: null, depInstr: null, altNotAvail: null, arrivalAlt: f.kind === "arrival" ? arrivalFloor(f) : null };
+      airspacePlan(f, plan[f.id]);
+    });
+    return plan;
+  }
+
+  function analyze(flights, opts) {
+    const plan = initPlan(flights);
+    const state = { flipped: {}, leveled: {} };
+    const unsolvable = [];
+    const dr = departureRules(flights, plan);
+    if (!dr.ok) return { ok: false, unsolvable: [dr.reason], plan: plan, pairs: [] };
+    let pairs = [];
+    for (let iter = 0; iter < 24; iter++) {
+      pairs = [];
+      for (let a = 0; a < flights.length; a++) for (let b = a + 1; b < flights.length; b++) {
+        const A = flights[a], B = flights[b];
+        if (A.kind === "departure" && B.kind === "departure" && A.originAirport === B.originAirport) continue; // departure rules
+        if (A.kind !== B.kind && (A.originAirport || A.destAirport) && (A.originAirport || A.destAirport) === (B.originAirport || B.destAirport) && (A.kind !== "overflight" && B.kind !== "overflight")) {
+          return { ok: false, unsolvable: [A.cs + " and " + B.cs + " are an arrival and a departure at the same airport (not modelled yet)"], plan: plan, pairs: [] };
+        }
+        if (A.kind === "arrival" && B.kind === "arrival" && A.destAirport === "KGWO" && B.destAirport === "KGWO") {
+          return { ok: false, unsolvable: [A.cs + " and " + B.cs + " are two KGWO arrivals (holding stack not modelled yet)"], plan: plan, pairs: [] };
+        }
+        pairs.push.apply(pairs, pairConflicts(A, B, plan));
+      }
+      const open = pairs.filter(function (c) { return !c.ok; });
+      if (!open.length) break;
+      const r = resolveConflict(open[0], plan, state);
+      if (!r.ok) { unsolvable.push(r.reason); break; }
+      if (iter === 23) unsolvable.push("could not settle " + open[0].a.cs + " / " + open[0].b.cs);
+    }
+    // time-separated crossings worth a report (departures at their VORTAC)
+    const crossOk = [];
+    for (let a = 0; a < flights.length; a++) for (let b = a + 1; b < flights.length; b++) {
+      const A = flights[a], B = flights[b];
+      sharedRuns(A, B).forEach(function (run) {
+        if (run.dir !== "cross" && run.pairs.length !== 1) return;
+        const i = run.pairs[0][0], j = run.pairs[0][1];
+        if (!bandsOverlap(bandAt(A, i, plan), bandAt(B, j, plan))) return;
+        const dt = Math.abs(A.nodes[i].t - B.nodes[j].t);
+        if (dt >= RULES.LONG_MIN && dt < 20) crossOk.push({ a: A, b: B, type: "cross-ok", node: A.nodes[i].id, dt: dt, ok: true });
+      });
+    }
+    reportsFor(flights, plan, pairs.filter(function (c) { return c.ok; }).concat(crossOk));
+    return { ok: !unsolvable.length, unsolvable: unsolvable, plan: plan, pairs: pairs.concat(crossOk) };
+  }
+
+  // ---- answer key: strip marks + controller summary -------------------------
+  // marks[space] = [ { t, c: 'red'|'blk', circ: 'red'|'blk', ul: bool, strike: bool, bar: bool } ]
+  function decorate(flights, analysis) {
+    const plan = analysis.plan;
+    flights.forEach(function (f) {
+      const p = plan[f.id];
+      // restrictions in the order the aircraft meets them (tower restriction first)
+      p.restrictions.sort(function (x, y) {
+        if (!!x.tower !== !!y.tower) return x.tower ? -1 : 1;
+        const dx = (f.nodes[Math.max(0, nodeIndex(f, x.node))] || {}).d || 0, dy = (f.nodes[Math.max(0, nodeIndex(f, y.node))] || {}).d || 0;
+        const px = dx + (x.kind === "maintain" ? (x.nm || 0) : x.limit === "above" || (f.kind === "arrival" && x.limit === "below") ? -(x.nm || 0) : (x.nm || 0));
+        const py = dy + (y.kind === "maintain" ? (y.nm || 0) : y.limit === "above" || (f.kind === "arrival" && y.limit === "below") ? -(y.nm || 0) : (y.nm || 0));
+        return px - py;
+      });
+      const ctrl = { flight: f.cs, kind: f.kind, items: [], phraseology: [], coordination: [], reports: [], warnings: p.warnings.slice() };
+      const restrictionsPhr = p.restrictions.map(function (r) { return restrictionPhr(r); });
+      if (f.kind === "departure") {
+        const dest = f.dest, apt = f.originAirport;
+        const fromApt = (apt === "0M8" || apt === "KVKS") ? "cleared from " + ZAE.AIRPORTS[apt].name + " Airport to " : "cleared to ";
+        let via;
+        if (apt === "KGWO") via = (p.depInstr ? "depart southwest direct Sidon" : "direct Sidon") + " as filed";
+        else if (p.depInstrPhr) via = p.depInstrPhr + " as filed";
+        else { // JAN LOA: airway and first fix outside approach control airspace
+          const mi = nodeIndex(f, "MHZ");
+          const nxt = f.nodes[mi + 1];
+          let firstFix = null; for (let k = mi + 1; k < f.nodes.length; k++) if (isNavaid(f.nodes[k].id)) { firstFix = f.nodes[k]; break; }
+          via = (nxt ? spokenAirway(nxt.via) + " " : "") + (firstFix ? navName(firstFix.id) : "") + " as filed";
+        }
+        let phr = f.cs + ", " + fromApt + dest + " Airport via " + via;
+        const traffic = p.restrictions.filter(function (r) { return !r.tower; });
+        if (traffic.length) phr += ". " + traffic.map(restrictionPhr).map(function (s) { return s.charAt(0).toUpperCase() + s.slice(1); }).join(", ");
+        phr += ". Climb and maintain " + spoken(p.finalAlt);
+        if (p.altNotAvail) phr += ". " + spoken(p.altNotAvail.requested).replace(/^\w/, function (c) { return c.toUpperCase(); }) + " is not available, expect " + spoken(p.altNotAvail.requested) + " " + p.altNotAvail.expectAt;
+        if (p.voidTime != null) phr += ". Clearance void if not off by " + toHHMM(p.voidTime) + ", if not off by " + toHHMM(p.voidTime) + " advise Aero Center not later than " + toHHMM(p.voidTime + RULES.ADVISE_MIN) + " of intentions";
+        if (p.verify) phr += ". Verify this clearance will allow compliance with local traffic pattern and terrain or obstruction avoidance. Advise " + f.cs + " released for departure, contact Aero Center one two five point zero";
+        if (p.depRule) phr += ". " + p.depRule.phr.charAt(0).toUpperCase() + p.depRule.phr.slice(1);
+        ctrl.phraseology.push(phr + ".");
+        ctrl.items.push("EDC " + toHHMM(p.edc) + " if the clearance cannot be issued when requested (10 minutes from the request).");
+        if (p.voidTime != null) ctrl.items.push("Uncontrolled field: void time " + toHHMM(p.voidTime) + " (advise by " + toHHMM(p.voidTime + RULES.ADVISE_MIN) + "), and the “verify” phraseology because departure instructions were issued.");
+        if (apt === "KJAN" || apt === "KJVW") ctrl.items.push("JAN LOA: the tower clears the aircraft direct MHZ with a restriction to cross MHZ at or below 5,000 — Center issues route and altitude.");
+        if (f.nextSector) ctrl.coordination.push("APREQ " + f.nextSector + ": “In suspense, " + f.cs + ", assumed " + ZAE.AIRPORTS[apt].name + " departure " + toHHMM(f.baseT) + ", climbing to " + spoken(p.finalAlt) + (p.depRule && p.depRule.kind !== "2MIN" ? ", using the " + (p.depRule.kind === "44K" ? "forty-four" : "twenty-two") + " knot rule in trail of " + p.depRule.text.split("< ")[1] : "") + ".”");
+      } else if (f.kind === "arrival") {
+        if (f.destAirport === "KGWO") {
+          const parts = [];
+          p.restrictions.forEach(function (r) { parts.push(restrictionPhr(r)); });
+          let phr = f.cs + ", " + (parts.length ? parts.join(", ") + ", " : "") + p.approachPhr;
+          ctrl.phraseology.push(phr.charAt(0).toUpperCase() + phr.slice(1) + ".");
+          ctrl.phraseology.push(f.cs + ", contact Greenwood Tower one two zero point two (after the aircraft reports passing Sidon).");
+          ctrl.items.push("KGWO estimate = SQS estimate + 7 minutes (" + toHHMM(f.nodes[f.nodes.length - 1].t) + "); runway 23 is always active — VOR runway 5 approach circle to runway 23.");
+        } else {
+          const parts = [];
+          p.restrictions.forEach(function (r) { parts.push(restrictionPhr(r)); });
+          if (p.levelAt) parts.push("cross " + p.levelAt.nm + " miles " + DIR_WORD[p.levelAt.dir] + " of Magnolia VORTAC at and maintain " + spoken(p.arrivalAlt));
+          else parts.push("descend and maintain " + spoken(p.arrivalAlt));
+          const phr = f.cs + ", cleared to Magnolia VORTAC, " + parts.join(", ") + ", " + p.holdPhr + ". Contact Jackson Approach one one niner point two, " + p.tcpPhr + ".";
+          ctrl.phraseology.push(phr);
+          ctrl.coordination.push("Inbound to JAN Approach: “" + f.cs + ", " + f.type + " slant " + f.equip + ", estimated Magnolia VORTAC " + toHHMM(f.nodes[f.nodes.length - 2].t) + ", descending to " + spoken(p.arrivalAlt) + (p.levelAt ? " with a restriction to cross " + p.levelAt.nm + " miles " + DIR_WORD[p.levelAt.dir] + " Magnolia at and maintain " + spoken(p.arrivalAlt) : "") + (f.destAirport !== "KJAN" ? ", landing " + ZAE.AIRPORTS[f.destAirport].name : "") + ", your control " + p.tcpPhr + ".”");
+          if (p.altNote) ctrl.items.push("Clearance altitude " + hundreds(p.arrivalAlt) + ": " + p.altNote + ".");
+        }
+        p.coord.forEach(function (c) { ctrl.coordination.push(c.to + ": " + c.what); });
+      } else {
+        if (f.iafdof) {
+          const dir = p.finalAlt > f.alt ? "climb" : "descend";
+          ctrl.items.push("IAFDOF: " + hundreds(f.alt) + " is inappropriate for direction of flight (" + f.dirLabel + "-bound on " + f.aw + (["V9", "V555", "V557"].indexOf(f.aw) !== -1 ? ", ZHU LOA northbound odd / southbound even" : "") + "). Underline the altitude in red; assign an appropriate altitude before the aircraft leaves Sector 66.");
+          ctrl.phraseology.push(f.cs + ", " + dir + " and maintain " + spoken(p.finalAlt) + ".");
+          if (f.nextSector) ctrl.coordination.push("APREQ " + f.nextSector + ": “" + f.cs + " revised altitude, " + dir + "ing to " + spoken(p.finalAlt) + ".”");
+        } else {
+          ctrl.items.push("Level en route aircraft that is not changing altitude: no restriction required. Acknowledge the check-on, issue the altimeter, altitude checkmark in space 20.");
+        }
+      }
+      p.restrictions.forEach(function (r) {
+        ctrl.items.push((r.why === "traffic" ? "Traffic restriction" : r.tower ? "Tower (LOA) restriction" : "Airspace restriction") + ": " + restrictionMark(r) + " — " + (r.label || ""));
+      });
+      if (p.altNotAvail) ctrl.items.push("Requested " + hundreds(p.altNotAvail.requested) + " not available (traffic " + p.altNotAvail.vs + "): assign " + hundreds(p.altNotAvail.assigned) + " (within 2,000 ft of the request), expect the requested altitude " + p.altNotAvail.expectAt + ".");
+      if (p.depRule) ctrl.items.push("Successive departures: " + p.depRule.text + " (" + p.depRule.phr + ").");
+      p.reports = p.reports.filter(function (r, i, arr) { return arr.findIndex(function (x) { return x.text === r.text && x.why === r.why; }) === i; });
+      p.reports.forEach(function (r) { ctrl.reports.push(r.text + (r.record ? " → record " + r.record + " in space 26" : "") + " about " + r.at + ": " + r.why); });
+      if (p.warnings.length) ctrl.items.push("Red W in space " + (f.kind === "departure" ? "24" : "20") + " for traffic: " + uniq(p.warnings).join(", ") + " — line it through once the resolution is issued.");
+
+      // ---- marks on each strip of the flight
+      f.strips.forEach(function (s) { s.marks = stripMarks(f, p, s, flights); s.meta.controller = ctrl; s.meta.scenarioRules = null; });
+    });
+  }
+  function uniq(a) { return a.filter(function (x, i) { return a.indexOf(x) === i; }); }
+
+  function stripMarks(f, p, s, flights) {
+    const m = {};
+    const add = function (sp, mark) { (m[sp] = m[sp] || []).push(mark); };
+    const nodeId = s.type === "departure" ? f.originAirport : s.spaces["19"];
+    const nIdx = nodeIndex(f, nodeId);
+    const bayNodes = f.nodes.filter(function (n) { return n.bay === s.homeBay; }).map(function (n) { return n.id; });
+    const nextEvIdx = (function () { const k = f.strips.indexOf(s); return k >= 0 && f.events[k + 1] != null ? f.events[k + 1] : nIdx; })();
+    const applies = function (r) { // restriction happens in this strip's bay, or before this flight's next posting
+      const ri = nodeIndex(f, r.node);
+      if (ri < 0) return true;
+      if (bayNodes.indexOf(r.node) !== -1) return true;
+      return ri <= nextEvIdx && ri >= nIdx;
+    };
+    const ws = uniq(p.warnings);
+    if (f.kind === "departure") {
+      const isDep = s.type === "departure";
+      // space 20: assigned final altitude, bar, restrictions
+      add("20", { t: SYM.climb + " " + hundreds(p.finalAlt), c: "blk", alt: true });
+      const rs = p.restrictions.filter(function (r) { return !r.tower && applies(r); });
+      if (rs.length) add("20", { bar: true });
+      rs.forEach(function (r) { add("20", { t: restrictionMark(r), c: r.why === "traffic" ? "red" : "red", circ: "blk" }); });
+      if (ws.length) add("24", { t: SYM.warn, c: "red", strike: true });
+      if (isDep) {
+        if (p.depInstr) add("15", { t: p.depInstr, c: "red", circ: "blk" });
+        if (p.depRule) add("15", { t: p.depRule.text, c: "blk" });
+        if (p.voidTime != null) add("15", { t: "V<" + toHHMM(p.voidTime) + "(" + toHHMM(p.voidTime + RULES.ADVISE_MIN).slice(2) + ")", c: "blk" });
+        add("14", { t: "EDC " + toHHMM(p.edc), c: "blk", strike: true });
+        add("18", { t: toHHMM(f.baseT) + "/", c: "red" });
+      }
+      if (p.altNotAvail) add("26", { t: hundreds(p.altNotAvail.requested) + " 10<D", c: "blk" });
+      p.reports.forEach(function (r) { if (bayNodes.indexOf(r.text.split(" ").pop()) !== -1 || isDep) add("26", { t: r.text, c: "blk" }); });
+      if (p.depRule && p.depRule.kind !== "2MIN") add("26", { t: p.depRule.kind.replace("K", "K <") + " " + p.depRule.text.split("< ")[1], c: "blk" });
+      // coordination circle on the altitude of the strip leaving the sector
+      if (s === f.strips[f.strips.length - 1] && f.nextSector) add("20", { t: hundreds(p.finalAlt), c: "blk", circ: "red", corner: true });
+    } else if (f.kind === "arrival") {
+      add("20", { t: hundreds(f.alt), c: "blk", alt: true });
+      const rs = p.restrictions.filter(applies);
+      const isArr = s.type === "arrival";
+      if (rs.length || isArr) add("20", { bar: true });
+      rs.forEach(function (r) { add("20", { t: restrictionMark(r), c: "red", circ: "blk" }); });
+      if (isArr) {
+        if (f.destAirport === "KGWO") { add("28", { t: "VR", c: "red", circ: "red" }); add("26", { t: "67  " + hundreds(p.block67), c: "blk", circ: "red" }); }
+        else {
+          add("20", { t: p.levelAt ? SYM.cross + " " + p.levelAt.nm + " " + p.levelAt.dir + " " + SYM.at + " " + hundreds(p.arrivalAlt) : SYM.descend + " " + hundreds(p.arrivalAlt), c: "blk" });
+          add("28", { t: "H-", c: "blk" });
+          add("29", { t: p.tcp, c: "blk" });
+          add("15", { t: s.spaces["15"], c: "blk", circ: "red", replace: true });
+        }
+      }
+      if (ws.length) add("20", { t: SYM.warn, c: "red", strike: true, corner: true });
+    } else {
+      if (f.iafdof) {
+        add("20", { t: hundreds(f.alt), c: "blk", ul: "red", alt: true });
+        add("20", { t: (p.finalAlt > f.alt ? SYM.climb : SYM.descend) + " " + hundreds(p.finalAlt), c: "blk", circ: "red" });
+      } else {
+        add("20", { t: hundreds(f.alt) + " ✓", c: "blk", alt: true });
+      }
+      if (ws.length) add("20", { t: SYM.warn, c: "red", strike: true, corner: true });
+    }
+    // direction arrow (space 23) in red
+    const arrow = { N: "↑", E: "→", S: "↓", W: "←" }[f.dirLabel];
+    if (arrow) add("23", { t: arrow, c: "red" });
+    return m;
+  }
+
+  root.ZAEConflicts = { analyze: analyze, decorate: decorate, RULES: RULES, SYM: SYM, _internal: { sharedRuns: sharedRuns, bandAt: bandAt, divergenceNm: divergenceNm, requiredSpacing: requiredSpacing, restrictionMark: restrictionMark, restrictionPhr: restrictionPhr } };
+})(typeof window !== "undefined" ? window : this);

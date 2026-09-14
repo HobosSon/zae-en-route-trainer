@@ -71,13 +71,47 @@
     return svg;
   }
 
+  // Stripmarking overlay boxes (percent of the strip) for the completed
+  // answer-key strip: where the controller writes in each space.
+  const MARK_BOX = {
+    "12": { x: 15.8, y: 22, w: 7.5, h: 20 }, "14": { x: 15.8, y: 50, w: 8, h: 24 }, "15": { x: 24.5, y: 2, w: 10.8, h: 58 },
+    "18": { x: 29.5, y: 60, w: 10.5, h: 20 }, "20": { x: 41, y: 4, w: 18.5, h: 92 }, "23": { x: 59.6, y: 48, w: 6.5, h: 22 },
+    "24": { x: 60, y: 74, w: 6.5, h: 24 }, "26": { x: 67, y: 48, w: 23.5, h: 50 }, "28": { x: 91.2, y: 26, w: 8.5, h: 56 }
+  };
+  const MARK_HIDES_BASE = { "20": 1, "15": 1 }; // the marks restate these spaces in full
+
+  // marks: { "<space>": [ { t, c: 'red'|'blk', circ: 'red'|'blk', ul: 'red', strike, bar, corner, replace } ] }
+  function renderMarks(wrap, marks) {
+    // spaces that share a box (29 writes into the 28 column) are merged
+    const grouped = {};
+    Object.keys(marks).forEach(function (sp) {
+      const key = MARK_BOX[sp] ? sp : sp === "29" ? "28" : "26";
+      grouped[key] = (grouped[key] || []).concat(marks[sp] || []);
+    });
+    Object.keys(grouped).forEach(function (sp) {
+      const box = MARK_BOX[sp];
+      const list = grouped[sp];
+      if (!list || !list.length) return;
+      const m = el("div", "fps-marks mk-sp" + sp);
+      m.style.left = box.x + "%"; m.style.top = box.y + "%"; m.style.width = box.w + "%"; m.style.height = box.h + "%";
+      list.forEach(function (mk) {
+        if (mk.bar) { m.appendChild(el("span", "mk-bar")); return; }
+        const s = el("span", "mk " + (mk.c === "red" ? "mk-red" : "mk-blk") + (mk.circ ? " mk-circ-" + mk.circ : "") + (mk.ul ? " mk-ul-" + mk.ul : "") + (mk.strike ? " mk-strike" : "") + (mk.corner ? " mk-corner" : "") + (mk.big ? " mk-big" : "") + (mk.alt ? " mk-alt" : ""), slashZero(mk.t));
+        m.appendChild(s);
+      });
+      wrap.appendChild(m);
+    });
+  }
+
   function render(spaces, opts) {
     opts = opts || {};
     const editable = !!opts.editable, showNums = !!opts.showNums;
-    const wrap = el("div", "fps-strip" + (editable ? " editable" : ""));
+    const marks = opts.marks || null;
+    const wrap = el("div", "fps-strip" + (editable ? " editable" : "") + (marks ? " marked" : ""));
     wrap.appendChild(gridSvg());
     CELLS.forEach(function (c) {
       const cell = el("div", "fps-cell " + c.cls);
+      if (marks && marks[c.f] && marks[c.f].length && (MARK_HIDES_BASE[c.f] || marks[c.f].some(function (m) { return m.replace; }))) cell.classList.add("mk-hidden");
       cell.style.left = c.x + "%";
       cell.style.top = c.y + "%";
       cell.style.width = c.w + "%";
@@ -108,6 +142,7 @@
         wrap.appendChild(badge);
       }
     });
+    if (marks) renderMarks(wrap, marks);
     return wrap;
   }
 

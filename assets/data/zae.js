@@ -261,9 +261,86 @@
   // Military tactical call signs (word + two digits) for the guide's military types.
   const MIL_CALLSIGNS = ["REACH", "SABER", "VIPER", "HAWK", "TALON", "COLT", "DEMON", "TREND"];
 
+  // ---- Radials (LP03 "Airways and Radials") --------------------------------
+  // Outbound radial FROM each NAVAID along each airway TOWARD the named
+  // neighbouring point. DCT holds the airport radials (LP03 airport locations)
+  // and the preplanned departure joins; HOLD is the published holding radial.
+  const RADIALS = {
+    MHZ: {
+      V9: { MCB: 179, BOOSI: 350 }, V11: { MIZZE: 129, BOOSI: 350 },
+      V18: { HEDUD: 266, MEI: 91 }, V74: { DESKE: 320 },
+      V245: { BARNE: 223, ZAMMA: 49 }, V417: { DORTS: 251, J417: 251, MEI: 106 },
+      V427: { HATER: 281 }, V555: { RICKS: 164, ARGUW: 5 }, V557: { HAZAL: 194, YAZOO: 335 },
+      DCT: { KJAN: 153, KJVW: 220, KHKS: 190 }, HOLD: 300
+    },
+    SQS: {
+      V9: { BOOSI: 171, UJM: 341 }, V11: { BOOSI: 171, UBABY: 23 },
+      V278: { GLH: 273, IGB: 86 }, V535: { HLI: 7 }, V555: { ARGUW: 156 }, V557: { YAZOO: 186 },
+      DCT: { KGWO: 76 }, HOLD: 256
+    },
+    MLU: { V18: { STUEE: 87 }, V417: { DORTS: 102 }, V427: { HATER: 72 } },
+    MCB: { V9: { MHZ: 1 }, V555: { RICKS: 16 }, V557: { HAZAL: 345 } },
+    MEI: { V18: { MHZ: 272 }, V417: { MHZ: 257 } },
+    IGB: { V245: { ZAMMA: 231 }, V278: { SQS: 266 } },
+    GLH: { V74: { DESKE: 143 }, V278: { SQS: 92 } },
+    HLI: { V11: { UBABY: 203 }, V535: { SQS: 187 } }
+  };
+
+  // DME divergence distance minima below FL180 (LP18, JO 7110.65 Table 6-5-2):
+  // radials of the same NAVAID diverging by at least the angle are laterally
+  // separated once either aircraft is this far from the NAVAID. Between two
+  // rows use the greater distance; under 15 degrees there is no lateral.
+  const DIVERGENCE = [[90, 5], [55, 6], [45, 7], [35, 8], [30, 9], [25, 11], [20, 13], [15, 17]];
+
+  // Airway boundary mileages (LP03 pp. 33-35): where each airway leaves Sector
+  // 66 airspace, or crosses an approach control's lateral boundary. `to` is
+  // the facility on the far side. JAN and MLU approach are lateral boundaries
+  // only (JAN nonradar 5,000 and below; MLU 6,000 and below).
+  const BOUNDARIES = {
+    V74: [{ nav: "GLH", nm: 26, dir: "SE", to: "67" }, { nav: "MHZ", nm: 20, dir: "NW", to: "JAN" }],
+    V278: [{ nav: "SQS", nm: 13, dir: "NW", to: "67" }, { nav: "SQS", nm: 14, dir: "NE", to: "12" }],
+    V9: [{ nav: "SQS", nm: 24, dir: "NW", to: "15" }, { nav: "MHZ", nm: 17, dir: "NW", to: "JAN" }, { nav: "MHZ", nm: 35, dir: "SE", to: "JAN" }, { nav: "MCB", nm: 21, dir: "NE", to: "ZHU" }],
+    V535: [{ nav: "SQS", nm: 23, dir: "NE", to: "12" }],
+    V11: [{ nav: "SQS", nm: 25, dir: "NE", to: "12" }, { nav: "MHZ", nm: 17, dir: "NW", to: "JAN" }, { nav: "MHZ", nm: 16, dir: "SE", to: "65" }],
+    V245: [{ nav: "MHZ", nm: 14, dir: "NE", to: "65" }, { nav: "MHZ", nm: 26, dir: "SW", to: "JAN" }, { nav: "HEZ", nm: 20, dir: "NE", to: "ZHU" }],
+    V18: [{ nav: "MHZ", nm: 12, dir: "SE", to: "65" }, { nav: "MHZ", nm: 19, dir: "SW", to: "JAN" }, { nav: "MLU", nm: 31, dir: "NE", to: "MLUAPCH" }, { nav: "MLU", nm: 15, dir: "NE", to: "ZFW" }],
+    V417: [{ nav: "MHZ", nm: 12, dir: "SE", to: "65" }, { nav: "MHZ", nm: 20, dir: "SW", to: "JAN" }, { nav: "MLU", nm: 31, dir: "SE", to: "MLUAPCH" }, { nav: "MLU", nm: 16, dir: "SE", to: "ZFW" }],
+    V427: [{ nav: "MHZ", nm: 18, dir: "NW", to: "JAN" }, { nav: "MLU", nm: 31, dir: "NE", to: "MLUAPCH" }, { nav: "MLU", nm: 14, dir: "NE", to: "ZFW" }],
+    V555: [{ nav: "MHZ", nm: 17, dir: "NE", to: "JAN" }, { nav: "MHZ", nm: 35, dir: "SE", to: "JAN" }, { nav: "MCB", nm: 21, dir: "NE", to: "ZHU" }],
+    V557: [{ nav: "MHZ", nm: 17, dir: "NW", to: "JAN" }, { nav: "MHZ", nm: 33, dir: "SW", to: "JAN" }, { nav: "MCB", nm: 21, dir: "NW", to: "ZHU" }]
+  };
+
+  // Points where a KGWO departure is clear of the SQS holding pattern /
+  // KGWO approach airspace (LP18 "SQS holding pattern" figure), by the
+  // airway it climbs out on. `apch` is the larger distance that also clears
+  // the approach and missed-approach airspace (V11 and V278 east).
+  const SQS_CLEAR = {
+    "V9:UJM": { nm: 8, dir: "NW" }, "V535:HLI": { nm: 8, dir: "NE" },
+    "V11:UBABY": { nm: 7, dir: "NE", apch: 10 }, "V278:IGB": { nm: 7, dir: "NE", apch: 14 },
+    "V278:GLH": { nm: 17, dir: "NW" }, "V557:YAZOO": { nm: 7, dir: "SW" },
+    "V9:BOOSI": { nm: 5, dir: "SE" }, "V11:BOOSI": { nm: 5, dir: "SE" }, "V555:ARGUW": { nm: 7, dir: "SE" }
+  };
+
+  // Preplanned departure paths that are never depicted on the strip: the leg
+  // from the airport to its first NAVAID/airway. [point, nm, via]. Byerley
+  // flies 150 to join V427 near HATER (about 8 nm), then V427 to MHZ.
+  // Vicksburg departs northeast and flies 030 about 10 nm to join V417 (J417,
+  // about 35 nm southwest of MHZ). KGWO/KJAN/KJVW go direct to the VORTAC.
+  const DEP_PATHS = {
+    "0M8": [["HATER", 8, "HDG"], ["MHZ", 49, "V427"]],
+    KVKS: [["J417", 10, "HDG"]],          // eastbound: 030 joins about 35 nm SW of MHZ
+    KVKSW: [["J417W", 7, "HDG"]],         // westbound: 330 joins about 5 nm E of DORTS
+    KGWO: [["SQS", 10, "DCT"]],
+    KJAN: [["MHZ", 10, "DCT"]],
+    KJVW: [["MHZ", 17, "DCT"]]
+  };
+  // Distances from the KVKS join points along V417.
+  const J417 = { toMHZ: 35, toDORTS: 14, westToDORTS: 5 };
+
   root.ZAE = {
     NAVAIDS, FIXES, AIRWAYS, JETROUTES, AIRPORTS, EXTERNAL_AIRPORTS,
     SECTORS_LOW, APPROACHES, EQUIP, AIRCRAFT, AIRLINES, MIL_CALLSIGNS,
+    RADIALS, DIVERGENCE, BOUNDARIES, SQS_CLEAR, DEP_PATHS, J417,
     LOW_CEILING: 23000, // ZAE low sectors: FL230 and below
 
     // Convenience: resolve a fix/navaid id to a display + description.

@@ -34,7 +34,10 @@
       their postings stacked on top of them; active strips sit below, earliest
       time at the bottom. Hover a strip to enlarge it, click it for the answer
       key, drag it to any bay or position, press F or Space to flag it, and
-      click anywhere else to deselect.
+      click anywhere else to deselect. Every scenario is checked to be workable
+      without a separation error and carries a code &mdash; share it and a
+      partner can load the exact same board to act as the Remote while you
+      control.
     </p>
 
     <div class="controls">
@@ -63,7 +66,13 @@
         <input type="number" id="count" min="1" max="12" value="3" placeholder="auto" />
       </div>
 
-      <button class="btn" id="generate">Generate strips</button>
+      <button class="btn" id="generate">Generate scenario</button>
+
+      <div class="control">
+        <label for="code">Scenario code</label>
+        <input type="text" id="code" placeholder="e.g. D3A-K7Q2MX" size="12" />
+      </div>
+      <button class="btn btn-ghost" id="load-code">Load code</button>
 
       <div class="toggles">
         <label class="toggle"><input type="checkbox" id="show-nums" /> Field numbers</label>
@@ -83,6 +92,7 @@
   <script src="assets/data/zae.js"></script>
   <script src="assets/js/fps-strip.js"></script>
   <script src="assets/js/strip-board.js"></script>
+  <script src="assets/js/conflicts.js"></script>
   <script src="assets/js/generator.js"></script>
   <script src="assets/js/strips.js"></script>
 </body>
