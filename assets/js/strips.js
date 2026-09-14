@@ -210,7 +210,7 @@
     const hint = el("p", "board-hint",
       "Strips in suspense (a departure awaiting its clearance request, with its postings stacked directly above it) sit above the bay label; " +
       "active postings sit below, earliest time at the bottom. Hover a strip to enlarge it, click it for its answer key, drag it to any bay or position. " +
-      "A selected strip stays enlarged and can be marked up with the tools above it; press F or Space to flag it as a reminder; click anywhere else to deselect.");
+      "A selected strip stays enlarged and can be marked up with the tools on the left; press F or Space to flag it as a reminder; click anywhere else to deselect.");
     out.appendChild(hint);
     const boardEl = el("div");
     out.appendChild(boardEl);

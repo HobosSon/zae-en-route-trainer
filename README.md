@@ -26,12 +26,15 @@ and its **Sector 66 "Jackson Low"** non-radar environment.
   report-passing reminders, departure instructions, void times, coordination
   circles), the restrictions, reports to solicit, coordination and phraseology.
 - **Stripmarking** — a selected board strip stays enlarged (two enlarged
-  strips push each other apart) and can be marked up: red or black pen,
-  circles (both colours can stack), black strikes and red or black underlines on highlighted text,
-  a ^ in the route with an amendment under it, free text in space 26, and
-  control-data chips (D-A, H-, VR, APCH, 67, Z, V, C, RLS, SYD, CTL, E)
-  dragged or clicked into spaces 27-30; H- opens the holding box (fix,
-  direction, radial/bearing/airway, turns, EFC) with VKS/MHZ/SQS/DINKY presets.
+  strips push each other apart) and is marked up from the rail on the left:
+  red or black pen; circles (both colours can stack), black strikes and
+  underlines on highlighted text; a ^ in the route with an amendment under
+  it; a revised estimate beside the center estimate; RLS / SYD / V< as red
+  preplan reminders outside box 15 or black entries inside it; C (comm
+  change) and 67 (block) entries plus free text in space 26; D-A, H-, VR,
+  APCH, Z, V and free text in spaces 27-30, with the holding instructions
+  typed beside the H- (Space or Enter starts a new line) and Z / V written
+  over them. Picking the same mark in the same colour again removes it.
 - **Scenario codes** — every board has a code such as `D3A-K7Q2MX` (tier,
   aircraft count, type, seed). Load a code (or open `strips.html#D3A-K7Q2MX`)
   to get the identical scenario later or on another machine, e.g. one person
