@@ -164,9 +164,16 @@
       if (rk.kind !== "strike") {
         m.ranges.forEach(function (o) { if (o !== rk && o.kind !== "strike" && o.seq < rk.seq && sameTarget(o.target, rk.target) && o.start < rk.end && rk.start < o.end) padIdx++; });
       }
-      // union of the line boxes -> one box per line
+      // one box per visual line: rects that overlap vertically are merged
+      const lines = [];
       Array.prototype.forEach.call(rects, function (r) {
-        const p = pct(stripEl, r);
+        if (!r.width && !r.height) return;
+        const hit = lines.find(function (L) { return r.top < L.bottom && L.top < r.bottom; });
+        if (hit) { hit.left = Math.min(hit.left, r.left); hit.top = Math.min(hit.top, r.top); hit.right = Math.max(hit.right, r.right); hit.bottom = Math.max(hit.bottom, r.bottom); }
+        else lines.push({ left: r.left, top: r.top, right: r.right, bottom: r.bottom });
+      });
+      lines.forEach(function (L) {
+        const p = pct(stripEl, { left: L.left, top: L.top, width: L.right - L.left, height: L.bottom - L.top });
         if (rk.kind === "strike") {
           const d = el("div", "sm-strike");
           d.style.left = p.left + "%"; d.style.width = p.width + "%"; d.style.top = (p.top + p.height / 2) + "%";
