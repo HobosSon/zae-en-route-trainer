@@ -182,7 +182,7 @@
     board = root.StripBoard.create(boardEl, {
       showNums: showNums,
       keepSelectionWithin: ".strip-details, .sm-ui, .scenario-bar", // reading the details, the marking tools or the view toggle must not deselect
-      renderOpts: function (st) { return view === "remote" && st.remote ? { remote: { mpm: st.remote.mpm, lines26: st.remote.lines26 } } : null; },
+      renderOpts: function (st) { return view === "remote" && st.remote ? { remote: { mpm: st.remote.mpm, lines26: st.remote.lines26, plus23: st.remote.plus23 } } : null; },
       onSelect: function (strip, slot) {
         if (!revealAll) showDetails(strip);
         if (strip) root.StripMarkup.activate(strip, slot); else root.StripMarkup.deactivate();

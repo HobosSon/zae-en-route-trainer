@@ -2,8 +2,9 @@
  * Shared FPS2000-style flight progress strip renderer (LP05 Appendix B layout).
  * Exposed as window.FPSStrip so the generator page and scenarios both reuse it.
  *   FPSStrip.render(spaces, { editable, showNums, marks, remote }) -> HTMLElement (.fps-strip)
- *     remote: { mpm, lines26 } — the Remote's typed scenario data in space 26
- *             and the miles-per-minute figure written in red in space 9
+ *     remote: { mpm, lines26, plus23 } — the Remote's typed scenario data in
+ *             space 26, the miles-per-minute figure written in red in space 9,
+ *             and the plus time printed in space 23 instead of 14a
  *   FPSStrip.readEditable(stripEl) -> { "<space>": value } from a filled-in blank
  *   FPSStrip.CELLS, FPSStrip.el, FPSStrip.slashZero
  */
@@ -159,6 +160,11 @@
       m.style.left = "9.6%"; m.style.top = "76%"; m.style.width = "4.5%";
       m.title = "Miles per minute (Color Card Stock Map speed table)";
       wrap.appendChild(m);
+    }
+    if (r.plus23) { // the Remote's strips print a departure flight's plus time in 23
+      const c23 = wrap.querySelector('.fps-cell[data-f="23"]'), c14 = wrap.querySelector('.fps-cell[data-f="14a"]');
+      if (c23) { c23.textContent = slashZero(r.plus23); c23.classList.add("fps-plus23"); }
+      if (c14) c14.classList.add("mk-hidden");
     }
     if (r.lines26 && r.lines26.length) {
       const b = el("div", "fps-cell fps-r26");

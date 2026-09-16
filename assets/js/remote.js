@@ -16,6 +16,12 @@
  * Blank times are underlined and filled in during the problem. Every estimate
  * a Remote makes uses the card's rough miles per minute, never the real speed.
  *
+ * Plus times: the Remote's printed strips carry a departure flight's plus
+ * time in space 23; the Controller's strips carry it in its own spot under
+ * space 14 (14a), leaving 23 for the direction arrow. Authored strips may
+ * have it in either place — it is normalised to 14a and strip.remote.plus23
+ * is what the Remote view prints in 23.
+ *
  * Space 26 is split in two: spaces["26"] holds the remarks both sides see
  * (FRC, ...); strip.remote.fields holds the Remote-only data, from which the
  * typed lines and the reminders are derived — so a scenario builder only has
@@ -134,6 +140,16 @@
     return r;
   }
 
+  // A departure flight's plus time: normalise to "+NN" in 14a, remember it for space 23 on the Remote's strip.
+  function movePlusTime(s) {
+    const sp = s.spaces || (s.spaces = {});
+    const m23 = String(sp["23"] || "").trim().match(/^\+?\s*(\d{1,2})$/);
+    if (m23) { sp["14a"] = "+" + m23[1]; delete sp["23"]; }
+    const m14 = String(sp["14a"] || "").trim().match(/^\+?\s*(\d{1,2})$/);
+    if (m14) sp["14a"] = "+" + m14[1];
+    return m14 ? "+" + m14[1] : (m23 ? "+" + m23[1] : null);
+  }
+
   // the strip the aircraft is working at time t: first posting still ahead, else the last
   function activeStrip(f, t) {
     for (let k = 0; k < f.strips.length; k++) if (f.nodes[f.strips[k].nodeIdx].t >= t) return f.strips[k];
@@ -170,6 +186,7 @@
         };
         const r = derive(s, fields, info);
         r.mpm = mpm; r.fields = fields; r.dep = s.type === "departure"; r.flightId = f.id; r.k = k;
+        r.plus23 = k > 0 ? movePlusTime(s) : null;
         s.remote = r;
       });
     });
@@ -227,6 +244,7 @@
       const mpm = f.tas ? cardMPM(f.tas) : null;
       f.remote = { mpm: mpm };
       f.strips.forEach(function (s, k) {
+        const plus23 = f.kind === "departure" && s.type !== "departure" ? movePlusTime(s) : null;
         const fields = normalizeFields(s.remoteFields);
         if (k !== 0) { fields.onFreq = false; fields.ic = null; } // contact data lives on the flight's first strip
         if (fields.onFreq && s.spaces && !s.spaces["17"] && s.spaces["15"]) s.spaces["17"] = s.spaces["15"]; // pilot estimate
@@ -242,6 +260,7 @@
         };
         const r = derive(s, fields, info);
         r.mpm = mpm; r.fields = fields; r.dep = s.type === "departure"; r.flightId = f.id; r.k = k;
+        r.plus23 = plus23;
         s.remote = r;
       });
     });

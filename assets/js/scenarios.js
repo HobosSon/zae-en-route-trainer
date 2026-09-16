@@ -393,7 +393,7 @@
     panel.innerHTML = "";
     const head = el("div", "editor-remote-head");
     head.appendChild(el("span", "editor-flabel", "Remote data (space 26 on the Remote's strip)"));
-    head.appendChild(el("span", "editor-remote-note", "Space 26 on the strip above = remarks both views show (FRC, …)."));
+    head.appendChild(el("span", "editor-remote-note", "Space 26 on the strip above = remarks both views show (FRC, …). A departure flight's plus time may be typed in 23 as printed on the Remote's strip; the Controller's strip carries it under space 14."));
     panel.appendChild(head);
     const row = el("div", "editor-remote-row");
     const field = function (label, node) { const w = el("label", "editor-remote-field"); w.appendChild(el("span", "editor-flabel", label)); w.appendChild(node); row.appendChild(w); return w; };
