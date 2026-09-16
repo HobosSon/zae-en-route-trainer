@@ -6,6 +6,7 @@
   <title>Practice Scenarios — ZAE Aero Center</title>
   <link rel="stylesheet" href="assets/css/main.css" />
   <link rel="stylesheet" href="assets/css/strips.css" />
+  <link rel="stylesheet" href="assets/css/strip-board.css" />
   <link rel="stylesheet" href="assets/css/scenarios.css" />
 </head>
 <body>
@@ -29,8 +30,12 @@
     <a class="back-link" href="index.html">&larr; Back to menu</a>
     <h2 class="page-title">Practice Scenarios</h2>
     <p class="page-sub">
-      Work a fixed set of flight strips as a traffic problem. Pick a numbered
-      level, or build and save your own under Community.
+      Work a fixed set of flight strips as a traffic problem on the bay board,
+      as the Controller or as the Remote. Pick a numbered level, or build and
+      save your own under Community: scenarios are built from the Remote's
+      strips (every space plus the initial-contact, request and on-frequency
+      data in space 26); the Controller's strips and the Remote's call
+      reminders follow from them.
     </p>
     <div id="app"></div>
   </main>
@@ -41,7 +46,12 @@
   </footer>
 
   <script src="assets/js/main.js"></script>
+  <script src="assets/data/zae.js"></script>
+  <script src="assets/js/remote.js"></script>
   <script src="assets/js/fps-strip.js"></script>
+  <script src="assets/js/strip-board.js"></script>
+  <script src="assets/js/strip-markup.js"></script>
+  <script src="assets/js/scenario-board.js"></script>
   <script src="assets/data/scenarios.js"></script>
   <script src="assets/js/scenario-store.js"></script>
   <script src="assets/js/scenarios.js"></script>

@@ -1,9 +1,19 @@
 /*
  * Practice Scenarios controller. Level-select for 27 static "levels",
- * a Community tab (user-created, saved to localStorage), a read-only player,
- * and a scenario editor (used for Community scenarios and, via the temporary
- * authoring tool, for staging/exporting the static levels).
- * Requires fps-strip.js, scenario-store.js.
+ * a Community tab (user-created, saved to localStorage), a player on the bay
+ * board (Controller / Remote toggle, stripmarking), and the scenario builder
+ * (used for Community scenarios and, via the authoring tool, for
+ * staging/exporting the static levels).
+ *
+ * Scenarios are built from the Remote's strips: each strip is the printed
+ * strip (every space, including the shared remarks in 26 such as FRC) plus
+ * the Remote-only data — initial contact time or ON FREQUENCY, the
+ * departure clearance request time and sequence number, an altitude request,
+ * KVKS weather. The Controller's strips are the same strips without that
+ * data; the red space-27 reminders are derived from the strip type and the
+ * Remote data (ZAERemote.decorateAuthored), never typed in.
+ * Requires zae.js, remote.js, fps-strip.js, strip-board.js, strip-markup.js,
+ * scenario-board.js, scenario-store.js.
  */
 (function () {
   "use strict";
@@ -113,28 +123,40 @@
   }
 
   // ---------------- Player ----------------
-  function play(scenario, backTab) {
+  // Working copies of the saved strips on the bay board, with the Remote's
+  // data derived from the saved fields.
+  function normType(t) { return t === "proposal" ? "departure" : (t || "enroute"); }
+  function buildPlayable(scenario) {
+    const strips = JSON.parse(JSON.stringify(scenario.strips || [])).map(function (st) { st.type = normType(st.type); st.spaces = st.spaces || {}; return st; });
+    const flights = ZAERemote.decorateAuthored(strips);
+    ScenarioBoard.prepare(strips, flights);
+    return { strips: strips, flights: flights };
+  }
+  function playDetails(strip) {
+    const box = el("div", "answer-key");
+    const dl = el("dl");
+    const row = function (k, v) { if (v == null || v === "") return; dl.appendChild(el("dt", null, k)); dl.appendChild(el("dd", null, v)); };
+    const sp = strip.spaces || {};
+    row("Strip type", normType(strip.type));
+    row("Bay", strip.bay ? strip.bay + " bay" + (strip.suspense ? " (in suspense)" : "") : null);
+    row("Posted fix", sp["19"]);
+    row("Route (space 25)", sp["25"]);
+    row("Remarks (space 26, both views)", sp["26"]);
+    if (strip.remote && strip.remote.lines26.length) row("Remote data (space 26)", strip.remote.lines26.join(" · "));
+    if (strip.remote && strip.remote.reminders.length) row("Remote reminders (space 27)", strip.remote.reminders.map(function (r) { return r.k + " " + (r.t == null ? "__" : r.t); }).join(" · "));
+    box.appendChild(dl);
+    box.appendChild(el("div", "note", "Authored scenario: no conflict-engine answer key. Work the strips, mark them up, and compare with your instructor's solution."));
+    return box;
+  }
+  function play(scenario, backTab, backFn) {
     clear();
     currentTab = backTab || currentTab;
     const head = el("div", "sc-head");
-    head.appendChild(btn("← Back", "btn-ghost", renderGrid));
+    head.appendChild(btn(backFn ? "← Back to builder" : "← Back", "btn-ghost", backFn || renderGrid));
     const nums = el("label", "toggle");
     const cb = document.createElement("input"); cb.type = "checkbox";
-    const stripsWrap = el("div", "play-strips");
-    function drawStrips() {
-      stripsWrap.innerHTML = "";
-      (scenario.strips || []).forEach(function (st, i) {
-        const card = el("div", "strip-card");
-        const tag = el("div", "strip-tag");
-        tag.appendChild(el("span", null, "#" + (i + 1)));
-        if (st.type) tag.appendChild(el("span", "badge", st.type));
-        if (st.spaces && st.spaces["3"]) tag.appendChild(el("span", null, st.spaces["3"] + " · " + (st.spaces["4"] || "")));
-        card.appendChild(tag);
-        card.appendChild(FPSStrip.render(st.spaces || {}, { showNums: cb.checked }));
-        stripsWrap.appendChild(card);
-      });
-    }
-    cb.addEventListener("change", drawStrips);
+    let sb = null;
+    cb.addEventListener("change", function () { if (sb) sb.setShowNums(cb.checked); });
     nums.appendChild(cb); nums.appendChild(document.createTextNode(" Field numbers"));
     head.appendChild(nums);
     app.appendChild(head);
@@ -164,8 +186,15 @@
       app.appendChild(bar);
     }
 
-    app.appendChild(stripsWrap);
-    drawStrips();
+    const boardWrap = el("div", "play-board");
+    app.appendChild(boardWrap);
+    const built = buildPlayable(scenario);
+    if (!built.strips.length) { boardWrap.appendChild(el("div", "empty-state", "This scenario has no strips yet.")); return; }
+    sb = ScenarioBoard.create(boardWrap, {
+      strips: built.strips, flights: built.flights, view: "controller", showNums: cb.checked,
+      bar: [el("span", null, scenario.title || "Scenario"), el("span", "rules", built.flights.length + " aircraft · " + built.strips.length + " strips" + (scenario.startTime ? " · start " + FPSStrip.slashZero(scenario.startTime) + "Z" : ""))],
+      renderDetails: playDetails
+    });
   }
 
   // ---------------- Editor ----------------
@@ -209,10 +238,10 @@
       const block = el("div", "editor-strip");
       const bar = el("div", "editor-strip-bar");
       const typeSel = document.createElement("select"); typeSel.className = "editor-type";
-      ["", "proposal", "departure", "enroute", "arrival"].forEach(function (t) {
+      ["", "departure", "enroute", "arrival"].forEach(function (t) {
         const o = document.createElement("option"); o.value = t; o.textContent = t ? t : "(type)"; typeSel.appendChild(o);
       });
-      if (st && st.type) typeSel.value = st.type;
+      if (st && st.type) typeSel.value = normType(st.type);
       bar.appendChild(el("span", "editor-strip-n", "Strip"));
       bar.appendChild(typeSel);
       bar.appendChild(btn("Remove", "btn-ghost btn-xs btn-danger", function () { block.remove(); renumber(); }));
@@ -221,6 +250,13 @@
       block.appendChild(stripEl);
       block._typeSel = typeSel;
       block._strip = stripEl;
+      // Remote-only data (space 26 on the Remote's strip); the reminders derive from it
+      const rf = Object.assign({ onFreq: false, ic: "", reqClnc: "", depSeq: "", altReq: { alt: "", t: "" }, vksWx: "" }, st && st.remoteFields ? st.remoteFields : {});
+      if (!rf.altReq) rf.altReq = { alt: "", t: "" };
+      block._rf = rf;
+      const rpanel = el("div", "editor-remote");
+      block.appendChild(rpanel);
+      block._refresh = function () { renderRemotePanel(block, rpanel, stripsWrap); };
 
       function cellOf(f) { return stripEl.querySelector('.fps-cell[data-f="' + f + '"]'); }
       function valOf(f) { const c = cellOf(f); return c ? c.textContent.trim() : ""; }
@@ -257,18 +293,22 @@
         const f = cell.dataset.f;
         if (f === "3") autofill();
         if (f === "19" || f === "21") applyArrow();
+        refreshAll();
       });
       typeSel.addEventListener("change", function () {
         const arrowCell = cellOf("16");
         if (arrowCell) arrowCell.textContent = typeSel.value === "departure" ? "↑" : typeSel.value === "arrival" ? "↓" : "";
+        refreshAll();
       });
 
       stripsWrap.appendChild(block);
       renumber();
+      refreshAll();
     }
     function renumber() {
       stripsWrap.querySelectorAll(".editor-strip-n").forEach(function (n, i) { n.textContent = "Strip #" + (i + 1); });
     }
+    function refreshAll() { stripsWrap.querySelectorAll(".editor-strip").forEach(function (b) { if (b._refresh) b._refresh(); }); }
     if (existing && existing.strips && existing.strips.length) existing.strips.forEach(addStripEditor);
     else addStripEditor(null);
 
@@ -280,7 +320,7 @@
       const strips = [];
       stripsWrap.querySelectorAll(".editor-strip").forEach(function (block) {
         const spaces = FPSStrip.readEditable(block.querySelector(".fps-strip"));
-        if (Object.keys(spaces).length) strips.push({ type: block._typeSel.value || "enroute", spaces: spaces });
+        if (Object.keys(spaces).length) strips.push({ type: block._typeSel.value || "enroute", spaces: spaces, remoteFields: cleanFields(block._rf) });
       });
       const altimeters = {};
       ALTIM_SITES.forEach(function (site) { const v = altInputs[site].value.trim(); if (v) altimeters[site] = v; });
@@ -293,11 +333,16 @@
       };
     }
 
+    saveRow.appendChild(btn("Preview on the board", "btn-ghost", function () {
+      const sc = collect();
+      if (!sc.strips.length) { msg.textContent = "Add at least one strip with data."; return; }
+      play(sc, currentTab, function () { editScenario({ mode: opts.mode, slot: opts.slot, existing: existing ? Object.assign({}, sc, { id: existing.id }) : sc, isDraft: true }); });
+    }));
     if (opts.mode === "community") {
       saveRow.appendChild(btn("Save scenario", "", function () {
         const sc = collect();
         if (!sc.strips.length) { msg.textContent = "Add at least one strip with data."; return; }
-        if (existing) S.updateCommunity(existing.id, sc); else S.addCommunity(sc);
+        if (existing && existing.id) S.updateCommunity(existing.id, sc); else S.addCommunity(sc);
         currentTab = "community"; renderGrid();
       }));
     } else {
@@ -311,6 +356,93 @@
     saveRow.appendChild(msg);
     form.appendChild(saveRow);
     app.appendChild(form);
+  }
+
+  // ---- the Remote-data panel under an editor strip ----
+  function blockSpaces(block) { return FPSStrip.readEditable(block._strip); }
+  function blockType(block) { return block._typeSel.value || "enroute"; }
+  function blockCs(block) { return (blockSpaces(block)["3"] || "").toUpperCase(); }
+  // the flight's first strip: its departure strip, else the earliest center estimate
+  function isFirstOfFlight(block, stripsWrap) {
+    const cs = blockCs(block); if (!cs) return true;
+    const sib = [].slice.call(stripsWrap.querySelectorAll(".editor-strip")).filter(function (b) { return blockCs(b) === cs; });
+    if (sib.some(function (b) { return blockType(b) === "departure"; })) return blockType(block) === "departure";
+    let first = null, best = Infinity;
+    sib.forEach(function (b) { const t = ZAERemote.stripEst({ type: blockType(b), spaces: blockSpaces(b) }); const v = t == null ? 9998 : t; if (v < best) { best = v; first = b; } });
+    return first === block;
+  }
+  function cleanFields(rf) {
+    const out = {};
+    if (rf.onFreq) out.onFreq = true;
+    if (rf.ic) out.ic = rf.ic;
+    if (rf.reqClnc) out.reqClnc = rf.reqClnc;
+    if (rf.depSeq) out.depSeq = rf.depSeq;
+    if (rf.altReq && (rf.altReq.alt || rf.altReq.t)) out.altReq = { alt: rf.altReq.alt || "", t: rf.altReq.t || "" };
+    if (rf.vksWx === "yes" || rf.vksWx === "no" || rf.vksWx === true || rf.vksWx === false) out.vksWx = rf.vksWx === true || rf.vksWx === "yes";
+    return out;
+  }
+  function timeInput(value, placeholder, onInput) {
+    const inp = document.createElement("input");
+    inp.type = "text"; inp.className = "editor-input editor-input-xs"; inp.maxLength = 4; inp.placeholder = placeholder || "HHMM"; inp.value = value || "";
+    inp.addEventListener("input", function () { onInput(inp.value.replace(/\D/g, "").slice(0, 4)); });
+    return inp;
+  }
+  function renderRemotePanel(block, panel, stripsWrap) {
+    const rf = block._rf, type = blockType(block), sp = blockSpaces(block);
+    const first = isFirstOfFlight(block, stripsWrap);
+    panel.innerHTML = "";
+    const head = el("div", "editor-remote-head");
+    head.appendChild(el("span", "editor-flabel", "Remote data (space 26 on the Remote's strip)"));
+    head.appendChild(el("span", "editor-remote-note", "Space 26 on the strip above = remarks both views show (FRC, …)."));
+    panel.appendChild(head);
+    const row = el("div", "editor-remote-row");
+    const field = function (label, node) { const w = el("label", "editor-remote-field"); w.appendChild(el("span", "editor-flabel", label)); w.appendChild(node); row.appendChild(w); return w; };
+    const refresh = function () { preview(); };
+    if (type === "departure") {
+      const P = ZAERemote.fromHHMM(ZAERemote.pTime({ spaces: sp }));
+      field("Request clearance", timeInput(rf.reqClnc, P != null ? ZAERemote.toHHMM(P - ZAERemote.REQ_BEFORE_P) + " (P−5)" : "P−5", function (v) { rf.reqClnc = v; refresh(); }));
+      const seq = document.createElement("input"); seq.type = "number"; seq.min = "1"; seq.max = "9"; seq.className = "editor-input editor-input-xs"; seq.placeholder = "—"; seq.value = rf.depSeq || "";
+      seq.addEventListener("input", function () { rf.depSeq = seq.value; refresh(); });
+      field("Departure #", seq).title = "Same airport, same request time: the order the requests are made (DEPARTURE #1, #2, …)";
+    } else if (first) {
+      const w = el("div", "editor-remote-radios");
+      const mk = function (label, checked, fn) { const l = el("label", "toggle"); const r = document.createElement("input"); r.type = "radio"; r.name = "ic-" + (block._rid || (block._rid = Math.random().toString(36).slice(2))); r.checked = checked; r.addEventListener("change", function () { if (r.checked) fn(); }); l.appendChild(r); l.appendChild(document.createTextNode(" " + label)); w.appendChild(l); return r; };
+      mk("Initial contact at", !rf.onFreq, function () { rf.onFreq = false; block._refresh(); });
+      const ic = timeInput(rf.ic, "HHMM", function (v) { rf.ic = v; refresh(); });
+      ic.disabled = !!rf.onFreq; w.appendChild(ic);
+      mk("On frequency at the start", !!rf.onFreq, function () { rf.onFreq = true; block._refresh(); });
+      field("Contact", w);
+    } else {
+      row.appendChild(el("span", "editor-remote-note", "Not the flight's first strip: contact data is on its first strip (same callsign)."));
+    }
+    const ar = el("div", "editor-remote-inline");
+    const alt = document.createElement("input"); alt.type = "text"; alt.className = "editor-input editor-input-xs"; alt.placeholder = "alt (130)"; alt.maxLength = 3; alt.value = rf.altReq.alt || "";
+    alt.addEventListener("input", function () { rf.altReq.alt = alt.value.replace(/\D/g, "").slice(0, 3); refresh(); });
+    ar.appendChild(alt); ar.appendChild(document.createTextNode(" at "));
+    ar.appendChild(timeInput(rf.altReq.t, "HHMM", function (v) { rf.altReq.t = v; refresh(); }));
+    field("Altitude request", ar).title = "Uncommon: the pilot asks for a different altitude at this time";
+    const dest = (sp["21"] || "").toUpperCase().trim(), route = (sp["25"] || "").toUpperCase().split(/[\s./]+/).filter(Boolean);
+    if (type === "arrival" && (dest === "KVKS" || route[route.length - 1] === "KVKS")) {
+      const sel = document.createElement("select"); sel.className = "editor-type";
+      [["", "(not stated)"], ["yes", "has KVKS weather"], ["no", "does not have KVKS weather"]].forEach(function (o) { const e = document.createElement("option"); e.value = o[0]; e.textContent = o[1]; sel.appendChild(e); });
+      sel.value = rf.vksWx === true ? "yes" : rf.vksWx === false ? "no" : (rf.vksWx || "");
+      sel.addEventListener("change", function () { rf.vksWx = sel.value; refresh(); });
+      field("KVKS weather", sel);
+    }
+    panel.appendChild(row);
+    const pv = el("div", "editor-remote-preview");
+    panel.appendChild(pv);
+    function preview() {
+      // derive exactly as the player will, from this block's strip and its siblings
+      const strips = [].slice.call(stripsWrap.querySelectorAll(".editor-strip")).map(function (b) { return { type: blockType(b), spaces: blockSpaces(b), remoteFields: cleanFields(b._rf), _b: b }; });
+      try { ZAERemote.decorateAuthored(strips); } catch (e) { pv.textContent = ""; return; }
+      const me = strips.filter(function (s) { return s._b === block; })[0];
+      if (!me || !me.remote) { pv.textContent = ""; return; }
+      pv.innerHTML = "";
+      pv.appendChild(el("span", "editor-flabel", "Remote strip → "));
+      pv.appendChild(el("span", null, "26: " + (me.remote.lines26.length ? me.remote.lines26.join(" · ") : "—") + "   27: " + (me.remote.reminders.length ? me.remote.reminders.map(function (r) { return r.k + " " + (r.t == null ? "__" : r.t); }).join(" · ") : "—")));
+    }
+    preview();
   }
 
   function fieldWrap(labelText, inputEl) {

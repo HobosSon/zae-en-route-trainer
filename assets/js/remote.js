@@ -24,6 +24,10 @@
  *   ZAERemote.decorate(flights)                 strip.remote for generated flights
  *   ZAERemote.derive(strip, fields, info)       { lines26, reminders, calls } from a strip's
  *                                               type, its space-26 fields and a few facts
+ *   ZAERemote.flightsFromStrips(strips)         authored strips grouped into flights by callsign
+ *   ZAERemote.decorateAuthored(strips)          strip.remote for authored strips (fields in
+ *                                               strip.remoteFields: onFreq, ic, reqClnc, depSeq,
+ *                                               altReq {alt, t}, vksWx — HHMM strings)
  *   ZAERemote.depTimes(flight, depT)            estimates chained from the plus times once off
  *   ZAERemote.cardMPM(speed)
  * Requires ZAE (assets/data/zae.js). Deterministic: every random draw
@@ -171,18 +175,95 @@
     });
   }
 
+  // ---- authored scenarios: strips only, no flight model ---------------------
+  function tokens(route) { return String(route || "").toUpperCase().split(/[\s./]+/).filter(Boolean); }
+  function isAirport(x) { x = String(x || "").trim().toUpperCase(); return x === "0M8" || /^K[A-Z0-9]{3}$/.test(x); }
+  function postedFix(s) { return String((s.spaces || {})["19"] || "").trim().split(/\s+/)[0].toUpperCase(); }
+  function pTime(s) { const m = String((s.spaces || {})["19"] || "").replace(/Ø/g, "0").match(/P\s*(\d{4})/i); return m ? m[1] : null; }
+  function stripEst(s) { return s.type === "departure" ? fromHHMM(pTime(s)) : fromHHMM((s.spaces || {})["15"]); }
+  function altOf(s) { const v = parseInt(String((s.spaces || {})["20"] || (s.spaces || {})["24"] || "").replace(/\D/g, ""), 10); return v ? v * 100 : null; }
+
+  // Group strips into flights by callsign (departure strip first, then by
+  // center estimate) and work out the facts the reminders need from the
+  // spaces alone. Sets strip.flightId.
+  function flightsFromStrips(strips) {
+    const byCs = {}, order = [];
+    strips.forEach(function (s, i) {
+      const cs = String((s.spaces || {})["3"] || "").trim().toUpperCase() || ("#" + (i + 1));
+      if (!byCs[cs]) { byCs[cs] = []; order.push(cs); }
+      byCs[cs].push(s);
+    });
+    return order.map(function (cs, fi) {
+      const list = byCs[cs].slice().sort(function (a, b) {
+        const ka = a.type === "departure" ? -1 : (stripEst(a) == null ? 9999 : stripEst(a));
+        const kb = b.type === "departure" ? -1 : (stripEst(b) == null ? 9999 : stripEst(b));
+        return ka - kb;
+      });
+      const dep = list.filter(function (s) { return s.type === "departure"; })[0];
+      const arr = list.filter(function (s) { return s.type === "arrival"; })[0];
+      const route = tokens(list[0].spaces && list[0].spaces["25"]);
+      const kind = dep ? "departure" : arr ? "arrival" : "overflight";
+      const originAirport = dep ? postedFix(dep) : (isAirport(route[0]) ? route[0] : null);
+      const arrNext = arr ? String(arr.spaces["21"] || "").trim().toUpperCase() : "";
+      const destAirport = arr ? (isAirport(arrNext) ? arrNext : (isAirport(route[route.length - 1]) ? route[route.length - 1] : null)) : null;
+      const f = { id: "A" + (fi + 1), seq: fi + 1, cs: cs, kind: kind, strips: list, originAirport: originAirport, destAirport: destAirport, dest: route[route.length - 1] || null, alt: altOf(list[0]), tas: parseInt(String(list[0].spaces["5"] || "").replace(/\D/g, ""), 10) || null, authored: true };
+      list.forEach(function (s) { s.flightId = f.id; s.cs = cs; });
+      return f;
+    });
+  }
+  function normalizeFields(rf) {
+    rf = rf || {};
+    const alt = rf.altReq && rf.altReq.alt ? parseInt(String(rf.altReq.alt).replace(/\D/g, ""), 10) : null;
+    return {
+      onFreq: !!rf.onFreq, ic: rf.onFreq ? null : fromHHMM(rf.ic), reqClnc: fromHHMM(rf.reqClnc),
+      depSeq: rf.depSeq ? parseInt(rf.depSeq, 10) || null : null,
+      altReq: alt && fromHHMM(rf.altReq.t) != null ? { alt: alt * 100, t: fromHHMM(rf.altReq.t) } : null,
+      vksWx: rf.vksWx == null || rf.vksWx === "" ? null : (rf.vksWx === true || rf.vksWx === "yes")
+    };
+  }
+  function decorateAuthored(strips) {
+    const flights = flightsFromStrips(strips);
+    flights.forEach(function (f) {
+      const mpm = f.tas ? cardMPM(f.tas) : null;
+      f.remote = { mpm: mpm };
+      f.strips.forEach(function (s, k) {
+        const fields = normalizeFields(s.remoteFields);
+        if (k !== 0) { fields.onFreq = false; fields.ic = null; } // contact data lives on the flight's first strip
+        if (fields.onFreq && s.spaces && !s.spaces["17"] && s.spaces["15"]) s.spaces["17"] = s.spaces["15"]; // pilot estimate
+        const nxt = f.strips[k + 1] || null;
+        const fix = postedFix(s), nextFix = String((s.spaces || {})["21"] || "").trim().split(/\s+/)[0].toUpperCase() || null;
+        const info = {
+          kind: f.kind, cs: f.cs, alt: altOf(s) || f.alt, est: stripEst(s), fix: fix, nextFix: nextFix,
+          nextFixT: nxt && postedFix(nxt) === nextFix ? stripEst(nxt) : null,
+          nextNextFix: nxt && postedFix(nxt) === nextFix ? (String(nxt.spaces["21"] || "").trim().split(/\s+/)[0].toUpperCase() || null) : null,
+          originAirport: f.originAirport, destAirport: f.destAirport, dest: f.dest, firstOfFlight: k === 0,
+          icFix: fix, icFixT: stripEst(s), icNext: nextFix,
+          depFirstFix: s.type === "departure" ? nextFix : null
+        };
+        const r = derive(s, fields, info);
+        r.mpm = mpm; r.fields = fields; r.dep = s.type === "departure"; r.flightId = f.id; r.k = k;
+        s.remote = r;
+      });
+    });
+    return flights;
+  }
+
   // Once the aircraft is off (actual departure time in space 18): the initial
   // contact 2 minutes later and each posting's estimate chained from the
-  // strips' plus times (previous strip's estimate + this strip's +N).
+  // strips' plus times (previous strip's estimate + this strip's +N). Without
+  // a plus time the gap between the printed estimates is used.
   function depTimes(f, depT) {
     const out = { ic: depT + IC_AFTER_DEP, est: {} };
     let t = depT;
     f.strips.forEach(function (s, k) {
       if (k === 0) return;
       const prev = f.strips[k - 1];
-      const prevId = k === 1 ? f.originAirport : f.nodes[prev.nodeIdx].id;
+      const prevId = k === 1 ? f.originAirport : postedFix(prev);
       let plus = parseInt(String(s.spaces["14a"] || "").replace(/[^\d]/g, ""), 10);
-      if (isNaN(plus) || s.spaces["11"] !== prevId) plus = Math.round(f.nodes[s.nodeIdx].rel - (k === 1 ? 0 : f.nodes[prev.nodeIdx].rel));
+      if (isNaN(plus) || String(s.spaces["11"] || "").toUpperCase() !== prevId) {
+        if (f.nodes) plus = Math.round(f.nodes[s.nodeIdx].rel - (k === 1 ? 0 : f.nodes[prev.nodeIdx].rel));
+        else { const a = stripEst(prev), b = stripEst(s); plus = a != null && b != null ? Math.max(0, b - a) : 0; }
+      }
       t += plus;
       out.est[k] = t;
     });
@@ -191,6 +272,7 @@
 
   root.ZAERemote = {
     decorate: decorate, derive: derive, depTimes: depTimes, cardMPM: cardMPM, MPM_TABLE: MPM_TABLE,
+    flightsFromStrips: flightsFromStrips, decorateAuthored: decorateAuthored, normalizeFields: normalizeFields, pTime: pTime, postedFix: postedFix, stripEst: stripEst,
     toHHMM: toHHMM, fromHHMM: fromHHMM, mm: mm,
     IC_AFTER_DEP: IC_AFTER_DEP, DEP_AFTER_CLNC: DEP_AFTER_CLNC, REQ_BEFORE_P: REQ_BEFORE_P, LAND_AFTER: LAND_AFTER, TOWER_JUR_AFTER: TOWER_JUR_AFTER
   };

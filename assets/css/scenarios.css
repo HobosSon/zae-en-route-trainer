@@ -40,6 +40,8 @@
 .sc-title { margin: 0 0 0.25rem; font-size: 1.25rem; }
 .sc-desc { margin: 0 0 1.25rem; color: var(--text-dim); font-size: 0.9rem; max-width: 70ch; }
 .play-strips { display: flex; flex-direction: column; gap: 1.25rem; }
+.play-board { display: flex; flex-direction: column; gap: 1rem; }
+@media (min-width: 1000px) { body.has-sm-rail .sc-main { padding-left: 160px; max-width: 1260px; } }
 
 /* start time + altimeter info bar */
 .sc-infobar { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 1.25rem; }
@@ -71,3 +73,14 @@
 .btn-xs { padding: 0.2rem 0.55rem !important; font-size: 0.72rem !important; }
 .btn-danger { color: var(--danger) !important; }
 .btn-danger:hover { border-color: var(--danger) !important; }
+
+/* builder: Remote-data panel under each strip */
+.editor-remote { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.7rem; display: flex; flex-direction: column; gap: 0.4rem; }
+.editor-remote-head { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; align-items: baseline; }
+.editor-remote-note { font-family: var(--mono); font-size: 0.68rem; color: var(--text-faint); }
+.editor-remote-row { display: flex; flex-wrap: wrap; gap: 0.9rem; align-items: flex-end; }
+.editor-remote-field { display: flex; flex-direction: column; gap: 0.25rem; }
+.editor-remote-radios { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.editor-remote-inline { display: flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; color: var(--text-dim); }
+.editor-input-xs { width: 6.2rem; max-width: 6.2rem; font-family: var(--mono); padding: 0.3rem 0.45rem; font-size: 0.85rem; }
+.editor-remote-preview { font-family: var(--mono); font-size: 0.74rem; color: var(--amber); white-space: pre-wrap; }

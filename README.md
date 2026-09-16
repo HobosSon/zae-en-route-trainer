@@ -55,8 +55,20 @@ and its **Sector 66 "Jackson Low"** non-radar environment.
   remarks (FRC, ...) stay in space 26 on both views; the Remote-only data is
   kept separately so a scenario only has to supply it, never the reminders.
 
-Planned modules (stubbed as "Coming soon" on the menu): Practice Scenarios,
-Facility Reference, Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
+- **Practice Scenarios / scenario builder** (`scenarios.html`) — hand-built
+  scenarios (27 static level slots baked from `assets/data/scenarios.js`,
+  plus Community scenarios saved in the browser) are built from the Remote's
+  strips: each strip is the printed strip (every space, with the shared
+  remarks such as FRC in 26) plus a Remote-data panel — initial contact time
+  or ON FREQUENCY, request clearance time (defaults to P−5) and DEPARTURE #,
+  altitude request, KVKS weather. The Remote's space-27 reminders and space-26
+  lines are derived (`ZAERemote.decorateAuthored`), never typed. The player
+  posts the strips on the bay board (`assets/js/scenario-board.js`, shared
+  with the generator) with the Controller / Remote toggle and stripmarking;
+  authored scenarios have no conflict-engine answer key.
+
+Planned modules (stubbed as "Coming soon" on the menu): Facility Reference,
+Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
 
 ## Planned
 
