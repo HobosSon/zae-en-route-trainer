@@ -39,6 +39,21 @@ and its **Sector 66 "Jackson Low"** non-radar environment.
   aircraft count, type, seed). Load a code (or open `strips.html#D3A-K7Q2MX`)
   to get the identical scenario later or on another machine, e.g. one person
   as the Remote and one as the Controller.
+- **Remote strips** — the scenario bar switches the board between the
+  Controller's strips and the Remote's (`assets/js/remote.js`, or open
+  `strips.html#D3A-K7Q2MX/remote`). Remote strips add the typed scenario data
+  in space 26 (IC time based on when the aircraft enters Sector 66, REQ CLNC
+  5 minutes before the P-time, ON FREQUENCY for aircraft already checked on,
+  altitude requests, KVKS weather, DEPARTURE #n for same-time requests), the
+  card's miles per minute in red in space 9, and the red call reminders in
+  space 27 in time order (IC, RQ, PR at the center estimate, Z two minutes
+  after a JAN/MLU arrival's fix, LD for KGWO/KVKS arrivals). Blank IC/PR/LD
+  times are underlined and filled in during the problem; RP is added from
+  the rail; clicking a reminder lines it through. Typing the actual
+  departure time in space 18 of a departure strip recomputes the flight's
+  estimates from the plus times and fills its IC and PR times. Shared
+  remarks (FRC, ...) stay in space 26 on both views; the Remote-only data is
+  kept separately so a scenario only has to supply it, never the reminders.
 
 Planned modules (stubbed as "Coming soon" on the menu): Practice Scenarios,
 Facility Reference, Study Guides (CKT 1 Study Guide + CKT 1 Quiz).

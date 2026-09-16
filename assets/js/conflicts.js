@@ -860,6 +860,8 @@
         return px - py;
       });
       const ctrl = { flight: f.cs, kind: f.kind, items: [], phraseology: [], coordination: [], reports: [], warnings: p.warnings.slice() };
+      if (f.onFreq) ctrl.items.push("On frequency when the problem starts (pilot estimate in space 17): check the altitude as level in space 20; no check-on to acknowledge.");
+      if (f.altReq) ctrl.items.push("Altitude request at " + toHHMM(f.altReq.t) + ": " + hundreds(f.altReq.alt) + ". Approve only if it stays separated from every aircraft it would then share altitude with (not checked by the engine yet); otherwise “unable”.");
       const restrictionsPhr = p.restrictions.map(function (r) { return restrictionPhr(r); });
       if (f.kind === "departure") {
         const dest = f.dest, apt = f.originAirport;

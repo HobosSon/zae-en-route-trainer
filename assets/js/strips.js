@@ -5,7 +5,12 @@
  * (StripGen.generateScenario), and an answer key from the conflict engine:
  * the completed strip with the controller's stripmarking, the restrictions,
  * reports, phraseology and coordination for each aircraft.
- * Requires zae.js, conflicts.js, generator.js, fps-strip.js, strip-board.js.
+ * The scenario bar switches between the Controller's strips and the Remote's
+ * (the same strips plus the typed initial-contact / request data in space 26
+ * and the red call reminders in space 27; a code shared as CODE/remote opens
+ * that view).
+ * Requires zae.js, conflicts.js, remote.js, generator.js, fps-strip.js,
+ * strip-board.js, strip-markup.js.
  */
 (function () {
   "use strict";
@@ -25,9 +30,39 @@
   ];
   const MATH_KEYS = { plusTimeMath: 1, estimateMath: 1 };
 
+  function hhmm(m) { return StripGen.toHHMM(m); }
+
+  // Remote view: the calls this strip generates, in order, with phraseology.
+  function renderRemoteCalls(strip) {
+    const r = strip.remote;
+    if (!r) return null;
+    const box = el("div", "remote-calls");
+    box.appendChild(el("h4", null, "Remote calls for this strip"));
+    const flight = scenario.flights.find(function (f) { return f.id === strip.flightId; });
+    const facts = [];
+    facts.push("Miles per minute " + r.mpm + " (card table, T" + (flight ? flight.tas : "") + ")");
+    if (flight && flight.onFreq && r.k === 0) facts.push("On frequency at the start — no initial contact; the pilot's estimate is in space 17");
+    if (r.lines26.length) facts.push("Space 26: " + r.lines26.join(" · "));
+    box.appendChild(el("p", "remote-facts", facts.join(". ") + "."));
+    if (r.calls.length) {
+      const ul = el("ul");
+      r.calls.forEach(function (c) {
+        const li = el("li");
+        li.appendChild(el("strong", null, c.k + (c.at != null ? " " + hhmm(c.at) : " (during the problem)") + " — " + c.who + ": "));
+        li.appendChild(el("span", "phr", "“" + c.text.replace(/ — .*$/, "") + "”"));
+        const note = c.text.match(/ — (.*)$/);
+        if (note) li.appendChild(el("div", "note", note[1]));
+        ul.appendChild(li);
+      });
+      box.appendChild(ul);
+    } else box.appendChild(el("p", "empty-note", "No calls on this strip."));
+    return box;
+  }
+
   function renderAnswerKey(strip) {
     const meta = strip.meta;
     const box = el("div", "answer-key");
+    if (view === "remote") { const rc = renderRemoteCalls(strip); if (rc) box.appendChild(rc); }
     box.appendChild(el("h4", null, "Answer key / self-check"));
 
     // the completed strip: what the controller's stripmarking looks like once every action is done
@@ -94,6 +129,7 @@
   let board = null;      // StripBoard for generated strips (kept so drags survive toggles)
   let details = null;    // answer-key panel under the board
   let selected = null;
+  let view = "controller"; // "controller" | "remote" — whose strips the board shows
 
   function isBlank() { return typeSel.value === "blank"; }
   function currentIsBlank() { return current.length && current[0].type === "blank"; }
@@ -144,10 +180,21 @@
     });
   }
 
-  function hhmm(m) { return StripGen.toHHMM(m); }
-
-  // Scenario bar: the code (share it to reproduce the board), the window, a
-  // summary of who is traffic for whom and how it was resolved.
+  // Scenario bar: the code (share it to reproduce the board), the
+  // Controller / Remote toggle, the window, and the rules in force.
+  function updateHash() {
+    try { history.replaceState(null, "", "#" + scenario.code + (view === "remote" ? "/remote" : "")); } catch (e) { /* ignore */ }
+  }
+  function setView(v) {
+    view = v === "remote" ? "remote" : "controller";
+    StripMarkup.setView(view);
+    if (scenario) updateHash();
+    Array.prototype.forEach.call(out.querySelectorAll(".view-toggle button"), function (b) { b.classList.toggle("is-on", b.dataset.view === view); });
+    if (board) {
+      board.render(); // keeps the drag layout and the selection
+      if (revealAllToggle.checked) renderAllKeys(); else showDetails(selected);
+    }
+  }
   function renderScenarioBar() {
     const bar = el("div", "scenario-bar");
     bar.appendChild(el("span", null, "Scenario"));
@@ -159,6 +206,15 @@
       else { codeInput.value = txt; codeInput.select(); }
     });
     bar.appendChild(copy);
+    const vt = el("div", "view-toggle");
+    vt.title = "Controller strips, or the Remote's strips (same strips plus the initial-contact / request data in space 26 and the red call reminders in space 27)";
+    [["controller", "Controller"], ["remote", "Remote"]].forEach(function (pair) {
+      const b = el("button", "btn btn-ghost" + (view === pair[0] ? " is-on" : ""), pair[1] + " strips");
+      b.type = "button"; b.dataset.view = pair[0];
+      b.addEventListener("click", function () { setView(pair[0]); });
+      vt.appendChild(b);
+    });
+    bar.appendChild(vt);
     bar.appendChild(el("span", null, "Window " + hhmm(scenario.window.start) + "–" + hhmm(scenario.window.start + scenario.window.span) + "Z"));
     bar.appendChild(el("span", null, scenario.flights.length + " aircraft · " + scenario.strips.length + " strips"));
     const rules = ZAEConflicts.RULES;
@@ -210,7 +266,8 @@
     const hint = el("p", "board-hint",
       "Strips in suspense (a departure awaiting its clearance request, with its postings stacked directly above it) sit above the bay label; " +
       "active postings sit below, earliest time at the bottom. Hover a strip to enlarge it, click it for its answer key, drag it to any bay or position. " +
-      "A selected strip stays enlarged and can be marked up with the tools on the left; press F or Space to flag it as a reminder; click anywhere else to deselect.");
+      "A selected strip stays enlarged and can be marked up with the tools on the left; press F or Space to flag it as a reminder; click anywhere else to deselect. " +
+      "Remote strips (toggle in the scenario bar) add the typed initial-contact and request data in space 26, the miles per minute in space 9 and the red call reminders in space 27.");
     out.appendChild(hint);
     const boardEl = el("div");
     out.appendChild(boardEl);
@@ -218,9 +275,12 @@
     out.appendChild(details);
 
     StripMarkup.attach();
+    StripMarkup.setView(view);
+    StripMarkup.configure({ onDepTime: onDepTime });
     board = StripBoard.create(boardEl, {
       showNums: numsToggle.checked,
-      keepSelectionWithin: ".strip-details, .sm-ui", // reading the answer key or using the marking tools must not deselect
+      keepSelectionWithin: ".strip-details, .sm-ui, .scenario-bar", // reading the answer key, the marking tools or the view toggle must not deselect
+      renderOpts: function (st) { return view === "remote" && st.remote ? { remote: { mpm: st.remote.mpm, lines26: st.remote.lines26 } } : null; },
       onSelect: function (strip, slot) {
         if (!revealAllToggle.checked) showDetails(strip);
         if (strip) StripMarkup.activate(strip, slot); else StripMarkup.deactivate();
@@ -231,6 +291,29 @@
     board.setStrips(current);
     if (revealAllToggle.checked) renderAllKeys();
     else showDetails(null);
+  }
+
+  // Remote view: the actual departure time typed in space 18 of a departure
+  // strip sets the flight's estimates (chained from the plus times), the
+  // initial contact (2 minutes after departure) and the PR times on its
+  // other strips; the old center estimates are lined through and the new
+  // ones written beside them. Clearing the time undoes it.
+  function onDepTime(strip, hhmm4, stripEl) {
+    const flight = scenario && scenario.flights.find(function (f) { return f.id === strip.flightId; });
+    if (!flight) return;
+    const ok = /^\d{4}$/.test(hhmm4) && parseInt(hhmm4.slice(0, 2), 10) < 24 && parseInt(hhmm4.slice(2), 10) < 60;
+    const depT = ok ? parseInt(hhmm4.slice(0, 2), 10) * 60 + parseInt(hhmm4.slice(2), 10) : null;
+    const times = ok ? ZAERemote.depTimes(flight, depT) : null;
+    StripMarkup.setReminderTime(strip, stripEl, "IC", ok ? ZAERemote.mm(times.ic) : "");
+    flight.strips.forEach(function (sib, k) {
+      if (k === 0) return;
+      const m = StripMarkup.model(sib);
+      m.est15 = ok ? ZAERemote.toHHMM(times.est[k]) : "";
+      StripMarkup.setStrike(sib, "15", ok);
+      const sEl = board && sib.uid ? board.stripEl(sib.uid) : null;
+      StripMarkup.setReminderTime(sib, sEl, "PR", ok ? ZAERemote.mm(times.est[k]) : "");
+      if (sEl) StripMarkup.apply(sEl, sib);
+    });
   }
 
   function render() {
@@ -254,7 +337,7 @@
     if (StripGen.tiers[sc.difficulty]) diffSel.value = sc.difficulty;
     typeSel.value = sc.type;
     countInput.value = sc.count;
-    try { history.replaceState(null, "", "#" + sc.code); } catch (e) { /* ignore */ }
+    updateHash();
     syncControls();
     render();
   }
@@ -275,7 +358,9 @@
   }
 
   function loadCode() {
-    const code = (codeInput.value || "").trim().toUpperCase();
+    const raw = (codeInput.value || "").trim().toUpperCase().split("/");
+    const code = raw[0];
+    if (raw[1] === "REMOTE") { view = "remote"; StripMarkup.setView(view); }
     const parsed = StripGen.parseCode(code);
     if (!parsed) {
       codeInput.setCustomValidity("Codes look like D3A-K7Q2MX");
@@ -307,8 +392,10 @@
   typeSel.addEventListener("change", syncControls);
 
   syncControls();
-  // a code in the URL hash (strips.html#D3A-K7Q2MX) loads that scenario
-  const hashCode = (location.hash || "").replace(/^#/, "");
-  if (hashCode && StripGen.parseCode(hashCode)) { codeInput.value = hashCode; loadCode(); }
+  // a code in the URL hash (strips.html#D3A-K7Q2MX, or #D3A-K7Q2MX/remote for
+  // the Remote's strips) loads that scenario
+  const hashParts = (location.hash || "").replace(/^#/, "").split("/");
+  if (hashParts[1] && hashParts[1].toLowerCase() === "remote") { view = "remote"; StripMarkup.setView(view); }
+  if (hashParts[0] && StripGen.parseCode(hashParts[0])) { codeInput.value = hashParts[0]; loadCode(); }
   else render();
 })();

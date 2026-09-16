@@ -7,7 +7,8 @@
  * kept together: its departure strip lowest, its postings directly above it. Any strip can be dragged to
  * any bay and any position. Shared by the generator page and scenarios.
  *
- *   const board = StripBoard.create(containerEl, { showNums, onSelect, onChange });
+ *   const board = StripBoard.create(containerEl, { showNums, onSelect, onChange, renderOpts });
+ *   renderOpts(strip) -> extra FPSStrip.render options for that strip (e.g. the Remote's data)
  *   board.setStrips(strips);   // auto-place (by type) and sort by estimate
  *   board.setShowNums(bool);   // toggle the field-number overlay in place
  *   board.getLayout();         // { VKS: { above: [uid..], below: [uid..] }, ... }
@@ -189,7 +190,8 @@
           slot.draggable = state.selected !== item; // the selected strip is being marked up, not dragged
           if (state.selected === item) slot.classList.add("is-selected");
           if (st.flagged) slot.classList.add("is-flagged");
-          const stripEl = FPSStrip.render(st.spaces, { showNums: state.showNums });
+          const ro = opts.renderOpts ? opts.renderOpts(st) : null;
+          const stripEl = FPSStrip.render(st.spaces, Object.assign({ showNums: state.showNums }, ro || {}));
           slot.appendChild(stripEl);
           if (root.StripMarkup && st.markup) root.StripMarkup.apply(stripEl, st);
 
@@ -324,6 +326,7 @@
     });
 
     function selectedSlot() { return state.selected ? container.querySelector('.sb-strip[data-uid="' + state.selected + '"]') : null; }
+    function stripEl(uid) { const s = container.querySelector('.sb-strip[data-uid="' + uid + '"]'); return s ? s.querySelector(".fps-strip") : null; }
 
     function getFlags() {
       return Object.keys(state.byUid).filter(function (u) { return state.byUid[u].flagged; });
@@ -354,6 +357,7 @@
       getFlags: getFlags,
       deselect: deselect,
       selectedSlot: selectedSlot,
+      stripEl: stripEl,
       render: render
     };
   }

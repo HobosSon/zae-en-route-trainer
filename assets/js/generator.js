@@ -6,7 +6,8 @@
  * workable without a separation error, with an answer key per strip.
  *
  * Exposed as the global `StripGen`. Requires ZAE (assets/data/zae.js).
- * Optional: ZAEConflicts (assets/js/conflicts.js) for the scenario check.
+ * Optional: ZAEConflicts (assets/js/conflicts.js) for the scenario check and
+ * ZAERemote (assets/js/remote.js) for the Remote's strips.
  *
  * Each generated strip is an object:
  *   { type, spaces: {"3":..,"4":.., "14a":..}, meta: {...answer key...},
@@ -92,6 +93,8 @@
       allowHeavy: false,
       remarkChance: 0.1,
       iafdofChance: 0,
+      onFreqChance: 0.3,   // en route / arrival flights already on frequency when the problem starts
+      altReqChance: 0,     // level overflights that ask for a different altitude mid-flight
       gaChance: 0.35
     },
     developmental: {
@@ -104,6 +107,8 @@
       allowHeavy: true,
       remarkChance: 0.3,
       iafdofChance: 0.15,
+      onFreqChance: 0.35,
+      altReqChance: 0.08,
       gaChance: 0.45
     },
     cpc: {
@@ -116,6 +121,8 @@
       allowHeavy: true,
       remarkChance: 0.5,
       iafdofChance: 0.2,
+      onFreqChance: 0.35,
+      altReqChance: 0.12,
       gaChance: 0.5
     }
   };
@@ -318,6 +325,7 @@
   const ARR_AIRPORTS = ["KJAN", "KJVW", "KGWO"];
   const WEST_OF_MHZ = { MLU: 1, HATER: 1, DORTS: 1, STUEE: 1, DINKY: 1, HEDUD: 1, J417: 1, J417W: 1 };
   const KVKS_WEST_SHARE = 0.3;   // KVKS departures that go V417 west to MLU
+  const ENTRY_DEFAULT_NM = 10;   // sector boundary past an entry NAVAID with no listed boundary mileage
   function airportEntryNav(aptId) { return aptId === "KGWO" ? "SQS" : "MHZ"; }
   function airportLegNm(aptId) { const p = ZAE.DEP_PATHS[aptId]; return p ? p[0][1] : 10; }
   const INTERNAL_APT = { KJAN: 1, KHKS: 1, KJVW: 1, KTVR: 1, KVKS: 1, KGWO: 1, "0M8": 1 };
@@ -428,8 +436,29 @@
       let span = events.reduce(function (m, i) { return Math.max(m, rel[i]); }, 0);
       if (kind === "arrival") span = Math.max(span, rel[nodes.length - 1]); // airport estimate is posted too
       if (win && span > win.span && attempt < 60) continue;
-      const baseT = win ? win.start + rint(0, Math.max(0, win.span - span)) : rint(0, 1439);
+      // where the flight enters Sector 66: the boundary on the entry airway
+      // past the (neighbour-owned) entry NAVAID, in minutes after node 0
+      let entryRel = 0;
+      if (kind !== "departure" && nodes.length > 1) {
+        const bx = (ZAE.BOUNDARIES[aw.id] || []).filter(function (x) { return x.nav === entryNav && x.to !== "JAN" && x.to !== "MLUAPCH"; })[0];
+        const legD = nodes[1].d - nodes[0].d;
+        const dB = Math.min(bx ? bx.nm : ENTRY_DEFAULT_NM, legD);
+        entryRel = legD ? (rel[1] - rel[0]) * dB / legD : 0;
+      }
+      // Some en route / arrival flights are already on frequency when the
+      // problem starts: they entered a few minutes before the clock, with
+      // their first posting still ahead (pilot estimate in space 17).
+      let baseT = null, onFreq = false;
+      if (win && kind !== "departure" && tier.onFreqChance && chance(tier.onFreqChance)) {
+        const before = rint(1, 6);
+        if (rel[events[0]] - entryRel >= before + 1 && span - entryRel + before <= win.span) { baseT = Math.round(win.start - before - entryRel); onFreq = true; }
+      }
+      if (baseT == null) baseT = win ? win.start + rint(0, Math.max(0, win.span - span)) : rint(0, 1439);
       nodes.forEach(function (n, i) { n.t = baseT + rel[i]; n.rel = rel[i]; });
+      const entryT = baseT + entryRel;
+      // initial contact: about when the aircraft enters our airspace, give or take
+      let icT = null;
+      if (kind !== "departure" && !onFreq) icT = Math.max(win ? win.start : 0, Math.round(entryT + rint(-1, 3)));
 
       // ---- altitude
       const floor = altitudeFloor(trav, startIdx, endIdx);
@@ -442,6 +471,16 @@
         if (w) iafdofAlt = w; // the aircraft ARRIVES at the wrong altitude; `alt` is the appropriate one
       }
       const filedAlt = iafdofAlt || alt;
+      // an uncommon mid-flight altitude request from a level overflight (the
+      // Remote asks at altReq.t; the controller must check it against traffic)
+      let altReq = null;
+      if (kind === "overflight" && !iafdofAlt && tier.altReqChance && chance(tier.altReqChance)) {
+        const choices = altitudeOptions(trav, floor, tier, ac, cap).filter(function (a) { return a !== alt && Math.abs(a - alt) <= 4000; });
+        const lastT = baseT + rel[events[events.length - 1]];
+        const from = Math.max(win ? win.start : 0, icT != null ? icT : baseT) + 2;
+        if (choices.length && lastT - from >= 4) altReq = { alt: pick(choices), t: rint(from, lastT - 2) };
+      }
+      const vksWx = kind === "arrival" && destAirport === "KVKS" ? chance(0.8) : null;
       const dir = directionArrow(trav.course);
       const conn = origin === "K" + entryNav ? " " : "./.";
       let routeStr;
@@ -459,7 +498,8 @@
         alt: filedAlt, reqAlt: filedAlt, appropriateAlt: alt, iafdof: !!iafdofAlt, floor: floor, cap: cap,
         originAirport: originAirport, destAirport: destAirport, origin: origin, dest: dest,
         entryNav: entryNav, exitNav: exitNav, exitFacility: exitFacility, nextSector: NEXT_SECTOR[exitNav] || null,
-        nodes: nodes, events: events, baseT: baseT, route: routeStr, strips: []
+        nodes: nodes, events: events, baseT: baseT, route: routeStr, strips: [],
+        onFreq: onFreq, entryT: entryT, icT: icT, altReq: altReq, vksWx: vksWx
       };
       flight.strips = buildStrips(flight);
       return flight;
@@ -524,6 +564,7 @@
         }
         s["15"] = toHHMM(n.t);
         s["19"] = n.id;
+        if (f.onFreq && evNo === 0) s["17"] = toHHMM(n.t); // on frequency at the start: the pilot's estimate
         if (evt === "arrival") { s["16"] = "↓"; s["21"] = f.destAirport; s["22"] = toHHMM(f.nodes[f.nodes.length - 1].t); }
         else s["21"] = next ? next.id : f.dest;
         // plus time ONLY on en route strips that follow a ZAE departure
@@ -545,6 +586,8 @@
       if (s["14a"]) key.estimateMath = "Est " + s["11"] + " " + s["12"] + " " + s["14a"] + " = " + n.id + " est " + s["15"];
       else if (s["15"] && s["11"]) key.estimateMath = "Est " + s["11"] + " " + s["12"] + " → " + n.id + " est " + s["15"];
       else if (s["15"]) key.estimateMath = "Est over " + n.id + " " + s["15"] + " received from " + ((ZAE.NAVAIDS[n.id] || {}).owner || "the adjacent facility") + " (boundary posting: no previous fix in ZAE)";
+      if (f.onFreq && evNo === 0) key.notes.push("On frequency when the problem starts (entered Sector 66 about " + toHHMM(f.entryT) + "): pilot estimate in space 17 — check the altitude as level.");
+      if (f.altReq) key.notes.push("Will request " + altPlain(f.altReq.alt) + " at " + toHHMM(f.altReq.t) + " (Remote's strip) — approve only if separated from traffic.");
       if (f.exitFacility && ei === lastEv) key.notes.push("Leaving ZAE to " + f.exitFacility + " — noted in space 30.");
       if (f.events.length > 1) key.notes.push("Part of a " + f.events.length + "-bay flight (" + f.events.map(function (i) { return f.nodes[i].bay; }).join(" → ") + "); all strips are one plane.");
 
@@ -628,6 +671,7 @@
     const strips = [];
     flights.forEach(function (f) { f.strips.forEach(function (s) { if (!s.bay) s.bay = bayForStrip(s); strips.push(s); }); });
     if (engine && analysis) engine.decorate(flights, analysis);
+    if (root.ZAERemote) root.ZAERemote.decorate(flights);
     rng = Math.random;
     return { code: code, seed: seed, difficulty: tierKey, type: type, count: count, window: win, flights: flights, strips: strips, analysis: analysis };
   }

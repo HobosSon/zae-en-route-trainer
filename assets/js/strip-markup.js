@@ -22,6 +22,14 @@
  * Picking the same mark in the same colour again removes it. Marks live on
  * the strip object (strip.markup) so they survive drags and re-renders.
  *
+ * Remote view (StripMarkup.setView("remote")): the red call reminders from
+ * strip.remote are drawn at the top of space 27, earliest first. Clicking a
+ * reminder's letters lines it through (call made); blank times (IC and PR on
+ * departures, LD) are underlined boxes the Remote fills in; RP (report
+ * passing, at the bottom) is added from the rail. Departure strips get a
+ * black box in space 18 for the actual departure time, and the page hook
+ * onDepTime(strip, hhmm) recomputes the flight's estimates from it.
+ *
  *   StripMarkup.attach()                 once per page (builds the rail)
  *   StripMarkup.activate(strip, slotEl)  when a board strip is selected
  *   StripMarkup.deactivate()
@@ -49,15 +57,18 @@
   ];
   function def(id) { return PALETTE.find(function (p) { return p.id === id; }); }
 
-  const ui = { pen: "red", strip: null, slot: null, stripEl: null, rail: null, sel: null, seq: 0 };
+  const ui = { pen: "red", strip: null, slot: null, stripEl: null, rail: null, sel: null, seq: 0, view: "controller", hooks: {} };
 
   function model(strip) {
-    if (!strip.markup) strip.markup = { ranges: [], carets: [], text26: "", items26: [], s15: [], est15: "", misc: [] };
+    if (!strip.markup) strip.markup = { ranges: [], carets: [], text26: "", items26: [], s15: [], est15: "", misc: [], rtimes: {}, done: {}, rp: [], dep18: "" };
     const m = strip.markup;
-    ["ranges", "carets", "items26", "s15", "misc"].forEach(function (k) { if (!m[k]) m[k] = []; });
-    if (m.text26 == null) m.text26 = ""; if (m.est15 == null) m.est15 = "";
+    ["ranges", "carets", "items26", "s15", "misc", "rp"].forEach(function (k) { if (!m[k]) m[k] = []; });
+    ["rtimes", "done"].forEach(function (k) { if (!m[k]) m[k] = {}; });
+    if (m.text26 == null) m.text26 = ""; if (m.est15 == null) m.est15 = ""; if (m.dep18 == null) m.dep18 = "";
     return m;
   }
+  function isRemote(strip) { return ui.view === "remote" && !!(strip && strip.remote); }
+  function selectedEl(stripEl) { return !!stripEl.closest(".sb-strip.is-selected"); }
 
   // ---- geometry helpers ------------------------------------------------
   function pct(stripEl, r) {
@@ -162,8 +173,16 @@
     box26.appendChild(t26);
     layer.appendChild(box26);
 
-    // spaces 27-30
+    // spaces 27-30 (Remote view: the red call reminders come first)
     const g = el("div", "sm-gbox");
+    if (isRemote(strip)) {
+      g.appendChild(renderReminders(strip, stripEl, m));
+      if (strip.remote.dep) {
+        const d = editable("sm-dep18 sm-blk", m.dep18, function (x) { m.dep18 = x.textContent.replace(/[^\d]/g, "").slice(0, 4); if (ui.hooks.onDepTime) ui.hooks.onDepTime(strip, m.dep18, stripEl); }, { placeholder: "    " });
+        d.title = "Actual departure time (2 minutes after the clearance): the fix estimates, IC and PR times follow from it";
+        layer.appendChild(d);
+      }
+    }
     const overs = m.misc.filter(function (c) { return def(c.id).over; });
     const hasH = m.misc.some(function (c) { return c.id === "H"; });
     m.misc.forEach(function (chip) { if (!(def(chip.id).over && hasH)) g.appendChild(renderChip(chip, strip, stripEl)); });
@@ -304,6 +323,54 @@
     e.target.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
+  // ---- Remote call reminders (space 27) ------------------------------------------------
+  function renderReminders(strip, stripEl, m) {
+    const box = el("div", "sm-rmd");
+    const rows = strip.remote.reminders.map(function (x) { return { id: x.id, k: x.k, t: x.t, blank: x.t == null }; })
+      .concat(m.rp.map(function (x) { return { id: x.iid, k: "RP", t: null, blank: true, rp: x }; }));
+    rows.forEach(function (row) {
+      const d = el("div", "sm-rmd-row sm-red" + (m.done[row.id] ? " is-done" : ""));
+      d.dataset.rid = row.id;
+      const k = el("span", "sm-rmd-k", row.k);
+      k.title = (row.rp ? "Report passing — click when called (lines it through), shift-click to remove" : "Click when the call is made (lines it through)");
+      k.addEventListener("click", function (e) {
+        if (!selectedEl(stripEl)) return; // a click on an unselected strip just selects it
+        e.stopPropagation();
+        if (row.rp && e.shiftKey) { m.rp = m.rp.filter(function (x) { return x !== row.rp; }); apply(stripEl, strip); return; }
+        m.done[row.id] = !m.done[row.id];
+        d.classList.toggle("is-done", !!m.done[row.id]);
+      });
+      d.appendChild(k);
+      if (row.blank) {
+        const val = row.rp ? row.rp.t : (m.rtimes[row.id] || "");
+        const t = editable("sm-rmd-t sm-rmd-blank", val, function (x) { const v = x.textContent; if (row.rp) row.rp.t = v; else m.rtimes[row.id] = v; }, { placeholder: "" });
+        t.dataset.rid = row.id;
+        t.title = row.rp ? "Minutes the aircraft is estimated to pass the point (card miles per minute)" : "Minutes — filled in during the problem";
+        d.appendChild(t);
+      } else d.appendChild(el("span", "sm-rmd-t", row.t));
+      box.appendChild(d);
+    });
+    return box;
+  }
+  function addRP() {
+    if (!ui.strip || !isRemote(ui.strip)) return;
+    const m = model(ui.strip);
+    const item = { iid: "rp" + (++ui.seq) + Date.now().toString(36), t: "" };
+    m.rp.push(item);
+    apply(ui.stripEl, ui.strip);
+    focusEnd(ui.stripEl.querySelector('.sm-rmd-t[data-rid="' + item.iid + '"]'));
+  }
+  // Write a computed time into a reminder blank (and its model) without redrawing the strip.
+  function setReminderTime(strip, stripEl, key, value) {
+    const m = model(strip);
+    strip.remote.reminders.forEach(function (x) {
+      if (x.k !== key || x.t != null) return;
+      m.rtimes[x.id] = value;
+      const node = stripEl && stripEl.querySelector('.sm-rmd-t[data-rid="' + x.id + '"]');
+      if (node && node.textContent !== value) node.textContent = value;
+    });
+  }
+
   // ---- chips (27-30) ---------------------------------------------------------------
   function renderChip(chip, strip, stripEl) {
     const d = def(chip.id);
@@ -435,6 +502,15 @@
     chipSec("Space 26", ["C", "67"]);
     chipSec("Spaces 27–30", ["DA", "H", "VR", "APCH", "Z", "VV", "TXT"]);
 
+    const remSec = section("Remote (27)");
+    remSec.classList.add("sm-remote-only");
+    const rpWrap = el("div", "sm-chips");
+    const rp = el("div", "sm-pal-chip", "RP");
+    rp.title = "Report passing requested by the controller: adds RP at the bottom of the reminders with the minutes the aircraft is estimated to pass the point";
+    rp.addEventListener("click", addRP);
+    rpWrap.appendChild(rp); remSec.appendChild(rpWrap);
+    remSec.appendChild(el("div", "sm-hint", "Click a reminder's letters when the call is made. Departure strips: type the actual departure time in space 18 (2 min after the clearance) and the estimates, IC and PR follow."));
+
     const misc = section(null);
     const clear = el("button", "btn btn-ghost sm-act sm-danger", "Clear strip"); clear.type = "button"; clear.title = "Remove every mark on this strip";
     clear.addEventListener("click", function () { if (!ui.strip) return; if (!confirm("Clear all marks on " + (ui.strip.spaces["3"] || "this strip") + "?")) return; ui.strip.markup = null; apply(ui.stripEl, ui.strip); });
@@ -468,6 +544,15 @@
     if (ui.rail) ui.rail.classList.add("is-idle");
   }
   function rebind(slot) { if (ui.strip && slot) { ui.slot = slot; ui.stripEl = slot.querySelector(".fps-strip"); apply(ui.stripEl, ui.strip); scheduleLayout(); } }
+  function setView(v) { ui.view = v === "remote" ? "remote" : "controller"; if (ui.rail) ui.rail.classList.toggle("is-remote", ui.view === "remote"); }
+  function configure(hooks) { Object.assign(ui.hooks, hooks || {}); }
+  // Programmatic marks (used when a departure time recomputes a flight's estimates).
+  function setStrike(strip, cell, on) {
+    const m = model(strip);
+    const has = m.ranges.findIndex(function (r) { return r.kind === "strike" && r.auto && r.target.cell === cell; });
+    if (on && has < 0) m.ranges.push({ target: { cell: cell }, start: 0, end: 4, kind: "strike", seq: ++ui.seq, auto: true });
+    if (!on && has >= 0) m.ranges.splice(has, 1);
+  }
 
-  root.StripMarkup = { attach: attach, activate: activate, deactivate: deactivate, apply: apply, rebind: rebind, reposition: scheduleLayout, toggleItem: toggleItem, PALETTE: PALETTE, _ui: ui };
+  root.StripMarkup = { attach: attach, activate: activate, deactivate: deactivate, apply: apply, rebind: rebind, reposition: scheduleLayout, toggleItem: toggleItem, setView: setView, configure: configure, model: model, setStrike: setStrike, setReminderTime: setReminderTime, PALETTE: PALETTE, _ui: ui };
 })(typeof window !== "undefined" ? window : this);

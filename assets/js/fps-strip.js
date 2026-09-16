@@ -1,7 +1,9 @@
 /*
  * Shared FPS2000-style flight progress strip renderer (LP05 Appendix B layout).
  * Exposed as window.FPSStrip so the generator page and scenarios both reuse it.
- *   FPSStrip.render(spaces, { editable, showNums }) -> HTMLElement (.fps-strip)
+ *   FPSStrip.render(spaces, { editable, showNums, marks, remote }) -> HTMLElement (.fps-strip)
+ *     remote: { mpm, lines26 } — the Remote's typed scenario data in space 26
+ *             and the miles-per-minute figure written in red in space 9
  *   FPSStrip.readEditable(stripEl) -> { "<space>": value } from a filled-in blank
  *   FPSStrip.CELLS, FPSStrip.el, FPSStrip.slashZero
  */
@@ -144,7 +146,26 @@
       }
     });
     if (marks) renderMarks(wrap, marks);
+    if (opts.remote) renderRemote(wrap, opts.remote);
     return wrap;
+  }
+
+  // Remote strips: the typed lines in space 26 (initial contact time, request
+  // time, ON FREQUENCY, ...) and the miles per minute in red in space 9.
+  function renderRemote(wrap, r) {
+    wrap.classList.add("remote");
+    if (r.mpm != null) {
+      const m = el("div", "fps-cell fps-mpm", String(r.mpm));
+      m.style.left = "9.6%"; m.style.top = "76%"; m.style.width = "4.5%";
+      m.title = "Miles per minute (Color Card Stock Map speed table)";
+      wrap.appendChild(m);
+    }
+    if (r.lines26 && r.lines26.length) {
+      const b = el("div", "fps-cell fps-r26");
+      r.lines26.forEach(function (t) { b.appendChild(el("div", null, slashZero(t))); });
+      b.style.left = "67%"; b.style.top = "56%"; b.style.width = "23%"; b.style.height = "42%";
+      wrap.appendChild(b);
+    }
   }
 
   // Read the values a user typed into a blank/editable strip into a spaces object.
