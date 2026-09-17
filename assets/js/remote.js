@@ -27,7 +27,12 @@
  * typed lines and the reminders are derived — so a scenario builder only has
  * to supply the fields, never the reminders.
  *
- *   ZAERemote.decorate(flights)                 strip.remote for generated flights
+ * ATIS: every scenario has a current ATIS letter. A KGWO arrival that is not
+ * already on frequency checks on "with <letter>": its Remote strip shows
+ * "IC HHMM WITH TANGO" and "ATIS TANGO" under it. Aircraft on frequency at
+ * the start already have it.
+ *
+ *   ZAERemote.decorate(flights, { atis })       strip.remote for generated flights
  *   ZAERemote.derive(strip, fields, info)       { lines26, reminders, calls } from a strip's
  *                                               type, its space-26 fields and a few facts
  *   ZAERemote.flightsFromStrips(strips)         authored strips grouped into flights by callsign
@@ -63,6 +68,8 @@
   // who calls Jackson Low for the departure clearance
   const REQUESTER = { KGWO: "Greenwood Tower", KJAN: "Jackson Approach", KHKS: "Jackson Approach", KJVW: "Jackson Approach", KVKS: "Flight Data", "0M8": "Flight Data" };
 
+  const ICAO = ["Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf", "Hotel", "India", "Juliett", "Kilo", "Lima", "Mike", "November", "Oscar", "Papa", "Quebec", "Romeo", "Sierra", "Tango", "Uniform", "Victor", "Whiskey", "X-ray", "Yankee", "Zulu"];
+  function atisWord(letter) { const i = String(letter || "").trim().toUpperCase().charCodeAt(0) - 65; return i >= 0 && i < 26 ? ICAO[i] : null; }
   function pad2(n) { return String(n).padStart(2, "0"); }
   function toHHMM(mins) { mins = ((Math.round(mins) % 1440) + 1440) % 1440; return pad2(Math.floor(mins / 60)) + pad2(mins % 60); }
   function fromHHMM(s) { const m = String(s || "").replace(/Ø/g, "0").match(/(\d{2})(\d{2})/); return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null; }
@@ -80,7 +87,7 @@
   // The typed space-26 lines, the space-27 reminders and the calls for one
   // strip.
   //   strip:  { type: "departure"|"enroute"|"arrival", spaces }
-  //   fields: { onFreq, ic (minutes), reqClnc (minutes), depSeq, altReq: {alt, t}, vksWx (true/false/null) }
+  //   fields: { onFreq, ic (minutes), reqClnc (minutes), depSeq, altReq: {alt, t}, vksWx (true/false/null), atis (letter) }
   //   info:   { kind ("departure"|"overflight"|"arrival" of the whole flight), cs, alt,
   //             est (minutes over the posted fix), fix, nextFix, nextNextFix, originAirport,
   //             destAirport, dest, icFix, icFixT, icNext, firstOfFlight, depFirstFix }
@@ -106,10 +113,12 @@
       if (info.firstOfFlight) {
         if (fields.onFreq) r.lines26.push("ON FREQUENCY");
         else if (fields.ic != null) {
-          r.lines26.push("IC " + toHHMM(fields.ic));
+          const atis = info.destAirport === "KGWO" && fields.atis ? atisWord(fields.atis) : null;
+          r.lines26.push("IC " + toHHMM(fields.ic) + (atis ? " WITH " + atis.toUpperCase() : ""));
+          if (atis) r.lines26.push("ATIS " + atis.toUpperCase());
           add("IC", mm(fields.ic), fields.ic);
           const icFix = info.icFix || info.fix, icT = info.icFixT != null ? info.icFixT : est;
-          r.calls.push({ k: "IC", at: fields.ic, who: cs, text: "Aero Center, " + cs + " estimating " + fixName(icFix) + (icT != null ? " " + toHHMM(icT) : "") + (info.alt ? ", at " + spokenAlt(info.alt) : "") + (info.icNext ? ", " + fixName(info.icNext) + " next" : "") + "." });
+          r.calls.push({ k: "IC", at: fields.ic, who: cs, text: "Aero Center, " + cs + " estimating " + fixName(icFix) + (icT != null ? " " + toHHMM(icT) : "") + (info.alt ? ", at " + spokenAlt(info.alt) : "") + (info.icNext ? ", " + fixName(info.icNext) + " next" : "") + (atis ? ", with information " + atis : "") + "." });
         }
       }
       const arrHold = strip.type === "arrival" && HOLD_APCH[info.destAirport];
@@ -158,7 +167,8 @@
   function nextComp(f, i) { for (let k = i + 1; k < f.nodes.length; k++) if (f.nodes[k].comp) return f.nodes[k]; return null; }
   function firstCompAfter(f, t) { for (let k = 0; k < f.nodes.length; k++) if (f.nodes[k].comp && f.nodes[k].t > t) return f.nodes[k]; return null; }
 
-  function decorate(flights) {
+  function decorate(flights, opts) {
+    opts = opts || {};
     // departures off the same field with the same request time are sequenced,
     // faster aircraft first (as the departure rules and H00 direct)
     const groups = {};
@@ -174,7 +184,7 @@
       f.remote = { mpm: mpm, onFreq: !!f.onFreq, icT: f.onFreq ? null : f.icT };
       f.strips.forEach(function (s, k) {
         const n = f.nodes[s.nodeIdx];
-        const fields = { onFreq: k === 0 && !!f.onFreq, ic: k === 0 && !f.onFreq ? f.icT : null, depSeq: f.depSeq || null, vksWx: f.vksWx, altReq: null };
+        const fields = { onFreq: k === 0 && !!f.onFreq, ic: k === 0 && !f.onFreq ? f.icT : null, depSeq: f.depSeq || null, vksWx: f.vksWx, altReq: null, atis: opts.atis || null };
         if (f.altReq && activeStrip(f, f.altReq.t) === s) fields.altReq = f.altReq;
         const nx = s.type === "departure" ? null : nextComp(f, n.idx), nx2 = nx ? nextComp(f, nx.idx) : null;
         const icFix = !f.onFreq && f.icT != null ? (firstCompAfter(f, f.icT) || n) : n;
@@ -238,7 +248,8 @@
       vksWx: rf.vksWx == null || rf.vksWx === "" ? null : (rf.vksWx === true || rf.vksWx === "yes")
     };
   }
-  function decorateAuthored(strips) {
+  function decorateAuthored(strips, opts) {
+    opts = opts || {};
     const flights = flightsFromStrips(strips);
     flights.forEach(function (f) {
       const mpm = f.tas ? cardMPM(f.tas) : null;
@@ -246,6 +257,7 @@
       f.strips.forEach(function (s, k) {
         const plus23 = f.kind === "departure" && s.type !== "departure" ? movePlusTime(s) : null;
         const fields = normalizeFields(s.remoteFields);
+        fields.atis = opts.atis || null;
         if (k !== 0) { fields.onFreq = false; fields.ic = null; } // contact data lives on the flight's first strip
         if (fields.onFreq && s.spaces && !s.spaces["17"] && s.spaces["15"]) s.spaces["17"] = s.spaces["15"]; // pilot estimate
         const nxt = f.strips[k + 1] || null;
@@ -291,7 +303,7 @@
 
   root.ZAERemote = {
     decorate: decorate, derive: derive, depTimes: depTimes, cardMPM: cardMPM, MPM_TABLE: MPM_TABLE,
-    flightsFromStrips: flightsFromStrips, decorateAuthored: decorateAuthored, normalizeFields: normalizeFields, pTime: pTime, postedFix: postedFix, stripEst: stripEst,
+    flightsFromStrips: flightsFromStrips, decorateAuthored: decorateAuthored, atisWord: atisWord, ICAO: ICAO, normalizeFields: normalizeFields, pTime: pTime, postedFix: postedFix, stripEst: stripEst,
     toHHMM: toHHMM, fromHHMM: fromHHMM, mm: mm,
     IC_AFTER_DEP: IC_AFTER_DEP, DEP_AFTER_CLNC: DEP_AFTER_CLNC, REQ_BEFORE_P: REQ_BEFORE_P, LAND_AFTER: LAND_AFTER, TOWER_JUR_AFTER: TOWER_JUR_AFTER
   };

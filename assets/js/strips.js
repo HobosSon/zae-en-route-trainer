@@ -123,7 +123,7 @@
   function barTail() {
     return [
       el("span", null, "Window " + hhmm(scenario.window.start) + "–" + hhmm(scenario.window.start + scenario.window.span) + "Z"),
-      el("span", null, scenario.flights.length + " aircraft · " + scenario.strips.length + " strips"),
+      el("span", null, scenario.flights.length + " aircraft · " + scenario.strips.length + " strips · ATIS " + (ZAERemote.atisWord(scenario.atis) || scenario.atis)),
       el("span", "rules", "Rules: 10 min / 20 DME · 44-kt 3 min · 22-kt 5 min · 2-minute departure rule · holding pattern airspace protected 10 min before the holder's estimate · CBM 3 and MEI 1 West MOAs active")
     ];
   }

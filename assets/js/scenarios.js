@@ -128,7 +128,7 @@
   function normType(t) { return t === "proposal" ? "departure" : (t || "enroute"); }
   function buildPlayable(scenario) {
     const strips = JSON.parse(JSON.stringify(scenario.strips || [])).map(function (st) { st.type = normType(st.type); st.spaces = st.spaces || {}; return st; });
-    const flights = ZAERemote.decorateAuthored(strips);
+    const flights = ZAERemote.decorateAuthored(strips, { atis: scenario.atis || null });
     ScenarioBoard.prepare(strips, flights);
     return { strips: strips, flights: flights };
   }
@@ -192,7 +192,7 @@
     if (!built.strips.length) { boardWrap.appendChild(el("div", "empty-state", "This scenario has no strips yet.")); return; }
     sb = ScenarioBoard.create(boardWrap, {
       strips: built.strips, flights: built.flights, view: "controller", showNums: cb.checked,
-      bar: [el("span", null, scenario.title || "Scenario"), el("span", "rules", built.flights.length + " aircraft · " + built.strips.length + " strips" + (scenario.startTime ? " · start " + FPSStrip.slashZero(scenario.startTime) + "Z" : ""))],
+      bar: [el("span", null, scenario.title || "Scenario"), el("span", "rules", built.flights.length + " aircraft · " + built.strips.length + " strips" + (scenario.startTime ? " · start " + FPSStrip.slashZero(scenario.startTime) + "Z" : "") + (scenario.atis ? " · ATIS " + (ZAERemote.atisWord(scenario.atis) || scenario.atis) : ""))],
       renderDetails: playDetails
     });
   }
@@ -218,6 +218,13 @@
     startIn.type = "text"; startIn.className = "editor-input editor-input-sm"; startIn.placeholder = "e.g. 1200"; startIn.maxLength = 4;
     startIn.value = existing && existing.startTime ? existing.startTime : "";
     form.appendChild(fieldWrap("Scenario start time (Zulu)", startIn));
+    // current ATIS (KGWO arrivals not yet on frequency check on with it)
+    const atisIn = document.createElement("input");
+    atisIn.type = "text"; atisIn.className = "editor-input editor-input-sm"; atisIn.placeholder = "T (Tango)"; atisIn.maxLength = 1;
+    atisIn.value = existing && existing.atis ? existing.atis : "";
+    atisIn.title = "Current ATIS letter. KGWO arrival Remote strips show “IC HHMM WITH <letter>” and “ATIS <letter>”; aircraft already on frequency have it.";
+    atisIn.addEventListener("input", function () { atisIn.value = atisIn.value.replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 1); stripsWrap.dataset.atis = atisIn.value; refreshAll(); });
+    form.appendChild(fieldWrap("Current ATIS (KGWO)", atisIn));
 
     const altInputs = {};
     const altRow = el("div", "altim-row");
@@ -232,6 +239,7 @@
     form.appendChild(fieldWrap("Altimeters", altRow));
 
     const stripsWrap = el("div", "editor-strips");
+    stripsWrap.dataset.atis = atisIn.value;
     form.appendChild(stripsWrap);
 
     function addStripEditor(st) {
@@ -328,6 +336,7 @@
         title: titleIn.value.trim() || "Untitled scenario",
         description: descIn.value.trim(),
         startTime: startIn.value.trim(),
+        atis: atisIn.value.trim().toUpperCase(),
         altimeters: altimeters,
         strips: strips
       };
@@ -435,7 +444,7 @@
     function preview() {
       // derive exactly as the player will, from this block's strip and its siblings
       const strips = [].slice.call(stripsWrap.querySelectorAll(".editor-strip")).map(function (b) { return { type: blockType(b), spaces: blockSpaces(b), remoteFields: cleanFields(b._rf), _b: b }; });
-      try { ZAERemote.decorateAuthored(strips); } catch (e) { pv.textContent = ""; return; }
+      try { ZAERemote.decorateAuthored(strips, { atis: stripsWrap.dataset.atis || null }); } catch (e) { pv.textContent = ""; return; }
       const me = strips.filter(function (s) { return s._b === block; })[0];
       if (!me || !me.remote) { pv.textContent = ""; return; }
       pv.innerHTML = "";

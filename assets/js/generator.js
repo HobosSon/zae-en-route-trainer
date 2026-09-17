@@ -671,9 +671,11 @@
     const strips = [];
     flights.forEach(function (f) { f.strips.forEach(function (s) { if (!s.bay) s.bay = bayForStrip(s); strips.push(s); }); });
     if (engine && analysis) engine.decorate(flights, analysis);
-    if (root.ZAERemote) root.ZAERemote.decorate(flights);
+    // the current ATIS letter (KGWO arrivals check on with it); drawn last so the flights are unchanged
+    const atis = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[Math.floor(rng() * 26)];
+    if (root.ZAERemote) root.ZAERemote.decorate(flights, { atis: atis });
     rng = Math.random;
-    return { code: code, seed: seed, difficulty: tierKey, type: type, count: count, window: win, flights: flights, strips: strips, analysis: analysis };
+    return { code: code, seed: seed, difficulty: tierKey, type: type, count: count, window: win, flights: flights, strips: strips, analysis: analysis, atis: atis };
   }
 
   // Back-compatible: an array of strips (with the scenario attached).

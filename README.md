@@ -61,8 +61,14 @@ and its **Sector 66 "Jackson Low"** non-radar environment.
   strips: each strip is the printed strip (every space, with the shared
   remarks such as FRC in 26) plus a Remote-data panel — initial contact time
   or ON FREQUENCY, request clearance time (defaults to P−5) and DEPARTURE #,
-  altitude request, KVKS weather. The Remote's space-27 reminders and space-26
-  lines are derived (`ZAERemote.decorateAuthored`), never typed. The player
+  altitude request, KVKS weather, and a scenario-level current ATIS letter
+  (KGWO arrivals not yet on frequency check on “with <letter>”: their Remote
+  strip shows `IC HHMM WITH TANGO` and `ATIS TANGO`). A departure flight's plus
+  time may be typed in space 23 as printed on the Remote's strip; the
+  Controller's strip carries it under space 14. The Remote's space-27
+  reminders and space-26 lines are derived (`ZAERemote.decorateAuthored`),
+  never typed. To bake a level: Author static levels → Save to slot N →
+  Export static JSON → paste into `assets/data/scenarios.js` and commit. The player
   posts the strips on the bay board (`assets/js/scenario-board.js`, shared
   with the generator) with the Controller / Remote toggle and stripmarking;
   authored scenarios have no conflict-engine answer key.
