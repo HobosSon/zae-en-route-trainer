@@ -300,6 +300,8 @@
 .fps-marks.mk-sp26 { font-size: 1.35cqw; }
 .fps-marks.mk-sp23 { font-size: 2.6cqw; align-items: center; }
 .fps-marks.mk-sp28 { font-size: 1.05cqw; }
+.fps-marks.mk-sp19 { font-size: 1.5cqw; align-items: flex-start; justify-content: flex-end; }
+.fps-marks.mk-sp15b { font-size: 1.45cqw; }
 .fps-marks.mk-sp28 .mk { white-space: normal; line-height: 1.05; }
 .fps-marks.mk-sp24, .fps-marks.mk-sp12, .fps-marks.mk-sp14, .fps-marks.mk-sp18 { font-size: 1.4cqw; }
 .fps-marks.mk-sp24 { align-items: flex-end; }

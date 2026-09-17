@@ -79,9 +79,11 @@
   const MARK_BOX = {
     "12": { x: 15.8, y: 22, w: 7.5, h: 20 }, "14": { x: 15.8, y: 50, w: 8, h: 24 }, "15": { x: 24.5, y: 2, w: 10.8, h: 58 },
     "18": { x: 29.5, y: 60, w: 10.5, h: 20 }, "20": { x: 41, y: 4, w: 18.5, h: 92 }, "23": { x: 59.6, y: 48, w: 6.5, h: 22 },
-    "24": { x: 60, y: 74, w: 6.5, h: 24 }, "26": { x: 67, y: 48, w: 23.5, h: 50 }, "28": { x: 91.2, y: 26, w: 8.5, h: 56 }
+    "24": { x: 60, y: 74, w: 6.5, h: 24 }, "26": { x: 67, y: 48, w: 23.5, h: 50 }, "28": { x: 91.2, y: 26, w: 8.5, h: 56 },
+    "19": { x: 31.5, y: 78, w: 8.5, h: 20 },   // beside the posted fix (an amended fix)
+    "15b": { x: 24.5, y: 30, w: 14, h: 28 }    // under the center estimate (a coordinated estimate for another fix)
   };
-  const MARK_HIDES_BASE = { "20": 1, "15": 1 }; // the marks restate these spaces in full
+  const MARK_HIDES_BASE = { "20": 1 }; // the marks restate this space in full (15 only when a mark replaces it)
 
   // marks: { "<space>": [ { t, c: 'red'|'blk', circ: 'red'|'blk', ul: 'red', strike, bar, corner, replace } ] }
   function renderMarks(wrap, marks) {

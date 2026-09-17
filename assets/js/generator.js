@@ -330,7 +330,8 @@
   //   KVKS: V417 from MEI to DORTS, then direct VKS (about 8 nm); KVKS is on the VKS NDB
   const ARRIVALS = {
     KJAN: { feeder: "MHZ", leg: 10 }, KJVW: { feeder: "MHZ", leg: 17 }, KGWO: { feeder: "SQS", leg: 10 },
-    KMLU: { airway: "V18", from: "MEI", feeder: "DINKY", leg: 31, routeTail: "MLU", minAlt: 7000 },
+    // the printed strip posts STUEE (DINKY is nonradar-only); the controller amends it to DINKY, estimate = STUEE - 3
+    KMLU: { airway: "V18", from: "MEI", feeder: "STUEE", holdFix: "DINKY", leg: 19, routeTail: "MLU", minAlt: 7000 },
     KVKS: { airway: "V417", from: "MEI", feeder: "DORTS", suffix: [["VKS", 8, "DCT"]], leg: 0, routeTail: "DORTS VKS", minAlt: 6000 }
   };
   const WEST_OF_MHZ = { MLU: 1, HATER: 1, DORTS: 1, STUEE: 1, DINKY: 1, HEDUD: 1, J417: 1, J417W: 1 };
@@ -517,6 +518,7 @@
         alt: filedAlt, reqAlt: filedAlt, appropriateAlt: alt, iafdof: !!iafdofAlt, floor: floor, cap: cap,
         originAirport: originAirport, destAirport: destAirport, origin: origin, dest: dest,
         entryNav: entryNav, exitNav: exitNav, exitFacility: exitFacility, nextSector: NEXT_SECTOR[exitNav] || null,
+        holdFix: kind === "arrival" ? (arrSpec.holdFix || arrSpec.feeder) : null,
         nodes: nodes, events: events, baseT: baseT, route: routeStr, strips: [],
         onFreq: onFreq, entryT: entryT, icT: icT, altReq: altReq, vksWx: vksWx
       };

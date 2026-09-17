@@ -66,6 +66,7 @@
   const DEP_AFTER_CLNC = 2;    // actual departure 2 minutes after the clearance is given
   const IC_AFTER_DEP = 2;      // initial contact 2 minutes after departure
   const TOWER_JUR_AFTER = 2;   // JAN / MLU arrivals: tower jurisdiction 2 minutes after the holding fix estimate
+  const DINKY_FROM_STUEE = 3;  // KMLU arrivals hold at DINKY; the strip posts STUEE and DINKY = STUEE - 3
   const LAND_AFTER = { KGWO: 7, KVKS: 5 };
   const HOLD_APCH = { KJAN: "Jackson Approach", KHKS: "Jackson Approach", KJVW: "Jackson Approach", KMLU: "Monroe Approach" };
   const LAND_CALLER = { KGWO: "Greenwood Tower", KVKS: "Flight Service" };
@@ -131,8 +132,9 @@
         if (est != null) add("PR", null, est); // its time follows from the actual departure time
       } else if (arrHold) {
         if (est != null) {
-          add("Z", mm(est + TOWER_JUR_AFTER), est + TOWER_JUR_AFTER);
-          r.calls.push({ k: "Z", at: est + TOWER_JUR_AFTER, who: HOLD_APCH[info.destAirport], text: "Jackson Low, " + HOLD_APCH[info.destAirport] + ", " + cs + " tower jurisdiction." });
+          const zBase = info.holdT != null ? info.holdT : (info.destAirport === "KMLU" ? est - DINKY_FROM_STUEE : est); // KMLU: DINKY estimate = STUEE - 3
+          add("Z", mm(zBase + TOWER_JUR_AFTER), zBase + TOWER_JUR_AFTER);
+          r.calls.push({ k: "Z", at: zBase + TOWER_JUR_AFTER, who: HOLD_APCH[info.destAirport], text: "Jackson Low, " + HOLD_APCH[info.destAirport] + ", " + cs + " tower jurisdiction." });
         }
       } else if (est != null && (fields.onFreq || fields.ic == null || est >= fields.ic)) {
         add("PR", mm(est), est);

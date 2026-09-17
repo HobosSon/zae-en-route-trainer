@@ -22,10 +22,14 @@ and its **Sector 66 "Jackson Low"** non-radar environment.
   Columbus 3 and Meridian 1 West MOAs, and the MHZ/SQS holding pattern
   airspace (protected from 10 minutes before an arrival's estimate until it is
   tower jurisdiction or landed, with the Color Card Stock Map clear distances).
-  Arrivals: KJAN/KJVW hold at MHZ (`H- NW EFC`, EFC = estimate + 10, TCP at
-  the JAN boundary), KGWO (VOR approach, block with D67), KMLU cleared to
-  DINKY on V18 (`H- NE V18 EFC`, EFC = estimate + 5, 7,000, `C 49 NE MLU`,
-  inbound to MLU Approach, your control DINKY) and KVKS via V417/DORTS
+  Arrivals: KJAN/KJVW hold at MHZ (`H- NW`, no EFC, "no delay expected", TCP
+  at the JAN boundary; several holders stack 60/70/80 and the stack moves
+  down 1,000 when the bottom aircraft is tower jurisdiction, so the pattern
+  always owns 60), KGWO (VOR approach, block with D67), KMLU whose printed
+  strip posts STUEE: the controller writes DINKY beside it, takes the STUEE
+  estimate minus 3 as the DINKY estimate and clears the aircraft to hold at
+  DINKY on V18 (`H- NE V18 EFC`, EFC = DINKY estimate + 5, 7,000, `C 49 NE
+  MLU`, inbound to MLU Approach, your control DINKY), and KVKS via V417/DORTS
   (approach clearance before the DORTS estimate with 6,000 until 20 SW MHZ,
   or `H- VKS SW 195 LT EFC` when holding; FSS reports landed 5 minutes after
   the VKS estimate). The DINKY pattern also covers V427 (X 45 NE MLU) and the
@@ -95,6 +99,8 @@ Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
 - Grading the controller's actions against the answer key.
 - Remote strip wording for a KVKS arrival that already has the Vicksburg
   weather (currently `HAS VKS WX`; to be confirmed).
+- Holding stacks at fixes other than MHZ (SQS, DINKY, VKS): the engine stacks
+  them the same way (lowest + 1,000 each) pending confirmation.
 
 ## Running locally
 
