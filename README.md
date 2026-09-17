@@ -63,7 +63,8 @@ and its **Sector 66 "Jackson Low"** non-radar environment.
   or ON FREQUENCY, request clearance time (defaults to P−5) and DEPARTURE #,
   altitude request, KVKS weather, and a scenario-level current ATIS letter
   (KGWO arrivals not yet on frequency check on “with <letter>”: their Remote
-  strip shows `IC HHMM WITH TANGO` and `ATIS TANGO`). A departure flight's plus
+  strip shows `IC 32 WITH TANGO` and `ATIS TANGO`; a KVKS arrival without the
+  weather shows `REQ VKS WX` under its IC line). A departure flight's plus
   time may be typed in space 23 as printed on the Remote's strip; the
   Controller's strip carries it under space 14. The Remote's space-27
   reminders and space-26 lines are derived (`ZAERemote.decorateAuthored`),
@@ -84,6 +85,8 @@ Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
 - KGWO departure vs. KGWO arrival (tower visual separation, approach
   airspace reports), KGWO holding stacks.
 - Grading the controller's actions against the answer key.
+- Remote strip wording for a KVKS arrival that already has the Vicksburg
+  weather (currently `HAS VKS WX`; to be confirmed).
 
 ## Running locally
 

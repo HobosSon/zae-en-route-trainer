@@ -29,8 +29,10 @@
  *
  * ATIS: every scenario has a current ATIS letter. A KGWO arrival that is not
  * already on frequency checks on "with <letter>": its Remote strip shows
- * "IC HHMM WITH TANGO" and "ATIS TANGO" under it. Aircraft on frequency at
- * the start already have it.
+ * "IC 32 WITH TANGO" and "ATIS TANGO" under it. Aircraft on frequency at
+ * the start already have it. A KVKS arrival without the Vicksburg weather
+ * shows "REQ VKS WX" under its IC line (wording for one that has it is still
+ * to be confirmed: "HAS VKS WX" for now).
  *
  *   ZAERemote.decorate(flights, { atis })       strip.remote for generated flights
  *   ZAERemote.derive(strip, fields, info)       { lines26, reminders, calls } from a strip's
@@ -114,8 +116,9 @@
         if (fields.onFreq) r.lines26.push("ON FREQUENCY");
         else if (fields.ic != null) {
           const atis = info.destAirport === "KGWO" && fields.atis ? atisWord(fields.atis) : null;
-          r.lines26.push("IC " + toHHMM(fields.ic) + (atis ? " WITH " + atis.toUpperCase() : ""));
+          r.lines26.push("IC " + mm(fields.ic) + (atis ? " WITH " + atis.toUpperCase() : ""));
           if (atis) r.lines26.push("ATIS " + atis.toUpperCase());
+          if (info.destAirport === "KVKS" && fields.vksWx != null) r.lines26.push(fields.vksWx ? "HAS VKS WX" : "REQ VKS WX");
           add("IC", mm(fields.ic), fields.ic);
           const icFix = info.icFix || info.fix, icT = info.icFixT != null ? info.icFixT : est;
           r.calls.push({ k: "IC", at: fields.ic, who: cs, text: "Aero Center, " + cs + " estimating " + fixName(icFix) + (icT != null ? " " + toHHMM(icT) : "") + (info.alt ? ", at " + spokenAlt(info.alt) : "") + (info.icNext ? ", " + fixName(info.icNext) + " next" : "") + (atis ? ", with information " + atis : "") + "." });
@@ -137,7 +140,6 @@
         add("LD", null, est + LAND_AFTER[info.destAirport]);
         r.calls.push({ k: "LD", at: null, who: LAND_CALLER[info.destAirport], text: "Jackson Low, " + LAND_CALLER[info.destAirport] + ", " + cs + " landed (time). — " + LAND_AFTER[info.destAirport] + " minutes after the " + info.fix + " estimate (" + toHHMM(est + LAND_AFTER[info.destAirport]) + ") or " + LAND_AFTER[info.destAirport] + " minutes after the approach clearance, whichever is later." });
       }
-      if (strip.type === "arrival" && info.destAirport === "KVKS" && fields.vksWx != null) r.lines26.push(fields.vksWx ? "HAS KVKS WX" : "DOES NOT HAVE KVKS WX");
     }
     if (fields.altReq && fields.altReq.alt && fields.altReq.t != null) {
       r.lines26.push("REQ " + hundreds(fields.altReq.alt) + " AT " + toHHMM(fields.altReq.t));
@@ -258,6 +260,8 @@
         const plus23 = f.kind === "departure" && s.type !== "departure" ? movePlusTime(s) : null;
         const fields = normalizeFields(s.remoteFields);
         fields.atis = opts.atis || null;
+        // the KVKS weather may be entered on any of the flight's strips; it prints under the IC line
+        if (fields.vksWx == null) f.strips.forEach(function (o) { const v = normalizeFields(o.remoteFields).vksWx; if (v != null) fields.vksWx = v; });
         if (k !== 0) { fields.onFreq = false; fields.ic = null; } // contact data lives on the flight's first strip
         if (fields.onFreq && s.spaces && !s.spaces["17"] && s.spaces["15"]) s.spaces["17"] = s.spaces["15"]; // pilot estimate
         const nxt = f.strips[k + 1] || null;

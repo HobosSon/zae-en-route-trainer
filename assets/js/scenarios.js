@@ -431,9 +431,9 @@
     ar.appendChild(timeInput(rf.altReq.t, "HHMM", function (v) { rf.altReq.t = v; refresh(); }));
     field("Altitude request", ar).title = "Uncommon: the pilot asks for a different altitude at this time";
     const dest = (sp["21"] || "").toUpperCase().trim(), route = (sp["25"] || "").toUpperCase().split(/[\s./]+/).filter(Boolean);
-    if (type === "arrival" && (dest === "KVKS" || route[route.length - 1] === "KVKS")) {
+    if (type !== "departure" && (dest === "KVKS" || route[route.length - 1] === "KVKS")) {
       const sel = document.createElement("select"); sel.className = "editor-type";
-      [["", "(not stated)"], ["yes", "has KVKS weather"], ["no", "does not have KVKS weather"]].forEach(function (o) { const e = document.createElement("option"); e.value = o[0]; e.textContent = o[1]; sel.appendChild(e); });
+      [["", "(not stated)"], ["yes", "has KVKS weather (HAS VKS WX)"], ["no", "needs it (REQ VKS WX under the IC line)"]].forEach(function (o) { const e = document.createElement("option"); e.value = o[0]; e.textContent = o[1]; sel.appendChild(e); });
       sel.value = rf.vksWx === true ? "yes" : rf.vksWx === false ? "no" : (rf.vksWx || "");
       sel.addEventListener("change", function () { rf.vksWx = sel.value; refresh(); });
       field("KVKS weather", sel);
