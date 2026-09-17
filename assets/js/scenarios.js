@@ -413,6 +413,8 @@
       const seq = document.createElement("input"); seq.type = "number"; seq.min = "1"; seq.max = "9"; seq.className = "editor-input editor-input-xs"; seq.placeholder = "—"; seq.value = rf.depSeq || "";
       seq.addEventListener("input", function () { rf.depSeq = seq.value; refresh(); });
       field("Departure #", seq).title = "Same airport, same request time: the order the requests are made (DEPARTURE #1, #2, …)";
+    } else if (first && String(sp["17"] || "").trim()) {
+      row.appendChild(el("span", "editor-remote-note", "Pilot estimate in space 17: on frequency at the start (ON FREQUENCY on the Remote's strip; the controller checks the altitude as level during the problem)."));
     } else if (first) {
       const w = el("div", "editor-remote-radios");
       const mk = function (label, checked, fn) { const l = el("label", "toggle"); const r = document.createElement("input"); r.type = "radio"; r.name = "ic-" + (block._rid || (block._rid = Math.random().toString(36).slice(2))); r.checked = checked; r.addEventListener("change", function () { if (r.checked) fn(); }); l.appendChild(r); l.appendChild(document.createTextNode(" " + label)); w.appendChild(l); return r; };

@@ -41,7 +41,8 @@
  *   ZAERemote.flightsFromStrips(strips)         authored strips grouped into flights by callsign
  *   ZAERemote.decorateAuthored(strips)          strip.remote for authored strips (fields in
  *                                               strip.remoteFields: onFreq, ic, reqClnc, depSeq,
- *                                               altReq {alt, t}, vksWx — HHMM strings)
+ *                                               altReq {alt, t}, vksWx — HHMM strings); a strip
+ *                                               with a pilot estimate in space 17 is on frequency
  *   ZAERemote.depTimes(flight, depT)            estimates chained from the plus times once off
  *   ZAERemote.cardMPM(speed)
  * Requires ZAE (assets/data/zae.js). Deterministic: every random draw
@@ -264,6 +265,7 @@
         // the KVKS weather may be entered on any of the flight's strips; it prints under the IC line
         if (fields.vksWx == null) f.strips.forEach(function (o) { const v = normalizeFields(o.remoteFields).vksWx; if (v != null) fields.vksWx = v; });
         if (k !== 0) { fields.onFreq = false; fields.ic = null; } // contact data lives on the flight's first strip
+        else if (s.spaces && String(s.spaces["17"] || "").trim()) { fields.onFreq = true; fields.ic = null; } // a pilot estimate in 17 = already on frequency
         if (fields.onFreq && s.spaces && !s.spaces["17"] && s.spaces["15"]) s.spaces["17"] = s.spaces["15"]; // pilot estimate
         const nxt = f.strips[k + 1] || null;
         const fix = postedFix(s), nextFix = String((s.spaces || {})["21"] || "").trim().split(/\s+/)[0].toUpperCase() || null;
