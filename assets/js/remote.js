@@ -29,7 +29,8 @@
  *
  * ATIS: every scenario has a current ATIS letter. A KGWO arrival that is not
  * already on frequency checks on "with <letter>": its Remote strip shows
- * "IC 32 WITH TANGO" and "ATIS TANGO" under it. Aircraft on frequency at
+ * "IC 0532 WITH TANGO" and "ATIS TANGO" under it (space 26 carries full
+ * times; the space-27 reminders carry minutes only). Aircraft on frequency at
  * the start already have it. A KVKS arrival without the Vicksburg weather
  * shows "REQ VKS WX" under its IC line (wording for one that has it is still
  * to be confirmed: "HAS VKS WX" for now).
@@ -116,7 +117,7 @@
         if (fields.onFreq) r.lines26.push("ON FREQUENCY");
         else if (fields.ic != null) {
           const atis = info.destAirport === "KGWO" && fields.atis ? atisWord(fields.atis) : null;
-          r.lines26.push("IC " + mm(fields.ic) + (atis ? " WITH " + atis.toUpperCase() : ""));
+          r.lines26.push("IC " + toHHMM(fields.ic) + (atis ? " WITH " + atis.toUpperCase() : ""));
           if (atis) r.lines26.push("ATIS " + atis.toUpperCase());
           if (info.destAirport === "KVKS" && fields.vksWx != null) r.lines26.push(fields.vksWx ? "HAS VKS WX" : "REQ VKS WX");
           add("IC", mm(fields.ic), fields.ic);

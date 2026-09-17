@@ -63,7 +63,7 @@ and its **Sector 66 "Jackson Low"** non-radar environment.
   or ON FREQUENCY, request clearance time (defaults to P−5) and DEPARTURE #,
   altitude request, KVKS weather, and a scenario-level current ATIS letter
   (KGWO arrivals not yet on frequency check on “with <letter>”: their Remote
-  strip shows `IC 32 WITH TANGO` and `ATIS TANGO`; a KVKS arrival without the
+  strip shows `IC 0532 WITH TANGO` and `ATIS TANGO` (space 26 full times, space 27 minutes only); a KVKS arrival without the
   weather shows `REQ VKS WX` under its IC line). A departure flight's plus
   time may be typed in space 23 as printed on the Remote's strip; the
   Controller's strip carries it under space 14. The Remote's space-27
