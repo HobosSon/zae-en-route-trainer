@@ -304,7 +304,7 @@
 
   // ---- bays -------------------------------------------------------------
   const BAY_OF = {
-    MLU: "VKS", KVKS: "VKS", "0M8": "VKS", STUEE: "VKS", DORTS: "VKS", HATER: "VKS",
+    MLU: "VKS", KVKS: "VKS", "0M8": "VKS", STUEE: "VKS", DORTS: "VKS", HATER: "VKS", DINKY: "VKS", VKS: "VKS", TKH: "VKS", KMLU: "VKS",
     MHZ: "MHZ", KJAN: "MHZ", KJVW: "MHZ", SQS: "SQS", KGWO: "SQS"
   };
   const BAYS = ["VKS", "MHZ", "SQS"];
@@ -322,7 +322,17 @@
   // Airports and the airway points a departure may continue on. Byerley
   // (0M8) joins V427 and goes MHZ-bound; it never turns back toward MLU.
   const DEP_AIRPORTS = ["KJAN", "KJVW", "KGWO", "KVKS", "0M8"];
-  const ARR_AIRPORTS = ["KJAN", "KJVW", "KGWO"];
+  const ARR_AIRPORTS = ["KJAN", "KJVW", "KGWO", "KGWO", "KMLU", "KVKS"];
+  // How each arrival ends: the airway feeder (holding fix or the posting before
+  // it), extra legs after the airway, the airport leg, the filed route tail
+  // and the lowest altitude the arrival may cruise at.
+  //   KMLU: V18 from MEI to DINKY (MLU LOA: DINKY is the clearance limit and holding fix; filed via MLU)
+  //   KVKS: V417 from MEI to DORTS, then direct VKS (about 8 nm); KVKS is on the VKS NDB
+  const ARRIVALS = {
+    KJAN: { feeder: "MHZ", leg: 10 }, KJVW: { feeder: "MHZ", leg: 17 }, KGWO: { feeder: "SQS", leg: 10 },
+    KMLU: { airway: "V18", from: "MEI", feeder: "DINKY", leg: 31, routeTail: "MLU", minAlt: 7000 },
+    KVKS: { airway: "V417", from: "MEI", feeder: "DORTS", suffix: [["VKS", 8, "DCT"]], leg: 0, routeTail: "DORTS VKS", minAlt: 6000 }
+  };
   const WEST_OF_MHZ = { MLU: 1, HATER: 1, DORTS: 1, STUEE: 1, DINKY: 1, HEDUD: 1, J417: 1, J417W: 1 };
   const KVKS_WEST_SHARE = 0.3;   // KVKS departures that go V417 west to MLU
   const ENTRY_DEFAULT_NM = 10;   // sector boundary past an entry NAVAID with no listed boundary mileage
@@ -342,7 +352,9 @@
 
       let aw, trav, startIdx, endIdx, entryNav, exitNav, origin, dest, originAirport = null, destAirport = null;
       let prefix = []; // nodes before trav.points[startIdx]: [[id, nm, via]]
+      let suffix = []; // nodes after trav.points[endIdx] (arrivals): [[id, nm, via]]
       let routeOverride = null;
+      let arrSpec = null;
 
       if (kind === "departure") {
         const aptId = pick(DEP_AIRPORTS);
@@ -370,15 +382,18 @@
         }
       } else if (kind === "arrival") {
         const aptId = pick(ARR_AIRPORTS);
-        const feeder = airportEntryNav(aptId);
-        aw = pick(airwaysThrough(feeder));
+        arrSpec = ARRIVALS[aptId];
+        const feeder = arrSpec.feeder;
+        aw = arrSpec.airway ? ZAE.AIRWAYS[arrSpec.airway] : pick(airwaysThrough(feeder));
         trav = traverse(aw, true);
+        if (arrSpec.from && trav.points[0] !== arrSpec.from) trav = traverse(aw, false);
         let fi = trav.points.indexOf(feeder);
-        if (fi <= 0) { trav = traverse(aw, false); fi = trav.points.indexOf(feeder); }
+        if (fi <= 0 && !arrSpec.from) { trav = traverse(aw, false); fi = trav.points.indexOf(feeder); }
         if (fi <= 0) continue;
         startIdx = 0; endIdx = fi;
         entryNav = trav.points[0]; exitNav = feeder;
         if (isHub(entryNav)) continue; // must enter ZAE at a boundary NAVAID
+        suffix = arrSpec.suffix || [];
         destAirport = aptId; origin = externalFor(entryNav); dest = aptId;
       } else { // overflight
         aw = ZAE.AIRWAYS[pick(Object.keys(ZAE.AIRWAYS))];
@@ -407,8 +422,12 @@
         if (nodes.length && nodes[nodes.length - 1].id === trav.points[k]) { nodes[nodes.length - 1].awIdx = k; continue; }
         nodes.push({ id: trav.points[k], d: cum, via: k > startIdx ? aw.id : (nodes.length ? nodes[nodes.length - 1].via : null), awIdx: k });
       }
-      if (kind === "arrival") { cum += airportLegNm(destAirport); nodes.push({ id: destAirport, d: cum, via: "DCT" }); }
-      nodes.forEach(function (n, i) { n.bay = BAY_OF[n.id] || null; n.comp = isComp(n.id) || !!INTERNAL_APT[n.id]; n.idx = i; });
+      if (kind === "arrival") {
+        suffix.forEach(function (p) { cum += p[1]; nodes.push({ id: p[0], d: cum, via: p[2] || "DCT" }); });
+        cum += arrSpec.leg != null ? arrSpec.leg : airportLegNm(destAirport);
+        nodes.push({ id: destAirport, d: cum, via: "DCT" });
+      }
+      nodes.forEach(function (n, i) { n.bay = BAY_OF[n.id] || null; n.comp = isComp(n.id) || !!INTERNAL_APT[n.id] || (kind === "arrival" && i >= nodes.length - 2); n.idx = i; });
 
       // ---- times: chain rounded plus-times between compulsory nodes (as the
       // strips do), interpolate the rest. rel[] is minutes after the start.
@@ -461,7 +480,7 @@
       if (kind !== "departure" && !onFreq) icT = Math.max(win ? win.start : 0, Math.round(entryT + rint(-1, 3)));
 
       // ---- altitude
-      const floor = altitudeFloor(trav, startIdx, endIdx);
+      const floor = Math.max(altitudeFloor(trav, startIdx, endIdx), arrSpec && arrSpec.minAlt ? arrSpec.minAlt : 0);
       const cap = altitudeCap(trav, startIdx, endIdx, tier, ac);
       if (cap < floor) continue; // e.g. V245 northeast of MHZ: 6,000 floor, 7,000 cap, parity may leave nothing
       const alt = chooseAltitude(trav, floor, tier, ac, cap);
@@ -485,7 +504,7 @@
       const conn = origin === "K" + entryNav ? " " : "./.";
       let routeStr;
       if (kind === "departure") routeStr = routeOverride || (originAirport + " " + entryNav + " " + aw.id + " " + exitNav + " " + dest);
-      else if (kind === "arrival") routeStr = origin + conn + entryNav + " " + aw.id + " " + exitNav + " " + destAirport;
+      else if (kind === "arrival") routeStr = origin + conn + entryNav + " " + aw.id + " " + (arrSpec.routeTail || exitNav) + " " + destAirport;
       else routeStr = origin + conn + entryNav + " " + aw.id + " " + exitNav + " " + dest;
 
       const cs = callsign(ac);
@@ -531,7 +550,7 @@
 
     f.events.forEach(function (ei, evNo) {
       const n = f.nodes[ei];
-      const evt = ei === 0 && kind === "departure" ? "departure" : (kind === "arrival" && ei === f.nodes.length - 2 ? "arrival" : "enroute");
+      const evt = ei === 0 && kind === "departure" ? "departure" : (kind === "arrival" && evNo === f.events.length - 1 ? "arrival" : "enroute");
       const s = {};
       s["3"] = f.cs;
       s["4"] = (f.ac.heavy ? "H/" : "") + f.type + "/" + f.equip;
@@ -565,7 +584,7 @@
         s["15"] = toHHMM(n.t);
         s["19"] = n.id;
         if (f.onFreq && evNo === 0) s["17"] = toHHMM(n.t); // on frequency at the start: the pilot's estimate
-        if (evt === "arrival") { s["16"] = "↓"; s["21"] = f.destAirport; s["22"] = toHHMM(f.nodes[f.nodes.length - 1].t); }
+        if (evt === "arrival") { s["16"] = "↓"; s["21"] = next ? next.id : f.destAirport; s["22"] = toHHMM((next || f.nodes[f.nodes.length - 1]).t); }
         else s["21"] = next ? next.id : f.dest;
         // plus time ONLY on en route strips that follow a ZAE departure
         if (kind === "departure" && prev) {

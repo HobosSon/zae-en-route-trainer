@@ -22,6 +22,14 @@ and its **Sector 66 "Jackson Low"** non-radar environment.
   Columbus 3 and Meridian 1 West MOAs, and the MHZ/SQS holding pattern
   airspace (protected from 10 minutes before an arrival's estimate until it is
   tower jurisdiction or landed, with the Color Card Stock Map clear distances).
+  Arrivals: KJAN/KJVW hold at MHZ (`H- NW EFC`, EFC = estimate + 10, TCP at
+  the JAN boundary), KGWO (VOR approach, block with D67), KMLU cleared to
+  DINKY on V18 (`H- NE V18 EFC`, EFC = estimate + 5, 7,000, `C 49 NE MLU`,
+  inbound to MLU Approach, your control DINKY) and KVKS via V417/DORTS
+  (approach clearance before the DORTS estimate with 6,000 until 20 SW MHZ,
+  or `H- VKS SW 195 LT EFC` when holding; FSS reports landed 5 minutes after
+  the VKS estimate). The DINKY pattern also covers V427 (X 45 NE MLU) and the
+  VKS pattern covers V417 between 37 SW MHZ and DORTS.
   The answer key shows the completed strip (restriction bar, red W's,
   report-passing reminders, departure instructions, void times, coordination
   circles), the restrictions, reports to solicit, coordination and phraseology.
@@ -79,9 +87,9 @@ Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
 
 ## Planned
 
-- KVKS and MLU (DINKY) arrivals: routes, approach/holding clearances, the
-  VKS and DINKY holding pattern miss points (37 SW MHZ, 25 NE HEZ, 48 NE
-  MLU, 45 NE MLU), FSS/MLU Approach coordination and remote reports.
+- KVKS arrivals via the HEZ026 radial from Natchez (only the V417 / DORTS
+  route is generated), KVKS departure vs. KVKS arrival (37 SW MHZ and 45 SE
+  MLU reports), non-DME KMLU arrivals.
 - KGWO departure vs. KGWO arrival (tower visual separation, approach
   airspace reports), KGWO holding stacks.
 - Grading the controller's actions against the answer key.

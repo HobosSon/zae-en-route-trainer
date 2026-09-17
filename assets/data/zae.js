@@ -138,7 +138,9 @@
     KVKS: { id: "KVKS", name: "Vicksburg", apch: "Class E", rwy: "1/19", loc: "at VKS NDB" },
     KTVR: { id: "KTVR", name: "Tallulah", apch: "Class E", rwy: "18/36", loc: "MHZ257044" },
     KGWO: { id: "KGWO", name: "Greenwood", apch: "Class D (Twr 120.2)", rwy: "5/23, 18/36", loc: "SQS076010" },
-    "0M8": { id: "0M8", name: "Byerley", apch: "Class G", rwy: "17/35", loc: "at BLE NDB" }
+    "0M8": { id: "0M8", name: "Byerley", apch: "Class G", rwy: "17/35", loc: "at BLE NDB" },
+    // Monroe is outside Sector 66 (ZFW); arrivals are cleared to DINKY on V18 (MLU LOA)
+    KMLU: { id: "KMLU", name: "Monroe Regional", apch: "MLU", rwy: "4/22", loc: "at MLU VORTAC", external: true }
   };
 
   // Airports associated with each airway-endpoint NAVAID, used to build realistic
@@ -279,6 +281,9 @@
       DCT: { KGWO: 76 }, HOLD: 256
     },
     MLU: { V18: { STUEE: 87 }, V417: { DORTS: 102 }, V427: { HATER: 72 } },
+    // holding fixes that are not NAVAIDs: bearings along the airway / direct legs
+    DINKY: { V18: { HEDUD: 88, STUEE: 268 }, HOLD: 88 },
+    VKS: { DCT: { DORTS: 330, KVKS: 0 }, HDG: { J417: 30, J417W: 330 }, HOLD: 195 },
     MCB: { V9: { MHZ: 1 }, V555: { RICKS: 16 }, V557: { HAZAL: 345 } },
     MEI: { V18: { MHZ: 272 }, V417: { MHZ: 257 } },
     IGB: { V245: { ZAMMA: 231 }, V278: { SQS: 266 } },
@@ -330,9 +335,20 @@
   const HPA = {
     MHZ: { hold: "NW", radial: 300, clear: { 320: 17, 335: 13, 350: 9, 5: 7, 49: 6, 91: 6, 106: 6, 129: 6, 164: 7, 179: 7, 194: 8, 223: 9, 251: 14, 266: 17, 281: 17, 153: 7, 190: 7, 220: 9 } },
     SQS: { hold: "SW", radial: 256, clear: { 273: 17, 341: 8, 7: 8, 23: 7, 86: 7, 156: 7, 171: 5, 186: 7, 76: 7 }, apch: { 23: 10, 86: 14 } },
-    // other published patterns and the point that misses them (card notes)
-    DINKY: { hold: "NE on V18", miss: [{ airway: "V18", text: "X 48 NE MLU" }, { airway: "V427", text: "X 45 NE MLU" }] },
-    VKS: { hold: "SW on the 195 bearing", miss: [{ airway: "V417", text: "X 37 SW MHZ" }, { airway: "HEZ026R", text: "X 25 NE HEZ" }] }
+    // DINKY (MLU R-087 at 31 DME): hold northeast on V18. Clear 17 nm toward
+    // HEDUD (the card's "X 48 NE MLU"); the pattern also covers V427 between
+    // the MLU Approach boundary and 45 NE MLU ("X 45 NE MLU"). EFC is the
+    // DINKY estimate + 5 (MLU LOA: TCP time + 5).
+    DINKY: { hold: "NE on V18", radial: 88, efc: 5, clear: { 88: 17, 268: 5 },
+      segments: [{ airway: "V427", nav: "MLU", from: 31, to: 45, miss: "X 45 NE MLU" }],
+      miss: [{ airway: "V18", text: "X 48 NE MLU" }, { airway: "V427", text: "X 45 NE MLU" }] },
+    // VKS NDB (KVKS is on the field): hold southwest on the 195 bearing, left
+    // turns, between the 195 and 206 bearings. The pattern covers V417 between
+    // 37 SW MHZ and DORTS ("X 37 SW MHZ") and the HEZ026R inside 25 NE HEZ
+    // ("X 25 NE HEZ"). EFC is the VKS estimate + 10.
+    VKS: { hold: "SW on the 195 bearing", radial: 195, efc: 10, clear: { 330: 8, 30: 8, 0: 0 },
+      segments: [{ airway: "V417", nav: "MHZ", from: 37, to: 49, miss: "X 37 SW MHZ" }, { airway: "HEZ026R", nav: "HEZ", from: 25, to: 42, miss: "X 25 NE HEZ" }],
+      miss: [{ airway: "V417", text: "X 37 SW MHZ" }, { airway: "HEZ026R", text: "X 25 NE HEZ" }] }
   };
 
   // Special use airspace that is always active at Aero Center (course

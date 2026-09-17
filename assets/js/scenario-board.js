@@ -27,7 +27,7 @@
   "use strict";
   const el = function (tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
   const TYPE_LABELS = { departure: "Departure", enroute: "En Route", arrival: "Arrival", blank: "Blank" };
-  const BAY_OF = { MLU: "VKS", KVKS: "VKS", "0M8": "VKS", STUEE: "VKS", DORTS: "VKS", HATER: "VKS", VKS: "VKS", TKH: "VKS", BLE: "VKS", MHZ: "MHZ", KJAN: "MHZ", KJVW: "MHZ", KHKS: "MHZ", SQS: "SQS", KGWO: "SQS" };
+  const BAY_OF = { MLU: "VKS", KVKS: "VKS", "0M8": "VKS", STUEE: "VKS", DORTS: "VKS", HATER: "VKS", DINKY: "VKS", KMLU: "VKS", VKS: "VKS", TKH: "VKS", BLE: "VKS", MHZ: "MHZ", KJAN: "MHZ", KJVW: "MHZ", KHKS: "MHZ", SQS: "SQS", KGWO: "SQS" };
   function bayOf(fix) { return (root.StripGen && root.StripGen.bayOf(fix)) || BAY_OF[fix] || null; }
   function hhmm(m) { return root.ZAERemote ? root.ZAERemote.toHHMM(m) : String(m); }
 

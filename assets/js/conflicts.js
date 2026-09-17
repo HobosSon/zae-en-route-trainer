@@ -45,6 +45,14 @@
     HPA_AFTER_GWO_MIN: 7,               // ...until a KGWO arrival has landed (7 min past the SQS estimate)
     HPA_DEFAULT_CLEAR: 8,               // clear distance for a radial the card does not list
     JAN_LOWEST: 6000,                   // lowest ARTCC altitude at MHZ for JAN arrivals
+    MLU_LOWEST: 7000,                   // lowest ARTCC altitude at DINKY for KMLU arrivals (MLU approach 6,000 and below)
+    VKS_LOWEST: 6000,                   // KVKS arrivals: 6,000 until 20 SW MHZ (JAN airspace), then the approach
+    HPA_AFTER_VKS_MIN: 5,               // ...until a KVKS arrival has landed (5 min past the VKS estimate)
+    EFC_MIN: 10,                        // expect further clearance: fix estimate + 10 ...
+    EFC_DINKY_MIN: 5,                   // ...except DINKY: + 5 (MLU LOA, TCP time + 5)
+    MLU_TCP_DME: { nm: 49, dir: "NE" }, // DME aircraft contact MLU Approach 49 NE MLU (after progressing MHZ)
+    MLU_NONDME_BEFORE_MIN: 5,           // non-DME aircraft are transferred 5 min before the DINKY estimate
+    VKS_APCH: { node: "MHZ", nm: 20, dir: "SW", alt: 6000 }, // "maintain 6,000 until 20 SW MHZ, cleared approach"
     KGWO_HOLD_ALT: 7000,                // KGWO arrivals cross SQS at or below 7,000 / hold at 7,000
     EDC_MIN: 10, VOID_MIN: 10, ADVISE_MIN: 10
   };
@@ -105,9 +113,20 @@
     for (let i = 0; i < list.length; i++) if (list[i].nav === nav && (!to || list[i].to === to)) return list[i];
     return null;
   }
+  function lowestFor(f) {
+    if (f.destAirport === "KGWO") return RULES.KGWO_HOLD_ALT;
+    if (f.destAirport === "KMLU") return RULES.MLU_LOWEST;
+    if (f.destAirport === "KVKS") return RULES.VKS_LOWEST;
+    return RULES.JAN_LOWEST;
+  }
   function arrivalFloor(f) {
     if (f.destAirport === "KGWO") return Math.min(f.alt, RULES.KGWO_HOLD_ALT);
-    return RULES.JAN_LOWEST;
+    return Math.min(f.alt, lowestFor(f));
+  }
+  // expect-further-clearance time for a holding arrival: fix estimate + 10 (DINKY: + 5)
+  function efcFor(f) {
+    const N = holdFix(f); const t = f.nodes[f.nodes.length - 2].t;
+    return t + (N === "DINKY" ? RULES.EFC_DINKY_MIN : RULES.EFC_MIN);
   }
 
   // ---- restriction text ------------------------------------------------
@@ -229,7 +248,8 @@
   function hpaWindow(f) {
     const N = holdFix(f); if (!N) return null;
     const t = f.nodes[f.nodes.length - 2].t;
-    return { node: N, from: t - RULES.HPA_BEFORE_MIN, to: t + (f.destAirport === "KGWO" ? RULES.HPA_AFTER_GWO_MIN : RULES.HPA_AFTER_JAN_MIN) };
+    const after = f.destAirport === "KGWO" ? RULES.HPA_AFTER_GWO_MIN : f.destAirport === "KVKS" ? RULES.HPA_AFTER_VKS_MIN : RULES.HPA_AFTER_JAN_MIN;
+    return { node: N, from: t - RULES.HPA_BEFORE_MIN, to: t + after };
   }
   function hpaClear(N, radial, apch) {
     const h = ZAE.HPA[N]; if (!h || radial == null) return RULES.HPA_DEFAULT_CLEAR;
@@ -260,9 +280,51 @@
     return { a: arr, b: X, type: "hpa", node: N, i: ai, j: xi, occ: occ, window: w, dt: Math.abs(arr.nodes[ai].t - X.nodes[xi].t) };
   }
 
+  // DME from `nav` of a node on flight X's airway traversal (null if not on it).
+  function dmeFrom(X, node, nav) {
+    if (!X.trav || node.awIdx == null) return null;
+    const ni = X.trav.points.indexOf(nav); if (ni < 0) return null;
+    let d = 0; const a = Math.min(ni, node.awIdx), b = Math.max(ni, node.awIdx);
+    for (let k = a; k < b; k++) d += X.trav.legs[k];
+    return d;
+  }
+  // Holding pattern airspace that lies along another airway (DINKY over V427,
+  // VKS over V417): a flight crossing that stretch during the protected
+  // window at an overlapping altitude is inside the pattern. Only level
+  // traffic is generated across these stretches (departures that would be are
+  // rejected up front), so the resolution is the arrival's altitude.
+  function hpaSegConflicts(arr, X, plan) {
+    const N = holdFix(arr); const h = N && ZAE.HPA[N];
+    if (!h || !h.segments || X === arr || nodeIndex(X, N) >= 0) return [];
+    if ((plan[arr.id].stackedWith || []).indexOf(X.id) !== -1) return [];
+    const w = hpaWindow(arr); const ai = arr.nodes.length - 2;
+    const out = [];
+    h.segments.forEach(function (sg) {
+      for (let i = 0; i + 1 < X.nodes.length; i++) {
+        const a = X.nodes[i], b = X.nodes[i + 1];
+        if (b.via !== sg.airway) continue;
+        const dA = dmeFrom(X, a, sg.nav), dB = dmeFrom(X, b, sg.nav);
+        if (dA == null || dB == null) continue;
+        const lo = Math.max(Math.min(dA, dB), sg.from), hi = Math.min(Math.max(dA, dB), sg.to);
+        if (lo >= hi) continue;
+        // fraction of the leg inside the stretch -> path distance and time
+        const f0 = (lo - dA) / (dB - dA), f1 = (hi - dA) / (dB - dA);
+        const d0 = a.d + (b.d - a.d) * Math.min(f0, f1), d1 = a.d + (b.d - a.d) * Math.max(f0, f1);
+        const t0 = a.t + (b.t - a.t) * Math.min(f0, f1), t1 = a.t + (b.t - a.t) * Math.max(f0, f1);
+        if (t1 < w.from || t0 > w.to) continue;
+        const xb = unionBand(bandAtD(X, d0, plan), bandAtD(X, d1, plan));
+        if (!bandsOverlap(bandAt(arr, ai, plan), xb)) continue;
+        out.push({ a: arr, b: X, type: "hpa", seg: sg, node: N, i: ai, j: i + 1, occ: { from: t0, to: t1 }, window: w, dt: Math.abs(arr.nodes[ai].t - t0) });
+      }
+    });
+    return out;
+  }
+
   // ---- conflict detection --------------------------------------------------
   function pairConflicts(A, B, plan) {
     const out = [];
+    if (A.kind === "arrival") out.push.apply(out, hpaSegConflicts(A, B, plan));
+    if (B.kind === "arrival") out.push.apply(out, hpaSegConflicts(B, A, plan));
     sharedRuns(A, B).forEach(function (run) {
       if (run.dir === "cross" || run.pairs.length === 1) {
         const i = run.pairs[0][0], j = run.pairs[0][1];
@@ -370,10 +432,35 @@
         p.coord.push({ to: "GWO Tower 120.2", what: "Inbound: " + f.cs + ", " + f.type + ", estimated Greenwood Airport " + toHHMM(f.nodes[f.nodes.length - 1].t) + ", VOR approach" });
         p.coord.push({ to: "D67 (GLH Low)", what: "APREQ: block " + spoken(Math.min(f.alt, RULES.KGWO_HOLD_ALT)) + " and below for holding and approach at Sidon" });
         p.block67 = Math.min(f.alt, RULES.KGWO_HOLD_ALT);
+      } else if (f.destAirport === "KMLU") {
+        // MLU LOA: cleared to DINKY (clearance limit and holding fix), lowest ARTCC
+        // altitude 7,000, hold northeast on V18, EFC = DINKY estimate + 5; DME
+        // aircraft contact MLU Approach 49 NE MLU (after progressing MHZ),
+        // non-DME aircraft 5 minutes before the DINKY estimate
+        p.clearanceLimit = "DINKY";
+        p.efc = efcFor(f);
+        p.holdMark = "H- NE V18 " + toHHMM(p.efc);
+        p.holdPhr = "hold northeast on Victor Eighteen, expect further clearance " + toHHMM(p.efc);
+        if (f.dme) { p.tcp = "DINKY"; p.tcpPhr = "four niner miles northeast Monroe VORTAC"; p.commMark = "C " + RULES.MLU_TCP_DME.nm + " " + RULES.MLU_TCP_DME.dir + " MLU"; p.commNote = RULES.MLU_TCP_DME.nm + " NE MLU, issued after the aircraft progresses MHZ"; }
+        else { const tt = f.nodes[f.nodes.length - 2].t - RULES.MLU_NONDME_BEFORE_MIN; p.tcp = "DINKY"; p.tcpPhr = "at " + toHHMM(tt); p.commMark = "C " + toHHMM(tt); p.commNote = "at " + toHHMM(tt) + " (5 minutes before the DINKY estimate, non-DME, cleared via V18)"; }
+      } else if (f.destAirport === "KVKS") {
+        // uncontrolled field on the VKS NDB: no traffic -> approach clearance before
+        // the DORTS estimate; traffic -> hold at VKS (SW on the 195 bearing, left
+        // turns, EFC + 10), the approach once clear
+        p.clearanceLimit = "VKS";
+        p.efc = efcFor(f);
+        p.holdMark = "H- VKS SW 195 LT " + toHHMM(p.efc);
+        p.holdPhr = "hold southwest on the one niner five bearing from the Vicksburg radio beacon, left turns, expect further clearance " + toHHMM(p.efc);
+        p.apchRestr = { kind: "maintain", node: RULES.VKS_APCH.node, nm: RULES.VKS_APCH.nm, dir: RULES.VKS_APCH.dir, alt: RULES.VKS_APCH.alt };
+        p.apchPhr = restrictionPhr(p.apchRestr) + ", cleared approach Vicksburg Airport";
+        const di = nodeIndex(f, "DORTS");
+        p.decideBy = di >= 0 ? f.nodes[di].t : f.nodes[f.nodes.length - 2].t;
       } else {
-        // JAN arrivals: cleared to MHZ, lowest ARTCC altitude, hold NW as published
+        // JAN arrivals: cleared to MHZ, lowest ARTCC altitude, hold NW as published, EFC + 10
         p.clearanceLimit = "MHZ";
-        p.holdPhr = "hold northwest as published, no delay expected";
+        p.efc = efcFor(f);
+        p.holdMark = "H- NW " + toHHMM(p.efc);
+        p.holdPhr = "hold northwest as published, expect further clearance " + toHHMM(p.efc);
         // the JAN boundary on the side the arrival comes from (V9/V555/V557 cross it twice)
         const fi = f.nodes.length - 2;
         const inR = radialToward(f, fi, fi - 1);
@@ -516,6 +603,18 @@
       const pa = plan[arr.id];
       const band = bandAt(arr, c.i, plan);
       const label = arr.cs + " inbound " + N + " " + toHHMM(arr.nodes[c.i].t) + " (holding pattern airspace protected " + toHHMM(c.window.from) + "–" + toHHMM(c.window.to) + ")";
+      if (c.seg) {
+        // pattern airspace along another airway: hold above the level traffic (lowest ARTCC altitude available)
+        if (X.kind === "overflight" && X.iafdof && tryFlip(X)) return { ok: true };
+        const xb = bandAt(X, xi, plan);
+        const want = xb[1] + RULES.VERT;
+        if (want <= arr.alt && want <= lowestFor(arr) + 2000 && pa.arrivalAlt < want) {
+          pa.arrivalAlt = want; pa.warnings.push(X.cs);
+          pa.altNote = "lowest ARTCC altitude available with " + X.cs + " at " + hundreds(xb[0]) + " on " + c.seg.airway + " through the " + N + " holding pattern airspace (" + c.seg.miss + ")";
+          return { ok: true };
+        }
+        return { ok: false, reason: X.cs + " on " + c.seg.airway + " passes through " + arr.cs + "'s holding pattern airspace at " + N + " (" + c.seg.miss + ")" };
+      }
       if (X.kind === "departure") {
         const p = plan[X.id];
         const below = band[0] - RULES.VERT;
@@ -547,13 +646,33 @@
         }
         // ...or hold above it (lowest ARTCC altitude available)
         const want = X.alt + RULES.VERT;
-        if (arr.destAirport !== "KGWO" && want <= arr.alt && want <= RULES.JAN_LOWEST + 2000 && pa.arrivalAlt < want) {
+        if (arr.destAirport !== "KGWO" && want <= arr.alt && want <= lowestFor(arr) + 2000 && pa.arrivalAlt < want) {
           pa.arrivalAlt = want; pa.warnings.push(X.cs); pa.altNote = "lowest ARTCC altitude available with " + X.cs + " at " + hundreds(X.alt) + " through the holding pattern airspace";
           return { ok: true };
         }
         return { ok: false, reason: X.cs + " (level) passes through " + arr.cs + "'s holding pattern airspace at " + N + " at " + hundreds(X.alt) };
       }
       if (X.kind === "overflight" && X.iafdof) { if (tryFlip(X)) return { ok: true }; return { ok: false, reason: X.cs + " (IAFDOF) conflicts with " + arr.cs + "'s holding pattern airspace at " + N }; }
+      if (X.kind === "arrival" && holdFix(X) !== N) {
+        // an arrival for another field transiting this pattern: keep it level at
+        // cruise until clear, above the holder (or the holder takes the lowest
+        // altitude above it)
+        const px = plan[X.id];
+        if (c.occ.outR == null) return { ok: false, reason: X.cs + " (arrival) transits " + arr.cs + "'s holding pattern airspace at " + N };
+        const lvl = { kind: "maintain", node: N, nm: c.occ.cout, dir: dirLabel(c.occ.outR), alt: X.alt, why: "traffic", vs: [arr.cs], label: "holding pattern airspace: " + label + " — stay level at cruise until clear of the pattern" };
+        if (X.alt >= band[1] + RULES.VERT) {
+          addRestriction(px, lvl); px.warnings.push(arr.cs); state.leveled[X.id + ":" + N] = true;
+          return { ok: true };
+        }
+        const want = X.alt + RULES.VERT;
+        if (want <= arr.alt && want <= lowestFor(arr) + 2000 && pa.arrivalAlt < want) {
+          addRestriction(px, lvl); px.warnings.push(arr.cs); state.leveled[X.id + ":" + N] = true;
+          pa.arrivalAlt = want; pa.warnings.push(X.cs);
+          pa.altNote = "lowest ARTCC altitude available with " + X.cs + " level at " + hundreds(X.alt) + " through the holding pattern airspace";
+          return { ok: true };
+        }
+        return { ok: false, reason: X.cs + " (arrival, " + hundreds(X.alt) + ") transits " + arr.cs + "'s holding pattern airspace at " + N + " and cannot be kept above it" };
+      }
       if (X.kind === "arrival") {
         // two arrivals sharing the fix: the later one takes the next altitude up
         const later = arr.nodes[c.i].t >= X.nodes[xi].t ? arr : X;
@@ -561,7 +680,7 @@
         const pl = plan[later.id];
         if (later.destAirport !== "KGWO") {
           const want = plan[earlier.id].arrivalAlt + RULES.VERT;
-          if (want <= later.alt && want <= RULES.JAN_LOWEST + 2000 && pl.arrivalAlt <= want) {
+          if (want <= later.alt && want <= lowestFor(later) + 2000 && pl.arrivalAlt <= want) {
             pl.arrivalAlt = want; pl.warnings.push(earlier.cs);
             pl.altNote = "lowest ARTCC altitude available (" + earlier.cs + " holding at " + hundreds(plan[earlier.id].arrivalAlt) + ")";
             // stacked in the pattern: the earlier one is at its altitude by the time the later one arrives
@@ -614,7 +733,7 @@
             if (later.destAirport !== "KGWO") {
               const otherAlt = plan[later === arr ? oth.id : arr.id].arrivalAlt;
               const want = otherAlt + 1000;
-              if (want < later.alt && want <= RULES.JAN_LOWEST + 2000 && pl.arrivalAlt < want) { pl.arrivalAlt = want; pl.warnings.push((later === arr ? oth : arr).cs); pl.altNote = "lowest ARTCC altitude available (" + (later === arr ? oth : arr).cs + " at " + hundreds(otherAlt) + ")"; return { ok: true }; }
+              if (want < later.alt && want <= lowestFor(later) + 2000 && pl.arrivalAlt < want) { pl.arrivalAlt = want; pl.warnings.push((later === arr ? oth : arr).cs); pl.altNote = "lowest ARTCC altitude available (" + (later === arr ? oth : arr).cs + " at " + hundreds(otherAlt) + ")"; return { ok: true }; }
             }
           }
           continue;
@@ -650,7 +769,7 @@
           }
         }
         // (c) lowest available altitude one higher (JAN arrivals)
-        if (arr.destAirport !== "KGWO" && Thi + RULES.VERT <= arr.alt && Thi + RULES.VERT <= RULES.JAN_LOWEST + 2000 && pa.arrivalAlt <= Thi) {
+        if (arr.destAirport !== "KGWO" && Thi + RULES.VERT <= arr.alt && Thi + RULES.VERT <= lowestFor(arr) + 2000 && pa.arrivalAlt <= Thi) {
           pa.arrivalAlt = Thi + RULES.VERT; pa.warnings.push(oth.cs);
           pa.altNote = "lowest ARTCC altitude available (" + oth.cs + " at " + hundreds(T) + ")";
           return { ok: true };
@@ -815,6 +934,9 @@
         if (A.kind !== B.kind && A.kind !== "overflight" && B.kind !== "overflight" && (A.originAirport || A.destAirport) === "KGWO" && (B.originAirport || B.destAirport) === "KGWO") {
           return { ok: false, unsolvable: [A.cs + " and " + B.cs + " are an arrival and a departure at KGWO (not modelled yet)"], plan: plan, pairs: [] };
         }
+        if (A.kind !== B.kind && A.kind !== "overflight" && B.kind !== "overflight" && (A.originAirport || A.destAirport) === "KVKS" && (B.originAirport || B.destAirport) === "KVKS") {
+          return { ok: false, unsolvable: [A.cs + " and " + B.cs + " are an arrival and a departure at KVKS (37 SW MHZ / 45 SE MLU reports not modelled yet)"], plan: plan, pairs: [] };
+        }
         if (A.kind === "arrival" && B.kind === "arrival" && A.destAirport === "KGWO" && B.destAirport === "KGWO") {
           return { ok: false, unsolvable: [A.cs + " and " + B.cs + " are two KGWO arrivals (holding stack not modelled yet)"], plan: plan, pairs: [] };
         }
@@ -896,6 +1018,29 @@
           ctrl.phraseology.push(phr.charAt(0).toUpperCase() + phr.slice(1) + ".");
           ctrl.phraseology.push(f.cs + ", contact Greenwood Tower one two zero point two (after the aircraft reports passing Sidon).");
           ctrl.items.push("KGWO estimate = SQS estimate + 7 minutes (" + toHHMM(f.nodes[f.nodes.length - 1].t) + "); runway 23 is always active — VOR runway 5 approach circle to runway 23.");
+        } else if (f.destAirport === "KMLU") {
+          const parts = [];
+          p.restrictions.forEach(function (r) { parts.push(restrictionPhr(r)); });
+          if (p.arrivalAlt < f.alt) parts.push("descend and maintain " + spoken(p.arrivalAlt));
+          const phr = f.cs + ", cleared to DINKY intersection" + (parts.length ? ", " + parts.join(", ") : "") + ", " + p.holdPhr + ". Contact Monroe Approach one one eight point two, " + p.tcpPhr + ".";
+          ctrl.phraseology.push(phr);
+          ctrl.coordination.push("Inbound to MLU Approach: “" + f.cs + ", " + f.type + " slant " + f.equip + ", estimated DINKY intersection " + toHHMM(f.nodes[f.nodes.length - 2].t) + ", " + (p.arrivalAlt < f.alt ? "descending to " : "at ") + spoken(p.arrivalAlt) + ", your control DINKY.”");
+          ctrl.items.push("MLU LOA: DINKY intersection is the clearance limit and holding fix (hold northeast on V18); lowest ARTCC altitude 7,000 (MLU Approach owns 6,000 and below); EFC " + toHHMM(p.efc) + " = DINKY estimate + 5; communications change " + p.commNote + ".");
+          if (p.altNote) ctrl.items.push("Clearance altitude " + hundreds(p.arrivalAlt) + ": " + p.altNote + ".");
+        } else if (f.destAirport === "KVKS") {
+          const holding = !!(p.stackedWith && p.stackedWith.length) || p.arrivalAlt > RULES.VKS_LOWEST;
+          const parts = [];
+          p.restrictions.forEach(function (r) { parts.push(restrictionPhr(r)); });
+          ctrl.items.push("Decide before the DORTS estimate (" + toHHMM(p.decideBy) + "): " + (holding ? "traffic — clear the aircraft to hold at VKS, at least 5 minutes before the fix; the approach once clear" : "no traffic — issue the approach clearance") + ".");
+          if (!holding) {
+            ctrl.phraseology.push(f.cs + ", " + (parts.length ? parts.join(", ") + ", " : "") + p.apchPhr + ". Report cancellation of IFR this frequency or with Aero Center Flight Data, change to advisory frequency approved.");
+          } else {
+            const hp = parts.slice(); hp.push((p.arrivalAlt < f.alt ? "descend and maintain " : "maintain ") + spoken(p.arrivalAlt));
+            ctrl.phraseology.push(f.cs + ", cleared to Vicksburg radio beacon, " + hp.join(", ") + ", " + p.holdPhr + ".");
+            ctrl.phraseology.push("Once clear: " + f.cs + ", " + p.apchPhr + ". Report cancellation of IFR this frequency or with Aero Center Flight Data, change to advisory frequency approved.");
+          }
+          ctrl.items.push("KVKS is an uncontrolled field on the VKS NDB (NDB runway 1): no inbound coordination; the Remote answers as FSS and reports landed 5 minutes after the VKS estimate (" + toHHMM(f.nodes[f.nodes.length - 2].t) + ") or the approach clearance, whichever is later. The 20 SW MHZ restriction keeps the approach out of JAN airspace (5,000 and below).");
+          if (p.altNote) ctrl.items.push("Holding altitude " + hundreds(p.arrivalAlt) + ": " + p.altNote + ".");
         } else {
           const parts = [];
           p.restrictions.forEach(function (r) { parts.push(restrictionPhr(r)); });
@@ -974,9 +1119,21 @@
       rs.forEach(function (r) { add("20", { t: restrictionMark(r), c: "red", circ: "blk" }); });
       if (isArr) {
         if (f.destAirport === "KGWO") { add("28", { t: "VR", c: "red", circ: "red" }); add("26", { t: "67  " + hundreds(p.block67), c: "blk", circ: "red" }); }
-        else {
+        else if (f.destAirport === "KMLU") {
+          // holding stripmarking omits the fix and altitude: H- NE V18 EFC; comm change in 26
+          if (p.arrivalAlt < f.alt) add("20", { t: SYM.descend + " " + hundreds(p.arrivalAlt), c: "blk" });
+          add("28", { t: p.holdMark, c: "blk" });
+          add("26", { t: p.commMark, c: "blk" });
+          add("15", { t: s.spaces["15"], c: "blk", circ: "red", replace: true });
+        } else if (f.destAirport === "KVKS") {
+          // the only holding stripmarking that names the fix: H- VKS SW 195 LT EFC
+          const holding = !!(p.stackedWith && p.stackedWith.length) || p.arrivalAlt > RULES.VKS_LOWEST;
+          if (p.arrivalAlt < f.alt) add("20", { t: SYM.descend + " " + hundreds(p.arrivalAlt), c: "blk" });
+          if (holding) add("28", { t: p.holdMark, c: "blk" });
+          else { add("20", { t: restrictionMark(p.apchRestr), c: "blk" }); add("28", { t: "APCH", c: "blk" }); }
+        } else {
           add("20", { t: p.levelAt ? SYM.cross + " " + p.levelAt.nm + " " + p.levelAt.dir + " " + SYM.at + " " + hundreds(p.arrivalAlt) : SYM.descend + " " + hundreds(p.arrivalAlt), c: "blk" });
-          add("28", { t: "H-", c: "blk" });
+          add("28", { t: p.holdMark, c: "blk" });
           add("29", { t: p.tcp, c: "blk" });
           add("15", { t: s.spaces["15"], c: "blk", circ: "red", replace: true });
         }

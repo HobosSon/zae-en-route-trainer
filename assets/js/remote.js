@@ -139,8 +139,11 @@
         r.calls.push({ k: "PR", at: est, who: cs, text: "Aero Center, " + cs + " progressing " + fixName(info.fix) + " " + toHHMM(est) + (info.alt ? ", at " + spokenAlt(info.alt) : "") + (info.nextFix && info.nextFixT != null ? ", estimating " + fixName(info.nextFix) + " " + toHHMM(info.nextFixT) : "") + (info.nextNextFix ? ", " + fixName(info.nextNextFix) + " next" : "") + "." });
       }
       if (strip.type === "arrival" && LAND_AFTER[info.destAirport] && est != null) {
-        add("LD", null, est + LAND_AFTER[info.destAirport]);
-        r.calls.push({ k: "LD", at: null, who: LAND_CALLER[info.destAirport], text: "Jackson Low, " + LAND_CALLER[info.destAirport] + ", " + cs + " landed (time). — " + LAND_AFTER[info.destAirport] + " minutes after the " + info.fix + " estimate (" + toHHMM(est + LAND_AFTER[info.destAirport]) + ") or " + LAND_AFTER[info.destAirport] + " minutes after the approach clearance, whichever is later." });
+        // KGWO: 7 min after the SQS estimate; KVKS: 5 min after the VKS estimate (space 22 on the DORTS strip)
+        const landBase = info.landT != null ? info.landT : est;
+        const landFix = info.landFix || info.fix;
+        add("LD", null, landBase + LAND_AFTER[info.destAirport]);
+        r.calls.push({ k: "LD", at: null, who: LAND_CALLER[info.destAirport], text: "Jackson Low, " + LAND_CALLER[info.destAirport] + ", " + cs + " landed (time). — " + LAND_AFTER[info.destAirport] + " minutes after the " + landFix + " estimate (" + toHHMM(landBase + LAND_AFTER[info.destAirport]) + ") or " + LAND_AFTER[info.destAirport] + " minutes after the approach clearance, whichever is later." });
       }
     }
     if (fields.altReq && fields.altReq.alt && fields.altReq.t != null) {
@@ -195,6 +198,7 @@
         const info = {
           kind: f.kind, cs: f.cs, alt: f.alt, est: n.t, fix: n.id, nextFix: nx ? nx.id : null, nextFixT: nx ? nx.t : null, nextNextFix: nx2 ? nx2.id : null,
           originAirport: f.originAirport, destAirport: f.destAirport, dest: f.dest, firstOfFlight: k === 0,
+          landT: f.kind === "arrival" ? f.nodes[f.nodes.length - 2].t : null, landFix: f.kind === "arrival" ? f.nodes[f.nodes.length - 2].id : null,
           icFix: icFix.id, icFixT: icFix.t, icNext: (function () { const a = nextComp(f, icFix.idx); return a ? a.id : null; })(),
           depFirstFix: s.type === "departure" ? (f.strips[1] ? f.nodes[f.strips[1].nodeIdx].id : (f.nodes[1] ? f.nodes[1].id : null)) : null
         };
@@ -274,6 +278,7 @@
           nextFixT: nxt && postedFix(nxt) === nextFix ? stripEst(nxt) : null,
           nextNextFix: nxt && postedFix(nxt) === nextFix ? (String(nxt.spaces["21"] || "").trim().split(/\s+/)[0].toUpperCase() || null) : null,
           originAirport: f.originAirport, destAirport: f.destAirport, dest: f.dest, firstOfFlight: k === 0,
+          landT: f.destAirport === "KVKS" && s.type === "arrival" && fromHHMM(s.spaces["22"]) != null ? fromHHMM(s.spaces["22"]) : null, landFix: f.destAirport === "KVKS" ? "VKS" : null,
           icFix: fix, icFixT: stripEst(s), icNext: nextFix,
           depFirstFix: s.type === "departure" ? nextFix : null
         };
