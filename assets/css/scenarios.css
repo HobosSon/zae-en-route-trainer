@@ -49,8 +49,10 @@
 .sc-info-lbl { font-family: var(--mono); font-size: 0.62rem; letter-spacing: 0.5px; color: var(--text-dim); }
 .sc-info-val { font-family: var(--mono); font-size: 1rem; font-weight: 700; color: var(--amber); }
 
-.altim-row { display: flex; gap: 0.75rem; flex-wrap: wrap; }
-.altim-row .editor-field { flex: 1; min-width: 90px; }
+.altim-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.9rem 2rem; max-width: 900px; }
+.altim-grid .editor-field { gap: 0.4rem; }
+.altim-grid .editor-input-sm { max-width: 17rem; font-size: 1.15rem; padding: 0.6rem 0.9rem; }
+@media (max-width: 640px) { .altim-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem 1rem; } .altim-grid .editor-input-sm { max-width: 100%; } }
 .editor-input-sm { max-width: 8rem; font-family: var(--mono); }
 
 /* editor */

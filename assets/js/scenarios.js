@@ -213,30 +213,31 @@
     form.appendChild(fieldWrap("Title", titleIn));
     form.appendChild(fieldWrap("Description", descIn));
 
-    // scenario start time (Zulu) + altimeters
+    // Altimeters, scenario start time (Zulu) and the current ATIS in one grid:
+    //   KMLU | KGWO | start time
+    //   KVKS | KJAN | ATIS
     const startIn = document.createElement("input");
     startIn.type = "text"; startIn.className = "editor-input editor-input-sm"; startIn.placeholder = "e.g. 1200"; startIn.maxLength = 4;
     startIn.value = existing && existing.startTime ? existing.startTime : "";
-    form.appendChild(fieldWrap("Scenario start time (Zulu)", startIn));
     // current ATIS (KGWO arrivals not yet on frequency check on with it)
     const atisIn = document.createElement("input");
     atisIn.type = "text"; atisIn.className = "editor-input editor-input-sm"; atisIn.placeholder = "T (Tango)"; atisIn.maxLength = 1;
     atisIn.value = existing && existing.atis ? existing.atis : "";
     atisIn.title = "Current ATIS letter. KGWO arrival Remote strips show “IC HHMM WITH <letter>” and “ATIS <letter>”; aircraft already on frequency have it.";
     atisIn.addEventListener("input", function () { atisIn.value = atisIn.value.replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 1); stripsWrap.dataset.atis = atisIn.value; refreshAll(); });
-    form.appendChild(fieldWrap("Current ATIS (KGWO)", atisIn));
 
     const altInputs = {};
-    const altRow = el("div", "altim-row");
     ALTIM_SITES.forEach(function (site) {
-      const w = el("div", "editor-field");
-      w.appendChild(el("label", "editor-flabel", site + " altimeter"));
       const inp = document.createElement("input");
       inp.type = "text"; inp.className = "editor-input editor-input-sm"; inp.placeholder = "2992"; inp.maxLength = 4;
       inp.value = existing && existing.altimeters ? (existing.altimeters[site] || "") : "";
-      altInputs[site] = inp; w.appendChild(inp); altRow.appendChild(w);
+      altInputs[site] = inp;
     });
-    form.appendChild(fieldWrap("Altimeters", altRow));
+    const altGrid = el("div", "altim-grid");
+    const cell = function (label, inp) { const w = el("div", "editor-field"); w.appendChild(el("label", "editor-flabel", label)); w.appendChild(inp); altGrid.appendChild(w); };
+    cell("KMLU altimeter", altInputs.KMLU); cell("KGWO altimeter", altInputs.KGWO); cell("Scenario start time (Zulu)", startIn);
+    cell("KVKS altimeter", altInputs.KVKS); cell("KJAN altimeter", altInputs.KJAN); cell("Current ATIS (KGWO)", atisIn);
+    form.appendChild(fieldWrap("Altimeters", altGrid));
 
     const stripsWrap = el("div", "editor-strips");
     stripsWrap.dataset.atis = atisIn.value;
