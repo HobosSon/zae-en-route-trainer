@@ -271,6 +271,17 @@
       function valOf(f) { const c = cellOf(f); return c ? c.textContent.trim() : ""; }
       function setCell(f, v) { const c = cellOf(f); if (c && !c.textContent.trim()) c.textContent = v; }
 
+      // next fix outside ZAE (MLU, HEZ, MCB, GCV ... KHEZ) -> the next center's identifier in space 30
+      function autoCenter() {
+        const nx = valOf("21").toUpperCase().split(/\s+/)[0];
+        const nav = window.ZAE && ZAE.NAVAIDS[nx];
+        let owner = nav && /^Z/.test(nav.owner) ? nav.owner : null;
+        if (!owner && nx === "KHEZ") owner = "ZHU";
+        const c30 = cellOf("30");
+        if (!c30) return;
+        if (owner) { if (!c30.textContent.trim() || c30.dataset.auto === "1") { c30.textContent = owner; c30.dataset.auto = "1"; } }
+        else if (c30.dataset.auto === "1") { c30.textContent = ""; delete c30.dataset.auto; }
+      }
       // auto-detect strip type + dep/arr arrow from posted/next fix
       function applyArrow() {
         const d = detectFromFixes(valOf("19"), valOf("21"));
@@ -302,6 +313,8 @@
         const f = cell.dataset.f;
         if (f === "3") autofill();
         if (f === "19" || f === "21") applyArrow();
+        if (f === "21") autoCenter();
+        if (f === "30") delete cell.dataset.auto; // typed by hand: leave it alone from now on
         refreshAll();
       });
       typeSel.addEventListener("change", function () {
