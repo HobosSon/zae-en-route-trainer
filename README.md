@@ -56,7 +56,7 @@ and its **Sector 66 "Jackson Low"** non-radar environment.
   `strips.html#D3A-K7Q2MX/remote`). Remote strips add the typed scenario data
   in space 26 (IC time based on when the aircraft enters Sector 66, RC (clearance
   request) 5 minutes before the P-time, ON FREQUENCY for aircraft already checked on,
-  altitude requests, KVKS weather, DEPARTURE #n for same-time requests), the
+  altitude requests (`RQ 130 1215`), KVKS weather, DEPARTURE #n for same-time requests), the
   card's miles per minute in red in space 9, and the red call reminders in
   space 27 in time order (IC, RC, RQ, PR at the center estimate, Z two minutes
   after a JAN/MLU arrival's fix, LD for KGWO/KVKS arrivals). Blank IC/PR/LD

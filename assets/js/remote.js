@@ -154,7 +154,7 @@
       }
     }
     if (fields.altReq && fields.altReq.alt && fields.altReq.t != null) {
-      r.lines26.push("REQ " + hundreds(fields.altReq.alt) + " AT " + toHHMM(fields.altReq.t));
+      r.lines26.push("RQ " + hundreds(fields.altReq.alt) + " " + toHHMM(fields.altReq.t));
       add("RQ", mm(fields.altReq.t), fields.altReq.t);
       r.calls.push({ k: "RQ", at: fields.altReq.t, who: cs, text: "Aero Center, " + cs + " request " + spokenAlt(fields.altReq.alt) + "." });
     }
