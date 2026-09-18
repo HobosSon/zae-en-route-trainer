@@ -7,7 +7,8 @@
  * ON FREQUENCY, altitude requests, KVKS weather, departure sequence), and in
  * space 27 the red call reminders in time order, minutes only:
  *   IC  initial contact          (departures: blank, 2 min after departure)
- *   RQ  a request                (clearance 5 min before P-time; altitude)
+ *   RC  departure clearance request (5 min before the P-time)
+ *   RQ  a request (altitude)
  *   PR  progressing the posted fix at the center estimate
  *   Z   tower jurisdiction       (JAN / MLU arrivals, 2 min after the fix)
  *   LD  landed                   (KGWO 7 min / KVKS 5 min after the fix or the
@@ -105,10 +106,10 @@
       const P = info.est != null ? info.est : fromHHMM((strip.spaces || {})["19"]);
       const rq = fields.reqClnc != null ? fields.reqClnc : (P != null ? P - REQ_BEFORE_P : null);
       if (rq != null) {
-        r.lines26.push("REQ CLNC " + toHHMM(rq));
-        add("RQ", mm(rq), rq);
+        r.lines26.push("RC " + toHHMM(rq));
+        add("RC", mm(rq), rq);
         const who = REQUESTER[info.originAirport] || "Flight Data";
-        r.calls.push({ k: "RQ", at: rq, who: who, text: "Jackson Low, " + who + ", request departure clearance " + cs + " to the " + (info.dest || "destination") + " airport." });
+        r.calls.push({ k: "RC", at: rq, who: who, text: "Jackson Low, " + who + ", request departure clearance " + cs + " to the " + (info.dest || "destination") + " airport." });
       }
       if (fields.depSeq) r.lines26.push("DEPARTURE #" + fields.depSeq);
       add("IC", null, (P != null ? P : 0) + DEP_AFTER_CLNC + IC_AFTER_DEP);
@@ -119,9 +120,10 @@
         if (fields.onFreq) r.lines26.push("ON FREQUENCY");
         else if (fields.ic != null) {
           const atis = info.destAirport === "KGWO" && fields.atis ? atisWord(fields.atis) : null;
-          r.lines26.push("IC " + toHHMM(fields.ic) + (atis ? " WITH " + atis.toUpperCase() : ""));
+          const wx = info.destAirport === "KVKS" && fields.vksWx === true; // has the Vicksburg weather (wording to be confirmed)
+          r.lines26.push("IC " + toHHMM(fields.ic) + (atis ? " WITH " + atis.toUpperCase() : "") + (wx ? " WITH VKS WX" : ""));
           if (atis) r.lines26.push("ATIS " + atis.toUpperCase());
-          if (info.destAirport === "KVKS" && fields.vksWx != null) r.lines26.push(fields.vksWx ? "HAS VKS WX" : "REQ VKS WX");
+          if (info.destAirport === "KVKS" && fields.vksWx === false) r.lines26.push("REQ VKS WX");
           add("IC", mm(fields.ic), fields.ic);
           const icFix = info.icFix || info.fix, icT = info.icFixT != null ? info.icFixT : est;
           r.calls.push({ k: "IC", at: fields.ic, who: cs, text: "Aero Center, " + cs + " estimating " + fixName(icFix) + (icT != null ? " " + toHHMM(icT) : "") + (info.alt ? ", at " + spokenAlt(info.alt) : "") + (info.icNext ? ", " + fixName(info.icNext) + " next" : "") + (atis ? ", with information " + atis : "") + "." });

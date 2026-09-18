@@ -326,16 +326,20 @@
   // How each arrival ends: the airway feeder (holding fix or the posting before
   // it), extra legs after the airway, the airport leg, the filed route tail
   // and the lowest altitude the arrival may cruise at.
-  //   KMLU: V18 from MEI to DINKY (MLU LOA: DINKY is the clearance limit and holding fix; filed via MLU)
-  //   KVKS: V417 from MEI to DORTS, then direct VKS (about 8 nm); KVKS is on the VKS NDB
+  //   KMLU: any airway into MHZ (not from the MLU side), then V18 HEDUD DINKY STUEE. The printed strip
+  //         posts STUEE (DINKY is nonradar-only); the controller amends it to DINKY, estimate = STUEE - 3.
+  //   KVKS: any airway into MHZ (not from HEZ), then V417 DORTS and direct VKS (about 10 nm); KVKS is on the NDB
   const ARRIVALS = {
     KJAN: { feeder: "MHZ", leg: 10 }, KJVW: { feeder: "MHZ", leg: 17 }, KGWO: { feeder: "SQS", leg: 10 },
-    // the printed strip posts STUEE (DINKY is nonradar-only); the controller amends it to DINKY, estimate = STUEE - 3
-    KMLU: { airway: "V18", from: "MEI", feeder: "STUEE", holdFix: "DINKY", leg: 19, routeTail: "MLU", minAlt: 7000 },
-    KVKS: { airway: "V417", from: "MEI", feeder: "DORTS", suffix: [["VKS", 8, "DCT"]], leg: 0, routeTail: "DORTS VKS", minAlt: 6000 }
+    KMLU: { via: "MHZ", notFrom: ["MLU"], suffix: [["HEDUD", 23, "V18"], ["DINKY", 41, "V18"], ["STUEE", 12, "V18"]], feeder: "STUEE", holdFix: "DINKY", leg: 19, routeTail: "V18 MLU", minAlt: 7000, tux: true },
+    KVKS: { via: "MHZ", notFrom: ["HEZ"], suffix: [["DORTS", 49, "V417"], ["VKS", 10, "DCT"]], feeder: "DORTS", holdFix: "VKS", leg: 0, routeTail: "V417 DORTS VKS", minAlt: 6000,
+            // from the Monroe side: V417 straight to DORTS (never around MHZ)
+            direct: { MLU: { airway: "V417", via: "DORTS", suffix: [["VKS", 10, "DCT"]], routeTail: "V417 DORTS VKS" } } }
   };
   const WEST_OF_MHZ = { MLU: 1, HATER: 1, DORTS: 1, STUEE: 1, DINKY: 1, HEDUD: 1, J417: 1, J417W: 1 };
   const KVKS_WEST_SHARE = 0.3;   // KVKS departures that go V417 west to MLU
+  const KVKS_HEZ_SHARE = 0.22;   // KVKS departures that leave on the HEZ026 radial (not in the filed route)
+  const HEZ026R = { id: "HEZ026R", points: ["KVKS", "HEZ"], legs: [42], meaLegs: [3000], postings: [], course: 206 };
   const BYERLEY_JAN_SHARE = 0.35; // 0M8 departures that land at a JAN Approach field (both strips in suspense)
   const JAN_FIELDS = ["KJAN", "KJVW"];
   const ENTRY_DEFAULT_NM = 10;   // sector boundary past an entry NAVAID with no listed boundary mileage
@@ -358,6 +362,7 @@
       let suffix = []; // nodes after trav.points[endIdx] (arrivals): [[id, nm, via]]
       let routeOverride = null;
       let arrSpec = null;
+      let hez026 = null;
 
       if (kind === "departure") {
         const aptId = pick(DEP_AIRPORTS);
@@ -370,6 +375,16 @@
           entryNav = "MLU"; exitNav = "MLU"; dest = externalFor("MLU");
           if (dest === "KMLU") continue; // Sector 66 works KMLU arrivals through DINKY; a KVKS/0M8 departure does not fit that process
           routeOverride = "KVKS MLU " + dest;
+        } else if (aptId === "KVKS" && chance(KVKS_HEZ_SHARE)) {
+          // Natchez 026 radial to HEZ (ZHU). The radial is not in the filed route: the controller
+          // coordinates it. "KVKS KHEZ" flights do not progress HEZ ("cleared via the HEZ026R").
+          const toKHEZ = chance(0.5);
+          aw = HEZ026R; trav = traverse(aw, true); startIdx = 0; endIdx = 1;
+          prefix = [];
+          entryNav = "HEZ"; exitNav = "HEZ";
+          dest = toKHEZ ? "KHEZ" : pick(["KBTR", "KASD"]);
+          routeOverride = toKHEZ ? "KVKS KHEZ" : "KVKS HEZ " + dest;
+          hez026 = { toKHEZ: toKHEZ };
         } else if (aptId === "0M8" && chance(BYERLEY_JAN_SHARE)) {
           // Byerley to a JAN Approach field: 0M8 -> 150 to join V427 -> MHZ -> the airport.
           // A departure that is also a JAN arrival: departure strip and MHZ arrival strip, both in suspense.
@@ -398,17 +413,23 @@
       } else if (kind === "arrival") {
         const aptId = pick(ARR_AIRPORTS);
         arrSpec = ARRIVALS[aptId];
-        const feeder = arrSpec.feeder;
-        aw = arrSpec.airway ? ZAE.AIRWAYS[arrSpec.airway] : pick(airwaysThrough(feeder));
-        trav = traverse(aw, true);
-        if (arrSpec.from && trav.points[0] !== arrSpec.from) trav = traverse(aw, false);
+        const feeder = arrSpec.via || arrSpec.feeder; // the airway point the arrival leaves the airway at
+        aw = pick(airwaysThrough(feeder));
+        trav = traverse(aw, chance(0.5));
         let fi = trav.points.indexOf(feeder);
-        if (fi <= 0 && !arrSpec.from) { trav = traverse(aw, false); fi = trav.points.indexOf(feeder); }
+        if (fi <= 0) { trav = traverse(aw, !trav.forward); fi = trav.points.indexOf(feeder); }
         if (fi <= 0) continue;
         startIdx = 0; endIdx = fi;
         entryNav = trav.points[0]; exitNav = feeder;
         if (isHub(entryNav)) continue; // must enter ZAE at a boundary NAVAID
+        if (arrSpec.notFrom && arrSpec.notFrom.indexOf(entryNav) !== -1) continue;
         suffix = arrSpec.suffix || [];
+        if (arrSpec.direct && arrSpec.direct[entryNav]) {
+          const dspec = arrSpec.direct[entryNav];
+          if (aw.id !== dspec.airway) continue;
+          endIdx = trav.points.indexOf(dspec.via); if (endIdx <= 0) continue;
+          exitNav = dspec.via; suffix = dspec.suffix; arrSpec = Object.assign({}, arrSpec, { routeTail: dspec.routeTail });
+        }
         destAirport = aptId; origin = externalFor(entryNav); dest = aptId;
       } else { // overflight
         aw = ZAE.AIRWAYS[pick(Object.keys(ZAE.AIRWAYS))];
@@ -423,7 +444,7 @@
       // TUX (non-DME) aircraft only where the course's restrictions can be
       // written without DME: overflights, KJAN/KJVW arrivals from inside
       // Sector 66 airways, and KGWO departures.
-      const tuxOK = kind === "overflight" || (kind === "departure" && originAirport === "KGWO");
+      const tuxOK = kind === "overflight" || (kind === "departure" && originAirport === "KGWO") || (kind === "arrival" && !!arrSpec.tux);
       const equip = chooseEquip(tier, ac, tuxOK);
       const dme = hasDME(equip);
 
@@ -442,7 +463,9 @@
         cum += arrSpec.leg != null ? arrSpec.leg : airportLegNm(destAirport);
         nodes.push({ id: destAirport, d: cum, via: "DCT" });
       }
+      if (hez026 && hez026.toKHEZ) nodes.push({ id: "KHEZ", d: cum, via: "DCT" }); // the field is at HEZ; HEZ itself is not progressed
       nodes.forEach(function (n, i) { n.bay = BAY_OF[n.id] || null; n.comp = isComp(n.id) || !!INTERNAL_APT[n.id] || (destAirport && i >= nodes.length - 2); n.idx = i; });
+      if (hez026 && hez026.toKHEZ) nodes[nodeIdxOf(nodes, "HEZ")].comp = false;
 
       // ---- times: chain rounded plus-times between compulsory nodes (as the
       // strips do), interpolate the rest. rel[] is minutes after the start.
@@ -461,7 +484,8 @@
       if (kind === "departure") postedIdx.push(0);
       nodes.forEach(function (n, i) {
         if (i === 0 && kind === "departure") return;
-        if (n.awIdx != null && postingFor(aw, n.id) && n.bay) postedIdx.push(i);
+        const awOf = n.awIdx != null ? aw : (ZAE.AIRWAYS[n.via] || null); // suffix legs use their own airway's postings
+        if (awOf && postingFor(awOf, n.id) && n.bay) postedIdx.push(i);
         else if (kind === "arrival" && i === nodes.length - 2 && n.bay && postedIdx.indexOf(i) === -1) postedIdx.push(i);
       });
       const seen = {};
@@ -520,7 +544,11 @@
       const conn = origin === "K" + entryNav ? " " : "./.";
       let routeStr;
       if (kind === "departure") routeStr = routeOverride || (originAirport + " " + entryNav + " " + aw.id + " " + exitNav + " " + dest);
-      else if (kind === "arrival") routeStr = origin + conn + entryNav + " " + aw.id + " " + (arrSpec.routeTail || exitNav) + " " + destAirport;
+      else if (kind === "arrival") {
+        const tail = arrSpec.routeTail || "";
+        // "MEI V18 MLU KMLU" when the entry airway is the tail's airway; else "MCB V9 MHZ V18 MLU KMLU"
+        routeStr = origin + conn + entryNav + " " + (tail.split(" ")[0] === aw.id ? tail : aw.id + " " + exitNav + (tail ? " " + tail : "")) + " " + destAirport;
+      }
       else routeStr = origin + conn + entryNav + " " + aw.id + " " + exitNav + " " + dest;
 
       const cs = callsign(ac);
@@ -533,7 +561,7 @@
         alt: filedAlt, reqAlt: filedAlt, appropriateAlt: alt, iafdof: !!iafdofAlt, floor: floor, cap: cap,
         originAirport: originAirport, destAirport: destAirport, origin: origin, dest: dest,
         entryNav: entryNav, exitNav: exitNav, exitFacility: exitFacility, nextSector: NEXT_SECTOR[exitNav] || null,
-        holdFix: destAirport ? (arrSpec.holdFix || arrSpec.feeder) : null,
+        holdFix: destAirport ? (arrSpec.holdFix || arrSpec.feeder) : null, hez026: hez026,
         nodes: nodes, events: events, baseT: baseT, route: routeStr, strips: [],
         onFreq: onFreq, entryT: entryT, icT: icT, altReq: altReq, vksWx: vksWx
       };
@@ -554,6 +582,7 @@
     }
     return flight.nodes[flight.nodes.length - 1];
   }
+  function nodeIdxOf(nodes, id) { for (let i = 0; i < nodes.length; i++) if (nodes[i].id === id) return i; return -1; }
   function prevComp(flight, i) { for (let k = i - 1; k >= 0; k--) if (flight.nodes[k].comp) return flight.nodes[k]; return null; }
   function nextComp(flight, i) { for (let k = i + 1; k < flight.nodes.length; k++) if (flight.nodes[k].comp) return flight.nodes[k]; return null; }
 

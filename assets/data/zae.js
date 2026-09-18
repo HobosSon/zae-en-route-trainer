@@ -140,7 +140,9 @@
     KGWO: { id: "KGWO", name: "Greenwood", apch: "Class D (Twr 120.2)", rwy: "5/23, 18/36", loc: "SQS076010" },
     "0M8": { id: "0M8", name: "Byerley", apch: "Class G", rwy: "17/35", loc: "at BLE NDB" },
     // Monroe is outside Sector 66 (ZFW); arrivals are cleared to DINKY on V18 (MLU LOA)
-    KMLU: { id: "KMLU", name: "Monroe Regional", apch: "MLU", rwy: "4/22", loc: "at MLU VORTAC", external: true }
+    KMLU: { id: "KMLU", name: "Monroe Regional", apch: "MLU", rwy: "4/22", loc: "at MLU VORTAC", external: true },
+    // Natchez is ZHU's; KVKS departures reach it on the HEZ026 radial without progressing HEZ
+    KHEZ: { id: "KHEZ", name: "Natchez", apch: "ZHU", rwy: "13/31", loc: "at HEZ VOR/DME", external: true }
   };
 
   // Airports associated with each airway-endpoint NAVAID, used to build realistic

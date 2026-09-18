@@ -300,6 +300,26 @@
     return { a: arr, b: X, type: "hpa", node: N, i: ai, j: xi, occ: occ, window: w, dt: Math.abs(arr.nodes[ai].t - X.nodes[xi].t) };
   }
 
+  // A KVKS arrival holds when it is stacked, pushed above 6,000, or a KVKS departure forces it.
+  function kvksHolding(p) { return !!(p.stackedWith && p.stackedWith.length) || p.arrivalAlt > RULES.VKS_LOWEST || !!p.forceHold; }
+
+  // KVKS departure vs a KVKS arrival's holding pattern at VKS: the departure
+  // climbs out under the pattern, stays below the holder until the miss point
+  // on its route and reports passing it — 37 SW MHZ eastbound, 54 SE MLU
+  // westbound, 25 NE HEZ on the HEZ026 radial (Lab Procedures III-51..53).
+  // d: nm from KVKS to the miss point; minAlt: the MEA there (outside the JAN / MLU approach airspace)
+  const VKS_MISS = { east: { node: "MHZ", nm: 37, dir: "SW", d: 8, minAlt: 4000 }, west: { node: "MLU", nm: 54, dir: "SE", d: 7, minAlt: 5000 }, hez: { node: "HEZ", nm: 25, dir: "NE", d: 17, minAlt: 3000 } };
+  function vksDepMiss(dep) { return dep.hez026 ? VKS_MISS.hez : (nodeIndex(dep, "MHZ") >= 0 ? VKS_MISS.east : VKS_MISS.west); }
+  function kvksDepConflict(arr, dep, plan) {
+    if (holdFix(arr) !== "VKS" || dep.kind !== "departure" || dep.originAirport !== "KVKS") return null;
+    if ((plan[arr.id].stackedWith || []).indexOf(dep.id) !== -1) return null;
+    const w = hpaWindow(arr), ai = holdIdx(arr), miss = vksDepMiss(dep);
+    const occ = { from: dep.baseT, to: dep.baseT + miss.d / dep.mpm };
+    if (occ.to < w.from || occ.from > w.to) return null;
+    if (!bandsOverlap(holdBand(arr, ai, plan), unionBand(bandAtD(dep, 0, plan), bandAtD(dep, miss.d, plan)))) return null;
+    return { a: arr, b: dep, type: "hpa", kvks: miss, node: "VKS", i: ai, j: 0, occ: occ, window: w, dt: Math.abs(holdT(arr) - dep.baseT) };
+  }
+
   // DME from `nav` of a node on flight X's airway traversal (null if not on it).
   function dmeFrom(X, node, nav) {
     if (!X.trav || node.awIdx == null) return null;
@@ -345,6 +365,8 @@
     const out = [];
     if (holdFix(A)) out.push.apply(out, hpaSegConflicts(A, B, plan));
     if (holdFix(B)) out.push.apply(out, hpaSegConflicts(B, A, plan));
+    const kd = kvksDepConflict(A, B, plan) || kvksDepConflict(B, A, plan);
+    if (kd) out.push(kd);
     sharedRuns(A, B).forEach(function (run) {
       if (run.dir === "cross" || run.pairs.length === 1) {
         const i = run.pairs[0][0], j = run.pairs[0][1];
@@ -419,6 +441,11 @@
         p.depInstr = SYM.enterCA + " 150 " + SYM.join + " V427";
         p.depInstrPhr = "when entering controlled airspace fly heading one five zero until joining Victor Four Twenty-seven, Victor Four Twenty-seven Magnolia";
         addRestriction(p, { kind: "cross", node: "MHZ", nm: 18, dir: "NW", on: "V427", limit: "above", alt: RULES.JAN_TOP + 1000, why: "airspace", label: "JAN Approach airspace (5,000 and below)" });
+      } else if (apt === "KVKS" && f.hez026) {
+        // Natchez 026 radial: not in the filed route, coordinated with POE LO; no JAN/MLU airspace on it
+        p.depInstr = "HEZ026R";
+        p.viaPhr = f.hez026.toKHEZ ? "the HEZ zero two six radial" : "Natchez zero two six radial, Natchez as filed";
+        p.coord.push({ to: "POE LO (ZHU 40)", what: "The HEZ026R is not in the route: coordinate it — “" + f.cs + " departing Vicksburg via the Natchez zero two six radial" + (f.hez026.toKHEZ ? ", landing Natchez" : "") + ".”" });
       } else if (apt === "KVKS") {
         if (f.exitNav === "MLU" && nodeIndex(f, "MHZ") < 0) {
           p.depInstr = SYM.depart + " NE TL 330 " + SYM.join + " V417";
@@ -464,7 +491,7 @@
         p.holdMark = "H- NE V18 " + toHHMM(p.efc);
         p.holdPhr = "hold northeast on Victor Eighteen, expect further clearance " + toHHMM(p.efc);
         if (f.dme) { p.tcp = "DINKY"; p.tcpPhr = "four niner miles northeast Monroe VORTAC"; p.commMark = "C " + RULES.MLU_TCP_DME.nm + " " + RULES.MLU_TCP_DME.dir + " MLU"; p.commNote = RULES.MLU_TCP_DME.nm + " NE MLU, issued after the aircraft progresses MHZ"; }
-        else { const tt = p.dinkyEst - RULES.MLU_NONDME_BEFORE_MIN; p.tcp = "DINKY"; p.tcpPhr = "at " + toHHMM(tt); p.commMark = "C " + toHHMM(tt); p.commNote = "at " + toHHMM(tt) + " (5 minutes before the DINKY estimate, non-DME, cleared via V18)"; }
+        else { p.tcp = "DINKY"; p.tcpPhr = "at DINKY intersection"; p.commMark = "C DINKY"; p.commNote = "AT DINKY for a non-DME aircraft — the controller must say so in the frequency change (“contact Monroe Approach 118.2 at DINKY”)"; }
       } else if (f.destAirport === "KVKS") {
         // uncontrolled field on the VKS NDB: no traffic -> approach clearance before
         // the DORTS estimate; traffic -> hold at VKS (SW on the 195 bearing, left
@@ -628,6 +655,19 @@
       const pa = plan[arr.id];
       const band = holdBand(arr, c.i, plan);
       const label = arr.cs + " inbound " + N + " " + toHHMM(holdT(arr)) + " (holding pattern airspace protected " + toHHMM(c.window.from) + "–" + toHHMM(c.window.to) + ")";
+      if (c.kvks) {
+        // the departure stays under the holder until the miss point on its route and reports passing it
+        const p = plan[X.id];
+        const below = band[0] - RULES.VERT;
+        const m = c.kvks;
+        if (below < m.minAlt) return { ok: false, reason: X.cs + " (KVKS departure) cannot stay under " + arr.cs + " holding at VKS (" + hundreds(band[0]) + ")" };
+        addRestriction(p, { kind: "cross", node: m.node, nm: m.nm, dir: m.dir, limit: "below", alt: below, why: "traffic", vs: [arr.cs], label: "VKS holding pattern airspace: " + label + " — under the pattern until clear of it at " + m.nm + " " + m.dir + " " + m.node });
+        const at = toHHMM(X.baseT + m.d / X.mpm);
+        p.reports.push({ text: "RP " + m.nm + " " + m.dir + " " + m.node, record: m.nm + m.dir + m.node + "/" + at, phr: X.cs + ", report passing " + m.nm + " miles " + DIR_WORD[m.dir] + " of " + navName(m.node), why: "clear of the VKS holding pattern airspace (" + arr.cs + " holding); the arrival gets its approach after this report", at: at });
+        p.warnings.push(arr.cs);
+        pa.forceHold = true; pa.forcedBy = X.cs; pa.warnings.push(X.cs);
+        return { ok: true };
+      }
       if (c.seg) {
         // pattern airspace along another airway: hold above the level traffic (lowest ARTCC altitude available)
         if (X.kind === "overflight" && X.iafdof && tryFlip(X)) return { ok: true };
@@ -959,9 +999,6 @@
         if (A.kind !== B.kind && A.kind !== "overflight" && B.kind !== "overflight" && (A.originAirport || A.destAirport) === "KGWO" && (B.originAirport || B.destAirport) === "KGWO") {
           return { ok: false, unsolvable: [A.cs + " and " + B.cs + " are an arrival and a departure at KGWO (not modelled yet)"], plan: plan, pairs: [] };
         }
-        if (A.kind !== B.kind && A.kind !== "overflight" && B.kind !== "overflight" && (A.originAirport || A.destAirport) === "KVKS" && (B.originAirport || B.destAirport) === "KVKS") {
-          return { ok: false, unsolvable: [A.cs + " and " + B.cs + " are an arrival and a departure at KVKS (37 SW MHZ / 45 SE MLU reports not modelled yet)"], plan: plan, pairs: [] };
-        }
         if (A.kind === "arrival" && B.kind === "arrival" && A.destAirport === "KGWO" && B.destAirport === "KGWO") {
           return { ok: false, unsolvable: [A.cs + " and " + B.cs + " are two KGWO arrivals (holding stack not modelled yet)"], plan: plan, pairs: [] };
         }
@@ -1014,7 +1051,8 @@
         const dest = f.dest, apt = f.originAirport;
         const fromApt = (apt === "0M8" || apt === "KVKS") ? "cleared from " + ZAE.AIRPORTS[apt].name + " Airport to " : "cleared to ";
         let via;
-        if (apt === "KGWO") via = (p.depInstr ? "depart southwest direct Sidon" : "direct Sidon") + " as filed";
+        if (p.viaPhr) via = p.viaPhr;
+        else if (apt === "KGWO") via = (p.depInstr ? "depart southwest direct Sidon" : "direct Sidon") + " as filed";
         else if (p.depInstrPhr) via = p.depInstrPhr + " as filed";
         else { // JAN LOA: airway and first fix outside approach control airspace
           const mi = nodeIndex(f, "MHZ");
@@ -1034,7 +1072,9 @@
         ctrl.items.push("EDC " + toHHMM(p.edc) + " if the clearance cannot be issued when requested (10 minutes from the request).");
         if (p.voidTime != null) ctrl.items.push("Uncontrolled field: void time " + toHHMM(p.voidTime) + " (advise by " + toHHMM(p.voidTime + RULES.ADVISE_MIN) + "), and the “verify” phraseology because departure instructions were issued.");
         if (apt === "KJAN" || apt === "KJVW") ctrl.items.push("JAN LOA: the tower clears the aircraft direct MHZ with a restriction to cross MHZ at or below 5,000 — Center issues route and altitude.");
-        if (f.nextSector) ctrl.coordination.push("APREQ " + f.nextSector + ": “In suspense, " + f.cs + ", assumed " + ZAE.AIRPORTS[apt].name + " departure " + toHHMM(f.baseT) + ", climbing to " + spoken(p.finalAlt) + (p.depRule && p.depRule.kind !== "2MIN" ? ", using the " + (p.depRule.kind === "44K" ? "forty-four" : "twenty-two") + " knot rule in trail of " + p.depRule.text.split("< ")[1] : "") + ".”");
+        if (f.nextSector) ctrl.coordination.push("APREQ " + f.nextSector + ": “In suspense, " + f.cs + ", assumed " + ZAE.AIRPORTS[apt].name + " departure " + toHHMM(f.baseT) + ", climbing to " + spoken(p.finalAlt) + (f.hez026 ? ", via the Natchez zero two six radial" : "") + (p.depRule && p.depRule.kind !== "2MIN" ? ", using the " + (p.depRule.kind === "44K" ? "forty-four" : "twenty-two") + " knot rule in trail of " + p.depRule.text.split("< ")[1] : "") + ".”");
+        if (f.hez026) ctrl.items.push("HEZ026R departure: the radial is not in the filed route (" + f.route + ") — " + (f.hez026.toKHEZ ? "“cleared via the HEZ zero two six radial” for the route portion; KHEZ arrivals do not progress HEZ" : "“via Natchez zero two six radial, Natchez as filed”") + ". Coordinate the radial with POE LO. Not traffic for aircraft on V417.");
+        p.coord.forEach(function (c) { ctrl.coordination.push(c.to + ": " + c.what); });
         if (f.destAirport) {
           // the same aircraft is a JAN arrival: hold at MHZ, TCP at the JAN boundary, inbound coordination
           const ap = [];
@@ -1062,10 +1102,10 @@
           ctrl.items.push("MLU LOA: DINKY intersection is the clearance limit and holding fix (hold northeast on V18); lowest ARTCC altitude 7,000 (MLU Approach owns 6,000 and below); EFC " + toHHMM(p.efc) + " = DINKY estimate + 5; communications change " + p.commNote + ".");
           if (p.altNote) ctrl.items.push("Clearance altitude " + hundreds(p.arrivalAlt) + ": " + p.altNote + ".");
         } else if (f.destAirport === "KVKS") {
-          const holding = !!(p.stackedWith && p.stackedWith.length) || p.arrivalAlt > RULES.VKS_LOWEST;
+          const holding = kvksHolding(p);
           const parts = [];
           p.restrictions.forEach(function (r) { parts.push(restrictionPhr(r)); });
-          ctrl.items.push("Decide before the DORTS estimate (" + toHHMM(p.decideBy) + "): " + (holding ? "traffic — clear the aircraft to hold at VKS, at least 5 minutes before the fix; the approach once clear" : "no traffic — issue the approach clearance") + ".");
+          ctrl.items.push("Decide before the DORTS estimate (" + toHHMM(p.decideBy) + "): " + (holding ? "traffic" + (p.forcedBy ? " (KVKS departure " + p.forcedBy + " under the pattern until it reports the miss point)" : "") + " — clear the aircraft to hold at VKS, at least 5 minutes before the fix; the approach once clear" : "no traffic — issue the approach clearance") + ".");
           if (!holding) {
             ctrl.phraseology.push(f.cs + ", " + (parts.length ? parts.join(", ") + ", " : "") + p.apchPhr + ". Report cancellation of IFR this frequency or with Aero Center Flight Data, change to advisory frequency approved.");
           } else {
@@ -1179,7 +1219,7 @@
           add("15b", { t: toHHMM(p.dinkyEst), c: "blk", circ: "red" });          // DINKY estimate = STUEE - 3, coordinated
         } else if (f.destAirport === "KVKS") {
           // the only holding stripmarking that names the fix: H- VKS SW 195 LT EFC
-          const holding = !!(p.stackedWith && p.stackedWith.length) || p.arrivalAlt > RULES.VKS_LOWEST;
+          const holding = kvksHolding(p);
           if (p.arrivalAlt < f.alt) add("20", { t: SYM.descend + " " + hundreds(p.arrivalAlt), c: "blk" });
           if (holding) add("28", { t: p.holdMark, c: "blk" });
           else { add("20", { t: restrictionMark(p.apchRestr), c: "blk" }); add("28", { t: "APCH", c: "blk" }); }

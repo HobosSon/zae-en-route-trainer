@@ -25,8 +25,8 @@ and its **Sector 66 "Jackson Low"** non-radar environment.
   Arrivals: KJAN/KJVW hold at MHZ (`H- NW`, no EFC, "no delay expected", TCP
   at the JAN boundary; several holders stack 60/70/80 and the stack moves
   down 1,000 when the bottom aircraft is tower jurisdiction, so the pattern
-  always owns 60), KGWO (VOR approach, block with D67), KMLU whose printed
-  strip posts STUEE: the controller writes DINKY beside it, takes the STUEE
+  always owns 60), KGWO (VOR approach, block with D67), KMLU from any airway into MHZ except from the Monroe side, then V18
+  HEDUD DINKY STUEE, whose printed strip posts STUEE: the controller writes DINKY beside it, takes the STUEE
   estimate minus 3 as the DINKY estimate and clears the aircraft to hold at
   DINKY on V18 (`H- NE V18 EFC`, EFC = DINKY estimate + 5, 7,000, `C 49 NE
   MLU`, inbound to MLU Approach, your control DINKY), and KVKS via V417/DORTS
@@ -54,11 +54,11 @@ and its **Sector 66 "Jackson Low"** non-radar environment.
 - **Remote strips** — the scenario bar switches the board between the
   Controller's strips and the Remote's (`assets/js/remote.js`, or open
   `strips.html#D3A-K7Q2MX/remote`). Remote strips add the typed scenario data
-  in space 26 (IC time based on when the aircraft enters Sector 66, REQ CLNC
-  5 minutes before the P-time, ON FREQUENCY for aircraft already checked on,
+  in space 26 (IC time based on when the aircraft enters Sector 66, RC (clearance
+  request) 5 minutes before the P-time, ON FREQUENCY for aircraft already checked on,
   altitude requests, KVKS weather, DEPARTURE #n for same-time requests), the
   card's miles per minute in red in space 9, and the red call reminders in
-  space 27 in time order (IC, RQ, PR at the center estimate, Z two minutes
+  space 27 in time order (IC, RC, RQ, PR at the center estimate, Z two minutes
   after a JAN/MLU arrival's fix, LD for KGWO/KVKS arrivals). Blank IC/PR/LD
   times are underlined and filled in during the problem; RP is added from
   the rail; clicking a reminder lines it through. Typing the actual
@@ -91,14 +91,19 @@ Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
 
 ## Planned
 
+- KVKS departures may leave on the HEZ026 radial (`KVKS HEZ ...` or `KVKS
+  KHEZ`, the radial coordinated with POE LO, "cleared via the HEZ zero two
+  six radial" for KHEZ). A KVKS departure under a holding KVKS arrival stays
+  below the holder until its miss point (37 SW MHZ, 54 SE MLU or 25 NE HEZ)
+  and reports passing it; the arrival is held until that report.
 - Departures from 0M8 or KVKS never land at KMLU (Sector 66 works KMLU
   arrivals through DINKY; a departure inside the sector does not fit that
   process). A Byerley departure may land at a JAN field: its departure strip
   and its MHZ arrival strip both sit in suspense, and the MHZ strip carries
   the JAN hold and TCP.
-- KVKS arrivals via the HEZ026 radial from Natchez (only the V417 / DORTS
-  route is generated), KVKS departure vs. KVKS arrival (37 SW MHZ and 45 SE
-  MLU reports), non-DME KMLU arrivals.
+- KVKS arrival vs. KVKS departure when the arrival is on the approach rather
+  than holding (Lab Procedures III-52, the 45 SE MLU report): the engine
+  forces the hold instead.
 - KGWO departure vs. KGWO arrival (tower visual separation, approach
   airspace reports), KGWO holding stacks.
 - Grading the controller's actions against the answer key.
