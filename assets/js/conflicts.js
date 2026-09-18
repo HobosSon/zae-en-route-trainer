@@ -441,6 +441,12 @@
         p.depInstr = SYM.enterCA + " 150 " + SYM.join + " V427";
         p.depInstrPhr = "when entering controlled airspace fly heading one five zero until joining Victor Four Twenty-seven, Victor Four Twenty-seven Magnolia";
         addRestriction(p, { kind: "cross", node: "MHZ", nm: 18, dir: "NW", on: "V427", limit: "above", alt: RULES.JAN_TOP + 1000, why: "airspace", label: "JAN Approach airspace (5,000 and below)" });
+      } else if (apt === "KMLU") {
+        // MLU LOA: Center issues the clearance, Monroe Approach relays it; V18 east
+        // through JAN airspace (5,000 and below): at or above 6,000 by 19 SW MHZ
+        p.viaPhr = "Victor Eighteen Magnolia as filed";
+        const b = boundaryFrom("V18", "MHZ", "JAN");
+        if (b) addRestriction(p, { kind: "cross", node: "MHZ", nm: b.nm, dir: b.dir, on: "V18", limit: "above", alt: RULES.JAN_TOP + 1000, why: "airspace", label: "JAN Approach airspace (5,000 and below)" });
       } else if (apt === "KVKS" && f.hez026) {
         // Natchez 026 radial: not in the filed route, coordinated with POE LO; no JAN/MLU airspace on it
         p.depInstr = "HEZ026R";
@@ -1070,6 +1076,9 @@
         if (p.depRule) phr += ". " + p.depRule.phr.charAt(0).toUpperCase() + p.depRule.phr.slice(1);
         ctrl.phraseology.push(phr + ".");
         ctrl.items.push("EDC " + toHHMM(p.edc) + " if the clearance cannot be issued when requested (10 minutes from the request).");
+        if (f.depAtFix) ctrl.items.push("KMLU departure strip: KMLU and the P-time in 11/12, the plus time to STUEE in 14a, EDC in 14 above it, STUEE posted with MHZ next. No split box: write the assumed departure time in red under the P-time and the actual departure time in black under that; space 18 is for the STUEE progression time. Monroe Approach relays the clearance (MLU LOA).");
+        else ctrl.items.push("Split the box (space 18) when issuing the EDC: assumed departure time in red on the left of the slash, actual departure time in black on the right" + (f.strips.length === 1 && !f.destAirport ? "; the assumed time is coordinated and circled in red" : "; the last-fix estimate (assumed departure time plus the plus times) is coordinated and its minutes circled in red") + ".");
+        if (f.nextSector) ctrl.items.push("Recoordinate with " + f.nextSector + " with a revised estimate if the actual departure time or a pilot estimate is 4 or more minutes off what was coordinated.");
         if (p.voidTime != null) ctrl.items.push("Uncontrolled field: void time " + toHHMM(p.voidTime) + " (advise by " + toHHMM(p.voidTime + RULES.ADVISE_MIN) + "), and the “verify” phraseology because departure instructions were issued.");
         if (apt === "KJAN" || apt === "KJVW") ctrl.items.push("JAN LOA: the tower clears the aircraft direct MHZ with a restriction to cross MHZ at or below 5,000 — Center issues route and altitude.");
         if (f.nextSector) ctrl.coordination.push("APREQ " + f.nextSector + ": “In suspense, " + f.cs + ", assumed " + ZAE.AIRPORTS[apt].name + " departure " + toHHMM(f.baseT) + ", climbing to " + spoken(p.finalAlt) + (f.hez026 ? ", via the Natchez zero two six radial" : "") + (p.depRule && p.depRule.kind !== "2MIN" ? ", using the " + (p.depRule.kind === "44K" ? "forty-four" : "twenty-two") + " knot rule in trail of " + p.depRule.text.split("< ")[1] : "") + ".”");
@@ -1184,13 +1193,17 @@
       if (rs.length) add("20", { bar: true });
       rs.forEach(function (r) { add("20", { t: restrictionMark(r), c: r.why === "traffic" ? "red" : "red", circ: "blk" }); });
       if (ws.length) add("24", { t: SYM.warn, c: "red", strike: true });
+      const single = f.strips.length === 1 && !f.destAirport; // coordination circle: the assumed time itself
       if (isDep) {
         if (p.depInstr) add("15", { t: p.depInstr, c: "red", circ: "blk" });
         if (p.depRule) add("15", { t: p.depRule.text, c: "blk" });
         if (p.voidTime != null) add("15", { t: "V<" + toHHMM(p.voidTime) + "(" + toHHMM(p.voidTime + RULES.ADVISE_MIN).slice(2) + ")", c: "blk" });
         add("14", { t: "EDC " + toHHMM(p.edc), c: "blk", strike: true });
-        add("18", { t: toHHMM(f.baseT) + "/", c: "red" });
+        if (f.depAtFix) add("12b", { t: toHHMM(f.baseT), c: "red" }); // KMLU: assumed departure time under the P-time (actual in black below it)
+        else { add("18", { t: toHHMM(f.baseT), c: "red", circ: single ? "red" : null, row: true }); add("18", { t: "/", c: "red", row: true }); } // split box: assumed | actual
       }
+      // multi-strip departure: the last fix's estimate is what is coordinated — its minutes circled in red
+      if (!single && !f.destAirport && s === f.strips[f.strips.length - 1] && f.nextSector && s.spaces["15"]) add("15", { t: s.spaces["15"], c: "blk", circMm: "red", replace: true });
       if (p.altNotAvail) add("26", { t: hundreds(p.altNotAvail.requested) + " 10<D", c: "blk" });
       p.reports.forEach(function (r) { if (bayNodes.indexOf(r.text.split(" ").pop()) !== -1 || isDep) add("26", { t: r.text, c: "blk" }); });
       if (p.depRule && p.depRule.kind !== "2MIN") add("26", { t: p.depRule.kind.replace("K", "K <") + " " + p.depRule.text.split("< ")[1], c: "blk" });
@@ -1200,8 +1213,6 @@
         add("29", { t: p.tcp, c: "blk" });
         add("15", { t: s.spaces["15"], c: "blk", circ: "red", replace: true });
       }
-      // coordination circle on the altitude of the strip leaving the sector
-      if (s === f.strips[f.strips.length - 1] && f.nextSector) add("20", { t: hundreds(p.finalAlt), c: "blk", circ: "red", corner: true });
     } else if (f.kind === "arrival") {
       add("20", { t: hundreds(f.alt), c: "blk", alt: true });
       const rs = p.restrictions.filter(applies);

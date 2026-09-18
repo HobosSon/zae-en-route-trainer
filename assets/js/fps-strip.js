@@ -81,6 +81,7 @@
     "18": { x: 29.5, y: 60, w: 10.5, h: 20 }, "20": { x: 41, y: 4, w: 18.5, h: 92 }, "23": { x: 59.6, y: 48, w: 6.5, h: 22 },
     "24": { x: 60, y: 74, w: 6.5, h: 24 }, "26": { x: 67, y: 48, w: 23.5, h: 50 }, "28": { x: 91.2, y: 26, w: 8.5, h: 56 },
     "19": { x: 31.5, y: 78, w: 8.5, h: 20 },   // beside the posted fix (an amended fix)
+    "12b": { x: 15.8, y: 38, w: 8, h: 16 },    // under the P-time (KMLU: assumed / actual departure times)
     "15b": { x: 24.5, y: 30, w: 14, h: 28 }    // under the center estimate (a coordinated estimate for another fix)
   };
   const MARK_HIDES_BASE = { "20": 1 }; // the marks restate this space in full (15 only when a mark replaces it)
@@ -97,11 +98,15 @@
       const box = MARK_BOX[sp];
       const list = grouped[sp];
       if (!list || !list.length) return;
-      const m = el("div", "fps-marks mk-sp" + sp);
+      const m = el("div", "fps-marks mk-sp" + sp + (list.some(function (mk) { return mk.row; }) ? " mk-row" : ""));
       m.style.left = box.x + "%"; m.style.top = box.y + "%"; m.style.width = box.w + "%"; m.style.height = box.h + "%";
       list.forEach(function (mk) {
         if (mk.bar) { m.appendChild(el("span", "mk-bar")); return; }
-        const s = el("span", "mk " + (mk.c === "red" ? "mk-red" : "mk-blk") + (mk.circ ? " mk-circ-" + mk.circ : "") + (mk.ul ? " mk-ul-" + mk.ul : "") + (mk.strike ? " mk-strike" : "") + (mk.corner ? " mk-corner" : "") + (mk.big ? " mk-big" : "") + (mk.alt ? " mk-alt" : ""), slashZero(mk.t));
+        const s = el("span", "mk " + (mk.c === "red" ? "mk-red" : "mk-blk") + (mk.circ ? " mk-circ-" + mk.circ : "") + (mk.ul ? " mk-ul-" + mk.ul : "") + (mk.strike ? " mk-strike" : "") + (mk.corner ? " mk-corner" : "") + (mk.big ? " mk-big" : "") + (mk.alt ? " mk-alt" : ""));
+        if (mk.circMm && /^\d{4}$/.test(String(mk.t))) { // HHMM with only the minutes circled (a coordinated estimate)
+          s.appendChild(document.createTextNode(slashZero(String(mk.t).slice(0, 2))));
+          s.appendChild(el("span", "mk-circ-" + mk.circMm + " mk-mm", slashZero(String(mk.t).slice(2))));
+        } else s.textContent = slashZero(mk.t);
         m.appendChild(s);
       });
       wrap.appendChild(m);
@@ -163,11 +168,11 @@
       m.title = "Miles per minute (Color Card Stock Map speed table)";
       wrap.appendChild(m);
     }
-    if (r.plus23) { // the Remote's strips print a departure flight's plus time in 23
-      const c23 = wrap.querySelector('.fps-cell[data-f="23"]'), c14 = wrap.querySelector('.fps-cell[data-f="14a"]');
+    if (r.plus23) { // the Remote's strips print the plus time to the NEXT fix in 23 (the controller moves it to the next strip's 14a)
+      const c23 = wrap.querySelector('.fps-cell[data-f="23"]');
       if (c23) { c23.textContent = slashZero(r.plus23); c23.classList.add("fps-plus23"); }
-      if (c14) c14.classList.add("mk-hidden");
     }
+    if (!r.keep14a) { const c14 = wrap.querySelector('.fps-cell[data-f="14a"]'); if (c14 && c14.textContent) c14.classList.add("mk-hidden"); }
     if (r.lines26 && r.lines26.length) {
       const b = el("div", "fps-cell fps-r26");
       r.lines26.forEach(function (t) { b.appendChild(el("div", null, slashZero(t))); });

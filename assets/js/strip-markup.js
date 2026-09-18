@@ -178,8 +178,8 @@
     if (isRemote(strip)) {
       g.appendChild(renderReminders(strip, stripEl, m));
       if (strip.remote.dep) {
-        const d = editable("sm-dep18 sm-blk", m.dep18, function (x) { m.dep18 = x.textContent.replace(/[^\d]/g, "").slice(0, 4); if (ui.hooks.onDepTime) ui.hooks.onDepTime(strip, m.dep18, stripEl); }, { placeholder: "    " });
-        d.title = "Actual departure time (2 minutes after the clearance): the fix estimates, IC and PR times follow from it";
+        const d = editable("sm-dep18 sm-blk" + (strip.remote.depBox === "12" ? " sm-dep12" : ""), m.dep18, function (x) { m.dep18 = x.textContent.replace(/[^\d]/g, "").slice(0, 4); if (ui.hooks.onDepTime) ui.hooks.onDepTime(strip, m.dep18, stripEl); }, { placeholder: "    " });
+        d.title = (strip.remote.depBox === "12" ? "Actual departure time under the P-time (KMLU: space 18 is for the STUEE progression)" : "Actual departure time (2 minutes after the clearance)") + ": the fix estimates, IC and PR times follow from it";
         layer.appendChild(d);
       }
     }

@@ -78,7 +78,7 @@ and its **Sector 66 "Jackson Low"** non-radar environment.
   strip shows `IC 0532 WITH TANGO` and `ATIS TANGO` (space 26 full times, space 27 minutes only); a KVKS arrival without the
   weather shows `REQ VKS WX` under its IC line). A departure flight's plus
   time may be typed in space 23 as printed on the Remote's strip; the
-  Controller's strip carries it under space 14. The Remote's space-27
+  Controller's strip carries it in 14a of the next strip. The Remote's space-27
   reminders and space-26 lines are derived (`ZAERemote.decorateAuthored`),
   never typed. To bake a level: Author static levels → Save to slot N →
   Export static JSON → paste into `assets/data/scenarios.js` and commit. The player
@@ -91,6 +91,19 @@ Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
 
 ## Planned
 
+- KMLU departures (cleared through Monroe Approach, V18 by default): the
+  departure strip is posted at STUEE with KMLU and the P-time in 11/12, the
+  plus time to STUEE in 14a, EDC in 14, MHZ next; no split box — the assumed
+  departure time goes in red under the P-time (actual in black below it) and
+  space 18 is for the STUEE progression time. Other departures split space 18
+  when the EDC is issued (assumed time in red left of the slash, actual in
+  black right of it); a single-strip departure's assumed time is circled in
+  red as the coordinated time, a multi-strip departure's last-fix estimate
+  has its minutes circled. Recoordinate when a departure time or pilot
+  estimate is 4 or more minutes off what was coordinated.
+- Plus times: the Remote's strips print, in space 23, the plus time from the
+  posted fix to the next fix; the controller writes it in 14a of the
+  following strip. The builder accepts 23 as printed and copies it forward.
 - KVKS departures may leave on the HEZ026 radial (`KVKS HEZ ...` or `KVKS
   KHEZ`, the radial coordinated with POE LO, "cleared via the HEZ zero two
   six radial" for KHEZ). A KVKS departure under a holding KVKS arrival stays

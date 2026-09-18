@@ -321,7 +321,11 @@
 
   // Airports and the airway points a departure may continue on. Byerley
   // (0M8) joins V427 and goes MHZ-bound; it never turns back toward MLU.
-  const DEP_AIRPORTS = ["KJAN", "KJVW", "KGWO", "KVKS", "0M8"];
+  const DEP_AIRPORTS = ["KJAN", "KJVW", "KGWO", "KVKS", "0M8", "KMLU"];
+  // KMLU departures: cleared through MLU Approach, always V18 by default. Their
+  // departure strip is posted at STUEE (KMLU and the P-time in 11/12, the plus
+  // time to STUEE in 14a, MHZ as the next fix); the MHZ strip follows.
+  const KMLU_DEP = { first: "STUEE", nm: 19 };
   const ARR_AIRPORTS = ["KJAN", "KJVW", "KGWO", "KGWO", "KMLU", "KVKS"];
   // How each arrival ends: the airway feeder (holding fix or the posting before
   // it), extra legs after the airway, the airport leg, the filed route tail
@@ -363,6 +367,7 @@
       let routeOverride = null;
       let arrSpec = null;
       let hez026 = null;
+      let depAtFix = null;
 
       if (kind === "departure") {
         const aptId = pick(DEP_AIRPORTS);
@@ -385,6 +390,13 @@
           dest = toKHEZ ? "KHEZ" : pick(["KBTR", "KASD"]);
           routeOverride = toKHEZ ? "KVKS KHEZ" : "KVKS HEZ " + dest;
           hez026 = { toKHEZ: toKHEZ };
+        } else if (aptId === "KMLU") {
+          aw = ZAE.AIRWAYS.V18; trav = traverse(aw, true); // MLU STUEE DINKY HEDUD MHZ MEI
+          startIdx = trav.points.indexOf(KMLU_DEP.first); endIdx = trav.points.length - 1;
+          prefix = [["KMLU", 0, null], [KMLU_DEP.first, KMLU_DEP.nm, "V18"]];
+          entryNav = KMLU_DEP.first; exitNav = trav.points[endIdx]; dest = externalFor(exitNav);
+          routeOverride = "KMLU V18 MHZ V18 " + exitNav + " " + dest;
+          depAtFix = KMLU_DEP.first;
         } else if (aptId === "0M8" && chance(BYERLEY_JAN_SHARE)) {
           // Byerley to a JAN Approach field: 0M8 -> 150 to join V427 -> MHZ -> the airport.
           // A departure that is also a JAN arrival: departure strip and MHZ arrival strip, both in suspense.
@@ -481,7 +493,7 @@
       }
       // posted events (one per bay), which also bound the scenario window
       const postedIdx = [];
-      if (kind === "departure") postedIdx.push(0);
+      if (kind === "departure") postedIdx.push(depAtFix ? nodeIdxOf(nodes, depAtFix) : 0); // KMLU: the departure strip is the STUEE posting
       nodes.forEach(function (n, i) {
         if (i === 0 && kind === "departure") return;
         const awOf = n.awIdx != null ? aw : (ZAE.AIRWAYS[n.via] || null); // suffix legs use their own airway's postings
@@ -561,7 +573,7 @@
         alt: filedAlt, reqAlt: filedAlt, appropriateAlt: alt, iafdof: !!iafdofAlt, floor: floor, cap: cap,
         originAirport: originAirport, destAirport: destAirport, origin: origin, dest: dest,
         entryNav: entryNav, exitNav: exitNav, exitFacility: exitFacility, nextSector: NEXT_SECTOR[exitNav] || null,
-        holdFix: destAirport ? (arrSpec.holdFix || arrSpec.feeder) : null, hez026: hez026,
+        holdFix: destAirport ? (arrSpec.holdFix || arrSpec.feeder) : null, hez026: hez026, depAtFix: depAtFix,
         nodes: nodes, events: events, baseT: baseT, route: routeStr, strips: [],
         onFreq: onFreq, entryT: entryT, icT: icT, altReq: altReq, vksWx: vksWx
       };
@@ -596,7 +608,7 @@
 
     f.events.forEach(function (ei, evNo) {
       const n = f.nodes[ei];
-      const evt = ei === 0 && kind === "departure" ? "departure" : (f.destAirport && evNo === f.events.length - 1 ? "arrival" : "enroute");
+      const evt = evNo === 0 && kind === "departure" ? "departure" : (f.destAirport && evNo === f.events.length - 1 ? "arrival" : "enroute");
       const s = {};
       s["3"] = f.cs;
       s["4"] = (f.ac.heavy ? "H/" : "") + f.type + "/" + f.equip;
@@ -611,10 +623,19 @@
       let prev = prevComp(f, ei);
       // the strip directly after a departure strip is preceded by the airport
       // itself: previous fix is the airport and the previous time is its P-time
-      if (kind === "departure" && evNo === 1) prev = { id: f.originAirport, apt: true, t: f.baseT };
+      if (kind === "departure" && evNo === 1 && !f.depAtFix) prev = { id: f.originAirport, apt: true, t: f.baseT };
       const next = nextComp(f, ei);
 
-      if (evt === "departure") {
+      if (evt === "departure" && f.depAtFix) {
+        // KMLU: the departure strip is the STUEE posting — airport and P-time in 11/12,
+        // plus time to STUEE in 14a, STUEE estimate in 15, MHZ next
+        s["16"] = "↑";
+        s["11"] = f.originAirport; s["12"] = "P" + toHHMM(f.baseT);
+        const pt = Math.round(n.rel); if (pt) s["14a"] = "+" + pt;
+        s["15"] = toHHMM(n.t);
+        s["19"] = n.id;
+        s["21"] = next ? next.id : firstFix.id;
+      } else if (evt === "departure") {
         s["16"] = "↑";
         s["21"] = firstFix.id;
         s["19"] = f.originAirport + " P" + toHHMM(f.baseT);

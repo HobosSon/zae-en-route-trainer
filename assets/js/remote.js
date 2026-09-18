@@ -17,11 +17,14 @@
  * Blank times are underlined and filled in during the problem. Every estimate
  * a Remote makes uses the card's rough miles per minute, never the real speed.
  *
- * Plus times: the Remote's printed strips carry a departure flight's plus
- * time in space 23; the Controller's strips carry it in its own spot under
- * space 14 (14a), leaving 23 for the direction arrow. Authored strips may
- * have it in either place — it is normalised to 14a and strip.remote.plus23
- * is what the Remote view prints in 23.
+ * Plus times: on the Remote's printed strips a departure flight's strip
+ * carries, in space 23, the plus time from its posted fix to its NEXT fix
+ * (space 21). The controller moves that number to 14a of the following strip
+ * (the plus from the previous fix, space 11, to that strip's fix), leaving 23
+ * for the direction arrow. KMLU departure strips also print 14a themselves
+ * (KMLU to STUEE, the P-time being in 12). Authored strips may carry 23 as
+ * printed; it is copied into the next strip's 14a and strip.remote.plus23 is
+ * what the Remote view prints in 23.
  *
  * Space 26 is split in two: spaces["26"] holds the remarks both sides see
  * (FRC, ...); strip.remote.fields holds the Remote-only data, from which the
@@ -72,7 +75,7 @@
   const HOLD_APCH = { KJAN: "Jackson Approach", KHKS: "Jackson Approach", KJVW: "Jackson Approach", KMLU: "Monroe Approach" };
   const LAND_CALLER = { KGWO: "Greenwood Tower", KVKS: "Flight Service" };
   // who calls Jackson Low for the departure clearance
-  const REQUESTER = { KGWO: "Greenwood Tower", KJAN: "Jackson Approach", KHKS: "Jackson Approach", KJVW: "Jackson Approach", KVKS: "Flight Data", "0M8": "Flight Data" };
+  const REQUESTER = { KGWO: "Greenwood Tower", KJAN: "Jackson Approach", KHKS: "Jackson Approach", KJVW: "Jackson Approach", KVKS: "Flight Data", "0M8": "Flight Data", KMLU: "Monroe Approach" };
 
   const ICAO = ["Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf", "Hotel", "India", "Juliett", "Kilo", "Lima", "Mike", "November", "Oscar", "Papa", "Quebec", "Romeo", "Sierra", "Tango", "Uniform", "Victor", "Whiskey", "X-ray", "Yankee", "Zulu"];
   function atisWord(letter) { const i = String(letter || "").trim().toUpperCase().charCodeAt(0) - 65; return i >= 0 && i < 26 ? ICAO[i] : null; }
@@ -113,6 +116,7 @@
       }
       if (fields.depSeq) r.lines26.push("DEPARTURE #" + fields.depSeq);
       add("IC", null, (P != null ? P : 0) + DEP_AFTER_CLNC + IC_AFTER_DEP);
+      if (info.depAtFix && info.prEst != null) add("PR", null, info.prEst); // KMLU: the departure strip is also the STUEE posting
       r.calls.push({ k: "IC", at: null, who: cs, text: "Aero Center, " + cs + " off " + fixName(info.originAirport || "the airport") + " at (departure time), climbing to (assigned altitude)" + (info.depFirstFix ? ", " + fixName(info.depFirstFix) + " next" : "") + ". — 2 minutes after the departure time, which is 2 minutes after the clearance." });
     } else {
       const est = info.est != null ? info.est : fromHHMM((strip.spaces || {})["15"]);
@@ -163,14 +167,17 @@
     return r;
   }
 
-  // A departure flight's plus time: normalise to "+NN" in 14a, remember it for space 23 on the Remote's strip.
-  function movePlusTime(s) {
-    const sp = s.spaces || (s.spaces = {});
-    const m23 = String(sp["23"] || "").trim().match(/^\+?\s*(\d{1,2})$/);
-    if (m23) { sp["14a"] = "+" + m23[1]; delete sp["23"]; }
-    const m14 = String(sp["14a"] || "").trim().match(/^\+?\s*(\d{1,2})$/);
-    if (m14) sp["14a"] = "+" + m14[1];
-    return m14 ? "+" + m14[1] : (m23 ? "+" + m23[1] : null);
+  // The plus time printed in space 23 of a generated departure strip: from its
+  // posted fix to the next fix (the following strip's 14a; for the last strip,
+  // the time to the next compulsory node).
+  function plusOf(v) { const m = String(v == null ? "" : v).trim().match(/^\+?\s*(\d{1,2})$/); return m ? "+" + m[1] : null; }
+  function plusToNext(f, s, k) {
+    const nxt = f.strips[k + 1];
+    if (nxt && plusOf(nxt.spaces["14a"])) return plusOf(nxt.spaces["14a"]);
+    const n = f.nodes[s.nodeIdx], nc = nextComp(f, n.idx);
+    if (!nc) return null;
+    const pt = Math.round(nc.rel - (s.type === "departure" && !f.depAtFix ? 0 : n.rel));
+    return pt ? "+" + pt : null;
   }
 
   // the strip the aircraft is working at time t: first posting still ahead, else the last
@@ -203,7 +210,7 @@
         const nx = s.type === "departure" ? null : nextComp(f, n.idx), nx2 = nx ? nextComp(f, nx.idx) : null;
         const icFix = !f.onFreq && f.icT != null ? (firstCompAfter(f, f.icT) || n) : n;
         const info = {
-          kind: f.kind, cs: f.cs, alt: f.alt, est: n.t, fix: n.id, nextFix: nx ? nx.id : null, nextFixT: nx ? nx.t : null, nextNextFix: nx2 ? nx2.id : null,
+          kind: f.kind, cs: f.cs, alt: f.alt, est: s.type === "departure" ? f.baseT : n.t, prEst: n.t, depAtFix: !!f.depAtFix, fix: n.id, nextFix: nx ? nx.id : null, nextFixT: nx ? nx.t : null, nextNextFix: nx2 ? nx2.id : null,
           originAirport: f.originAirport, destAirport: f.destAirport, dest: f.dest, firstOfFlight: k === 0,
           landT: f.kind === "arrival" ? f.nodes[f.nodes.length - 2].t : null, landFix: f.kind === "arrival" ? f.nodes[f.nodes.length - 2].id : null,
           icFix: icFix.id, icFixT: icFix.t, icNext: (function () { const a = nextComp(f, icFix.idx); return a ? a.id : null; })(),
@@ -211,7 +218,9 @@
         };
         const r = derive(s, fields, info);
         r.mpm = mpm; r.fields = fields; r.dep = s.type === "departure"; r.flightId = f.id; r.k = k;
-        r.plus23 = k > 0 ? movePlusTime(s) : null;
+        r.plus23 = f.kind === "departure" ? plusToNext(f, s, k) : null;
+        r.keep14a = !!(f.depAtFix && s.type === "departure");
+        r.depBox = f.depAtFix ? "12" : "18";
         s.remote = r;
       });
     });
@@ -221,7 +230,12 @@
   function tokens(route) { return String(route || "").toUpperCase().split(/[\s./]+/).filter(Boolean); }
   function isAirport(x) { x = String(x || "").trim().toUpperCase(); return x === "0M8" || /^K[A-Z0-9]{3}$/.test(x); }
   function postedFix(s) { return String((s.spaces || {})["19"] || "").trim().split(/\s+/)[0].toUpperCase(); }
-  function pTime(s) { const m = String((s.spaces || {})["19"] || "").replace(/Ø/g, "0").match(/P\s*(\d{4})/i); return m ? m[1] : null; }
+  function pTime(s) { // "KVKS P0516" in 19, or (KMLU) P0516 in 12 with the airport in 11
+    const sp = s.spaces || {};
+    let m = String(sp["19"] || "").replace(/Ø/g, "0").match(/P\s*(\d{4})/i); if (m) return m[1];
+    m = String(sp["12"] || "").replace(/Ø/g, "0").match(/^P\s*(\d{4})/i); return m ? m[1] : null;
+  }
+  function depAtFixOf(s) { const sp = s.spaces || {}; return !/P\s*\d{4}/i.test(String(sp["19"] || "")) && /^P\s*\d{4}/i.test(String(sp["12"] || "")) ? postedFix(s) : null; }
   function stripEst(s) { return s.type === "departure" ? fromHHMM(pTime(s)) : fromHHMM((s.spaces || {})["15"]); }
   function altOf(s) { const v = parseInt(String((s.spaces || {})["20"] || (s.spaces || {})["24"] || "").replace(/\D/g, ""), 10); return v ? v * 100 : null; }
 
@@ -245,10 +259,10 @@
       const arr = list.filter(function (s) { return s.type === "arrival"; })[0];
       const route = tokens(list[0].spaces && list[0].spaces["25"]);
       const kind = dep ? "departure" : arr ? "arrival" : "overflight";
-      const originAirport = dep ? postedFix(dep) : (isAirport(route[0]) ? route[0] : null);
+      const originAirport = dep ? (depAtFixOf(dep) ? String(dep.spaces["11"] || "").trim().toUpperCase() : postedFix(dep)) : (isAirport(route[0]) ? route[0] : null);
       const arrNext = arr ? String(arr.spaces["21"] || "").trim().toUpperCase() : "";
       const destAirport = arr ? (isAirport(arrNext) ? arrNext : (isAirport(route[route.length - 1]) ? route[route.length - 1] : null)) : null;
-      const f = { id: "A" + (fi + 1), seq: fi + 1, cs: cs, kind: kind, strips: list, originAirport: originAirport, destAirport: destAirport, dest: route[route.length - 1] || null, alt: altOf(list[0]), tas: parseInt(String(list[0].spaces["5"] || "").replace(/\D/g, ""), 10) || null, authored: true };
+      const f = { id: "A" + (fi + 1), seq: fi + 1, cs: cs, kind: kind, strips: list, originAirport: originAirport, destAirport: destAirport, dest: route[route.length - 1] || null, alt: altOf(list[0]), tas: parseInt(String(list[0].spaces["5"] || "").replace(/\D/g, ""), 10) || null, authored: true, depAtFix: dep ? depAtFixOf(dep) : null };
       list.forEach(function (s) { s.flightId = f.id; s.cs = cs; });
       return f;
     });
@@ -270,7 +284,15 @@
       const mpm = f.tas ? cardMPM(f.tas) : null;
       f.remote = { mpm: mpm };
       f.strips.forEach(function (s, k) {
-        const plus23 = f.kind === "departure" && s.type !== "departure" ? movePlusTime(s) : null;
+        // authored: a plus time typed in 23 (as printed) belongs in the next strip's 14a
+        let plus23 = null;
+        if (f.kind === "departure") {
+          const nxt = f.strips[k + 1];
+          const p23 = plusOf(s.spaces["23"]);
+          if (p23) { delete s.spaces["23"]; if (nxt && !plusOf(nxt.spaces["14a"])) nxt.spaces["14a"] = p23; }
+          plus23 = p23 || (nxt ? plusOf(nxt.spaces["14a"]) : null);
+          if (plusOf(s.spaces["14a"])) s.spaces["14a"] = plusOf(s.spaces["14a"]);
+        }
         const fields = normalizeFields(s.remoteFields);
         fields.atis = opts.atis || null;
         // the KVKS weather may be entered on any of the flight's strips; it prints under the IC line
@@ -281,7 +303,7 @@
         const nxt = f.strips[k + 1] || null;
         const fix = postedFix(s), nextFix = String((s.spaces || {})["21"] || "").trim().split(/\s+/)[0].toUpperCase() || null;
         const info = {
-          kind: f.kind, cs: f.cs, alt: altOf(s) || f.alt, est: stripEst(s), fix: fix, nextFix: nextFix,
+          kind: f.kind, cs: f.cs, alt: altOf(s) || f.alt, est: stripEst(s), prEst: fromHHMM((s.spaces || {})["15"]), depAtFix: !!f.depAtFix, fix: fix, nextFix: nextFix,
           nextFixT: nxt && postedFix(nxt) === nextFix ? stripEst(nxt) : null,
           nextNextFix: nxt && postedFix(nxt) === nextFix ? (String(nxt.spaces["21"] || "").trim().split(/\s+/)[0].toUpperCase() || null) : null,
           originAirport: f.originAirport, destAirport: f.destAirport, dest: f.dest, firstOfFlight: k === 0,
@@ -292,6 +314,8 @@
         const r = derive(s, fields, info);
         r.mpm = mpm; r.fields = fields; r.dep = s.type === "departure"; r.flightId = f.id; r.k = k;
         r.plus23 = plus23;
+        r.keep14a = !!(f.depAtFix && s.type === "departure");
+        r.depBox = f.depAtFix ? "12" : "18";
         s.remote = r;
       });
     });
@@ -306,9 +330,13 @@
     const out = { ic: depT + IC_AFTER_DEP, est: {} };
     let t = depT;
     f.strips.forEach(function (s, k) {
-      if (k === 0) return;
+      if (k === 0) { // KMLU: the departure strip is the STUEE posting, its own plus time from the airport
+        const p0 = f.depAtFix ? parseInt(String(s.spaces["14a"] || "").replace(/[^\d]/g, ""), 10) : NaN;
+        if (!isNaN(p0)) { t += p0; out.est[0] = t; }
+        return;
+      }
       const prev = f.strips[k - 1];
-      const prevId = k === 1 ? f.originAirport : postedFix(prev);
+      const prevId = k === 1 && !f.depAtFix ? f.originAirport : postedFix(prev);
       let plus = parseInt(String(s.spaces["14a"] || "").replace(/[^\d]/g, ""), 10);
       if (isNaN(plus) || String(s.spaces["11"] || "").toUpperCase() !== prevId) {
         if (f.nodes) plus = Math.round(f.nodes[s.nodeIdx].rel - (k === 1 ? 0 : f.nodes[prev.nodeIdx].rel));

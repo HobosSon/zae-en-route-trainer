@@ -301,6 +301,9 @@
 .fps-marks.mk-sp23 { font-size: 2.6cqw; align-items: center; }
 .fps-marks.mk-sp28 { font-size: 1.05cqw; }
 .fps-marks.mk-sp19 { font-size: 1.5cqw; align-items: flex-start; justify-content: flex-end; }
+.fps-marks.mk-sp12b { font-size: 1.4cqw; }
+.fps-marks.mk-row { flex-direction: row; align-items: baseline; gap: 0.15cqw; }
+.mk-mm { padding: 0 0.35cqw; border-radius: 50%; }
 .fps-marks.mk-sp15b { font-size: 1.45cqw; }
 .fps-marks.mk-sp28 .mk { white-space: normal; line-height: 1.05; }
 .fps-marks.mk-sp24, .fps-marks.mk-sp12, .fps-marks.mk-sp14, .fps-marks.mk-sp18 { font-size: 1.4cqw; }
@@ -402,6 +405,7 @@
 .sm-rmd-t { min-width: 1.6cqw; }
 .sm-rmd-blank { border-bottom: 0.2cqw solid #cf1f14; min-width: 2.2cqw; min-height: 1.2cqw; text-align: center; }
 .sm-dep18 { position: absolute; left: 30%; top: 60%; width: 9.5%; height: 19%; font-size: 1.55cqw; line-height: 1.1; font-weight: 700; white-space: pre; text-align: center; }
+.sm-dep18.sm-dep12 { left: 15.8%; top: 52%; width: 8%; height: 16%; text-align: left; }
 .sb-strip.is-selected .sm-dep18:empty::before { content: "18"; color: rgba(0, 0, 0, 0.18); font-weight: 400; }
 .sm-remote-only { display: none; }
 .sm-rail.is-remote .sm-remote-only { display: flex; }

@@ -166,7 +166,12 @@
       const times = ok ? root.ZAERemote.depTimes(flight, depT) : null;
       root.StripMarkup.setReminderTime(strip, stripEl, "IC", ok ? root.ZAERemote.mm(times.ic) : "");
       flight.strips.forEach(function (sib, k) {
-        if (k === 0) return;
+        if (k === 0) { // KMLU: the departure strip's own STUEE estimate and PR follow the departure time too
+          if (times && times.est[0] != null) { const m0 = root.StripMarkup.model(sib); m0.est15 = root.ZAERemote.toHHMM(times.est[0]); root.StripMarkup.setStrike(sib, "15", true); const e = stripEl && stripEl.querySelector(".sm-est15"); if (e) e.textContent = m0.est15; root.StripMarkup.setReminderTime(sib, stripEl, "PR", root.ZAERemote.mm(times.est[0])); }
+          else if (!ok && flight.depAtFix) { const m0 = root.StripMarkup.model(sib); m0.est15 = ""; root.StripMarkup.setStrike(sib, "15", false); const e = stripEl && stripEl.querySelector(".sm-est15"); if (e) e.textContent = ""; root.StripMarkup.setReminderTime(sib, stripEl, "PR", ""); }
+          root.StripMarkup.reposition(); // draw / clear the strike on the selected strip without redrawing it
+          return;
+        }
         const m = root.StripMarkup.model(sib);
         m.est15 = ok ? root.ZAERemote.toHHMM(times.est[k]) : "";
         root.StripMarkup.setStrike(sib, "15", ok);
@@ -183,7 +188,7 @@
     board = root.StripBoard.create(boardEl, {
       showNums: showNums,
       keepSelectionWithin: ".strip-details, .sm-ui, .scenario-bar", // reading the details, the marking tools or the view toggle must not deselect
-      renderOpts: function (st) { return view === "remote" && st.remote ? { remote: { mpm: st.remote.mpm, lines26: st.remote.lines26, plus23: st.remote.plus23 } } : null; },
+      renderOpts: function (st) { return view === "remote" && st.remote ? { remote: { mpm: st.remote.mpm, lines26: st.remote.lines26, plus23: st.remote.plus23, keep14a: st.remote.keep14a } } : null; },
       onSelect: function (strip, slot) {
         if (!revealAll) showDetails(strip);
         if (strip) root.StripMarkup.activate(strip, slot); else root.StripMarkup.deactivate();
