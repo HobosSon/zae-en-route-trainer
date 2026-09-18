@@ -172,6 +172,7 @@
         root.StripMarkup.setStrike(sib, "15", ok);
         const sEl = sib.uid ? board.stripEl(sib.uid) : null;
         root.StripMarkup.setReminderTime(sib, sEl, "PR", ok ? root.ZAERemote.mm(times.est[k]) : "");
+        root.StripMarkup.setReminderTime(sib, sEl, "Z", ok ? root.ZAERemote.mm(times.est[k] + root.ZAERemote.TOWER_JUR_AFTER) : "");
         if (sEl) root.StripMarkup.apply(sEl, sib);
       });
     }

@@ -336,6 +336,8 @@
   };
   const WEST_OF_MHZ = { MLU: 1, HATER: 1, DORTS: 1, STUEE: 1, DINKY: 1, HEDUD: 1, J417: 1, J417W: 1 };
   const KVKS_WEST_SHARE = 0.3;   // KVKS departures that go V417 west to MLU
+  const BYERLEY_JAN_SHARE = 0.35; // 0M8 departures that land at a JAN Approach field (both strips in suspense)
+  const JAN_FIELDS = ["KJAN", "KJVW"];
   const ENTRY_DEFAULT_NM = 10;   // sector boundary past an entry NAVAID with no listed boundary mileage
   function airportEntryNav(aptId) { return aptId === "KGWO" ? "SQS" : "MHZ"; }
   function airportLegNm(aptId) { const p = ZAE.DEP_PATHS[aptId]; return p ? p[0][1] : 10; }
@@ -366,7 +368,18 @@
           startIdx = trav.points.indexOf("DORTS"); endIdx = trav.points.indexOf("MLU");
           prefix = [["KVKS", 0, null], ["J417W", ZAE.DEP_PATHS.KVKSW[0][1], "HDG"], ["DORTS", ZAE.J417.westToDORTS, "V417"]];
           entryNav = "MLU"; exitNav = "MLU"; dest = externalFor("MLU");
+          if (dest === "KMLU") continue; // Sector 66 works KMLU arrivals through DINKY; a KVKS/0M8 departure does not fit that process
           routeOverride = "KVKS MLU " + dest;
+        } else if (aptId === "0M8" && chance(BYERLEY_JAN_SHARE)) {
+          // Byerley to a JAN Approach field: 0M8 -> 150 to join V427 -> MHZ -> the airport.
+          // A departure that is also a JAN arrival: departure strip and MHZ arrival strip, both in suspense.
+          aw = ZAE.AIRWAYS.V427; trav = traverse(aw, true); // MLU HATER MHZ
+          startIdx = endIdx = trav.points.indexOf("MHZ");
+          prefix = [["0M8", 0, null]].concat(ZAE.DEP_PATHS["0M8"].map(function (p) { return [p[0], p[1], p[2]]; }));
+          entryNav = "MHZ"; exitNav = "MHZ";
+          destAirport = pick(JAN_FIELDS); dest = destAirport;
+          arrSpec = { leg: ARRIVALS[destAirport].leg, minAlt: 6000, holdFix: "MHZ", feeder: "MHZ" };
+          routeOverride = "0M8 V427 MHZ " + destAirport;
         } else {
           const gw = airportEntryNav(aptId);
           aw = pick(airwaysThrough(gw));
@@ -377,6 +390,7 @@
           if ((aptId === "0M8" || aptId === "KVKS") && WEST_OF_MHZ[trav.points[gi + 1]]) continue;
           startIdx = gi; endIdx = trav.points.length - 1;
           entryNav = gw; exitNav = trav.points[endIdx]; dest = externalFor(exitNav);
+          if (dest === "KMLU") continue; // KMLU arrivals are worked through DINKY; departures inside 66 do not fit that process
           // airport -> gateway legs (LP03 airport locations / preplanned joins)
           prefix = [[aptId, 0, null]].concat(ZAE.DEP_PATHS[aptId].map(function (p) { return [p[0], p[1], p[2]]; }));
           if (aptId === "KVKS") prefix.push(["MHZ", ZAE.J417.toMHZ, "V417"]);
@@ -423,12 +437,12 @@
         if (nodes.length && nodes[nodes.length - 1].id === trav.points[k]) { nodes[nodes.length - 1].awIdx = k; continue; }
         nodes.push({ id: trav.points[k], d: cum, via: k > startIdx ? aw.id : (nodes.length ? nodes[nodes.length - 1].via : null), awIdx: k });
       }
-      if (kind === "arrival") {
+      if (destAirport) { // arrivals, and departures that land inside the sector
         suffix.forEach(function (p) { cum += p[1]; nodes.push({ id: p[0], d: cum, via: p[2] || "DCT" }); });
         cum += arrSpec.leg != null ? arrSpec.leg : airportLegNm(destAirport);
         nodes.push({ id: destAirport, d: cum, via: "DCT" });
       }
-      nodes.forEach(function (n, i) { n.bay = BAY_OF[n.id] || null; n.comp = isComp(n.id) || !!INTERNAL_APT[n.id] || (kind === "arrival" && i >= nodes.length - 2); n.idx = i; });
+      nodes.forEach(function (n, i) { n.bay = BAY_OF[n.id] || null; n.comp = isComp(n.id) || !!INTERNAL_APT[n.id] || (destAirport && i >= nodes.length - 2); n.idx = i; });
 
       // ---- times: chain rounded plus-times between compulsory nodes (as the
       // strips do), interpolate the rest. rel[] is minutes after the start.
@@ -482,7 +496,8 @@
 
       // ---- altitude
       const floor = Math.max(altitudeFloor(trav, startIdx, endIdx), arrSpec && arrSpec.minAlt ? arrSpec.minAlt : 0);
-      const cap = altitudeCap(trav, startIdx, endIdx, tier, ac);
+      let cap = altitudeCap(trav, startIdx, endIdx, tier, ac);
+      if (kind === "departure" && destAirport) cap = Math.min(cap, floor + 2000); // a short hop: no higher than two above the lowest
       if (cap < floor) continue; // e.g. V245 northeast of MHZ: 6,000 floor, 7,000 cap, parity may leave nothing
       const alt = chooseAltitude(trav, floor, tier, ac, cap);
       let iafdofAlt = null;
@@ -518,7 +533,7 @@
         alt: filedAlt, reqAlt: filedAlt, appropriateAlt: alt, iafdof: !!iafdofAlt, floor: floor, cap: cap,
         originAirport: originAirport, destAirport: destAirport, origin: origin, dest: dest,
         entryNav: entryNav, exitNav: exitNav, exitFacility: exitFacility, nextSector: NEXT_SECTOR[exitNav] || null,
-        holdFix: kind === "arrival" ? (arrSpec.holdFix || arrSpec.feeder) : null,
+        holdFix: destAirport ? (arrSpec.holdFix || arrSpec.feeder) : null,
         nodes: nodes, events: events, baseT: baseT, route: routeStr, strips: [],
         onFreq: onFreq, entryT: entryT, icT: icT, altReq: altReq, vksWx: vksWx
       };
@@ -552,7 +567,7 @@
 
     f.events.forEach(function (ei, evNo) {
       const n = f.nodes[ei];
-      const evt = ei === 0 && kind === "departure" ? "departure" : (kind === "arrival" && evNo === f.events.length - 1 ? "arrival" : "enroute");
+      const evt = ei === 0 && kind === "departure" ? "departure" : (f.destAirport && evNo === f.events.length - 1 ? "arrival" : "enroute");
       const s = {};
       s["3"] = f.cs;
       s["4"] = (f.ac.heavy ? "H/" : "") + f.type + "/" + f.equip;

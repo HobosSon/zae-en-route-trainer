@@ -128,7 +128,10 @@
         }
       }
       const arrHold = strip.type === "arrival" && HOLD_APCH[info.destAirport];
-      if (info.kind === "departure") {
+      if (arrHold && info.kind === "departure") {
+        if (est != null) add("Z", null, est + TOWER_JUR_AFTER); // a departure landing at a JAN field: its time follows from the departure time
+        r.calls.push({ k: "Z", at: null, who: HOLD_APCH[info.destAirport], text: "Jackson Low, " + HOLD_APCH[info.destAirport] + ", " + cs + " tower jurisdiction. — 2 minutes after the MHZ estimate once the aircraft is off." });
+      } else if (info.kind === "departure") {
         if (est != null) add("PR", null, est); // its time follows from the actual departure time
       } else if (arrHold) {
         if (est != null) {

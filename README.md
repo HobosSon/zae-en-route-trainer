@@ -91,6 +91,11 @@ Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
 
 ## Planned
 
+- Departures from 0M8 or KVKS never land at KMLU (Sector 66 works KMLU
+  arrivals through DINKY; a departure inside the sector does not fit that
+  process). A Byerley departure may land at a JAN field: its departure strip
+  and its MHZ arrival strip both sit in suspense, and the MHZ strip carries
+  the JAN hold and TCP.
 - KVKS arrivals via the HEZ026 radial from Natchez (only the V417 / DORTS
   route is generated), KVKS departure vs. KVKS arrival (37 SW MHZ and 45 SE
   MLU reports), non-DME KMLU arrivals.

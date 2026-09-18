@@ -263,7 +263,8 @@
     if (p.stackedWith && p.stackedWith.length) return [Math.min(b[0], lowestFor(arr)), b[1]];
     return b;
   }
-  function holdFix(f) { return f.kind === "arrival" ? (f.holdFix || f.nodes[f.nodes.length - 2].id) : null; }
+  // arrivals, and departures that land inside the sector (0M8 to a JAN field), hold at their fix
+  function holdFix(f) { return f.kind === "arrival" || (f.kind === "departure" && f.destAirport) ? (f.holdFix || f.nodes[f.nodes.length - 2].id) : null; }
   function hpaWindow(f) {
     const N = holdFix(f); if (!N) return null;
     const t = holdT(f);
@@ -342,14 +343,14 @@
   // ---- conflict detection --------------------------------------------------
   function pairConflicts(A, B, plan) {
     const out = [];
-    if (A.kind === "arrival") out.push.apply(out, hpaSegConflicts(A, B, plan));
-    if (B.kind === "arrival") out.push.apply(out, hpaSegConflicts(B, A, plan));
+    if (holdFix(A)) out.push.apply(out, hpaSegConflicts(A, B, plan));
+    if (holdFix(B)) out.push.apply(out, hpaSegConflicts(B, A, plan));
     sharedRuns(A, B).forEach(function (run) {
       if (run.dir === "cross" || run.pairs.length === 1) {
         const i = run.pairs[0][0], j = run.pairs[0][1];
         // at an arrival's holding fix the pattern airspace is what must be protected
-        if (A.kind === "arrival" && holdFix(A) === A.nodes[i].id) { const c = hpaConflict(A, B, j, plan); if (c) out.push(c); return; }
-        if (B.kind === "arrival" && holdFix(B) === B.nodes[j].id) { const c = hpaConflict(B, A, i, plan); if (c) { out.push(c); } return; }
+        if (holdFix(A) && holdFix(A) === A.nodes[i].id) { const c = hpaConflict(A, B, j, plan); if (c) out.push(c); return; }
+        if (holdFix(B) && holdFix(B) === B.nodes[j].id) { const c = hpaConflict(B, A, i, plan); if (c) { out.push(c); } return; }
         if (!bandsOverlap(bandAt(A, i, plan), bandAt(B, j, plan))) return;
         const dt = Math.abs(A.nodes[i].t - B.nodes[j].t);
         if (dt < RULES.LONG_MIN) out.push({ a: A, b: B, type: "cross", i: i, j: j, node: A.nodes[i].id, dt: dt, run: run });
@@ -434,6 +435,7 @@
         p.verify = true;
       }
       p.edc = f.baseT + RULES.EDC_MIN;
+      if (f.destAirport) janArrivalPlan(f, p); // a departure landing at a JAN field: it holds at MHZ too
     } else if (f.kind === "arrival") {
       const feeder = f.nodes[f.nodes.length - 2].id;
       const entryLegAw = f.nodes[1] ? f.nodes[1].via : f.aw;
@@ -476,23 +478,26 @@
         const di = nodeIndex(f, "DORTS");
         p.decideBy = di >= 0 ? f.nodes[di].t : f.nodes[f.nodes.length - 2].t;
       } else {
-        // JAN arrivals: cleared to MHZ, lowest ARTCC altitude, hold NW as published, no EFC
-        p.clearanceLimit = "MHZ";
-        p.efc = null;
-        p.holdMark = "H- NW";
-        p.holdPhr = "hold northwest as published, no delay expected";
-        // the JAN boundary on the side the arrival comes from (V9/V555/V557 cross it twice)
-        const fi = f.nodes.length - 2;
-        const inR = radialToward(f, fi, fi - 1);
-        const inAw = f.nodes[fi].via;
-        let b = null;
-        (ZAE.BOUNDARIES[inAw] || []).forEach(function (x) { if (x.nav === "MHZ" && x.to === "JAN" && (!b || (inR != null && x.dir === dirLabel(inR)))) b = x; });
-        p.tcp = b ? b.nm + " " + b.dir + " MHZ on " + inAw : "the JAN boundary";
-        p.tcpPhr = b ? b.nm + " miles " + DIR_WORD[b.dir] + " of Magnolia VORTAC on " + inAw : "the boundary";
-        const inbound = radialToward(f, f.nodes.length - 2, f.nodes.length - 3);
-        if (inbound != null && (inbound >= 271 || inbound === 360)) { p.levelAt = { nm: 9, dir: "NW" }; }
+        janArrivalPlan(f, p);
       }
     }
+  }
+  // JAN arrivals: cleared to MHZ, lowest ARTCC altitude, hold NW as published, no EFC
+  function janArrivalPlan(f, p) {
+    p.clearanceLimit = "MHZ";
+    p.efc = null;
+    p.holdMark = "H- NW";
+    p.holdPhr = "hold northwest as published, no delay expected";
+    // the JAN boundary on the side the arrival comes from (V9/V555/V557 cross it twice)
+    const fi = f.nodes.length - 2;
+    const inR = radialToward(f, fi, fi - 1);
+    const inAw = f.nodes[fi].via;
+    let b = null;
+    (ZAE.BOUNDARIES[inAw] || []).forEach(function (x) { if (x.nav === "MHZ" && x.to === "JAN" && (!b || (inR != null && x.dir === dirLabel(inR)))) b = x; });
+    p.tcp = b ? b.nm + " " + b.dir + " MHZ on " + inAw : "the JAN boundary";
+    p.tcpPhr = b ? b.nm + " miles " + DIR_WORD[b.dir] + " of Magnolia VORTAC on " + inAw : "the boundary";
+    const inbound = radialToward(f, f.nodes.length - 2, f.nodes.length - 3);
+    if (inbound != null && (inbound >= 271 || inbound === 360)) { p.levelAt = { nm: 9, dir: "NW" }; }
   }
 
   // ---- resolution ----------------------------------------------------------
@@ -931,7 +936,7 @@
   function initPlan(flights) {
     const plan = {};
     flights.forEach(function (f) {
-      plan[f.id] = { finalAlt: f.kind === "overflight" && f.iafdof ? f.appropriateAlt : f.alt, restrictions: [], reports: [], warnings: [], notes: [], coord: [], depRule: null, depInstr: null, altNotAvail: null, arrivalAlt: f.kind === "arrival" ? arrivalFloor(f) : null };
+      plan[f.id] = { finalAlt: f.kind === "overflight" && f.iafdof ? f.appropriateAlt : f.alt, restrictions: [], reports: [], warnings: [], notes: [], coord: [], depRule: null, depInstr: null, altNotAvail: null, arrivalAlt: f.destAirport ? arrivalFloor(f) : null };
       airspacePlan(f, plan[f.id]);
     });
     return plan;
@@ -1017,7 +1022,7 @@
           let firstFix = null; for (let k = mi + 1; k < f.nodes.length; k++) if (isNavaid(f.nodes[k].id)) { firstFix = f.nodes[k]; break; }
           via = (nxt ? spokenAirway(nxt.via) + " " : "") + (firstFix ? navName(firstFix.id) : "") + " as filed";
         }
-        let phr = f.cs + ", " + fromApt + dest + " Airport via " + via;
+        let phr = f.cs + ", " + fromApt + (ZAE.AIRPORTS[dest] ? ZAE.AIRPORTS[dest].name : dest) + " Airport via " + via;
         const traffic = p.restrictions.filter(function (r) { return !r.tower; });
         if (traffic.length) phr += ". " + traffic.map(restrictionPhr).map(function (s) { return s.charAt(0).toUpperCase() + s.slice(1); }).join(", ");
         phr += ". Climb and maintain " + spoken(p.finalAlt);
@@ -1030,6 +1035,14 @@
         if (p.voidTime != null) ctrl.items.push("Uncontrolled field: void time " + toHHMM(p.voidTime) + " (advise by " + toHHMM(p.voidTime + RULES.ADVISE_MIN) + "), and the “verify” phraseology because departure instructions were issued.");
         if (apt === "KJAN" || apt === "KJVW") ctrl.items.push("JAN LOA: the tower clears the aircraft direct MHZ with a restriction to cross MHZ at or below 5,000 — Center issues route and altitude.");
         if (f.nextSector) ctrl.coordination.push("APREQ " + f.nextSector + ": “In suspense, " + f.cs + ", assumed " + ZAE.AIRPORTS[apt].name + " departure " + toHHMM(f.baseT) + ", climbing to " + spoken(p.finalAlt) + (p.depRule && p.depRule.kind !== "2MIN" ? ", using the " + (p.depRule.kind === "44K" ? "forty-four" : "twenty-two") + " knot rule in trail of " + p.depRule.text.split("< ")[1] : "") + ".”");
+        if (f.destAirport) {
+          // the same aircraft is a JAN arrival: hold at MHZ, TCP at the JAN boundary, inbound coordination
+          const ap = [];
+          if (p.arrivalAlt < p.finalAlt) ap.push("descend and maintain " + spoken(p.arrivalAlt));
+          ctrl.phraseology.push("Once airborne (before MHZ): " + f.cs + ", cleared to Magnolia VORTAC, " + (ap.length ? ap.join(", ") + ", " : "") + p.holdPhr + ". Contact Jackson Approach one one niner point two, " + p.tcpPhr + ".");
+          ctrl.coordination.push("Inbound to JAN Approach: “" + f.cs + ", " + f.type + " slant " + f.equip + ", estimated Magnolia VORTAC " + toHHMM(f.nodes[f.nodes.length - 2].t) + ", " + (p.arrivalAlt < p.finalAlt ? "descending to " : "at ") + spoken(p.arrivalAlt) + (f.destAirport !== "KJAN" ? ", landing " + ZAE.AIRPORTS[f.destAirport].name : "") + ", your control " + p.tcpPhr + ".”");
+          ctrl.items.push("Departure that lands at " + ZAE.AIRPORTS[f.destAirport].name + ": both strips stay in suspense; the MHZ strip is the arrival strip (hold northwest, no EFC, TCP " + p.tcp + ").");
+        }
       } else if (f.kind === "arrival") {
         if (f.destAirport === "KGWO") {
           const parts = [];
@@ -1141,6 +1154,12 @@
       if (p.altNotAvail) add("26", { t: hundreds(p.altNotAvail.requested) + " 10<D", c: "blk" });
       p.reports.forEach(function (r) { if (bayNodes.indexOf(r.text.split(" ").pop()) !== -1 || isDep) add("26", { t: r.text, c: "blk" }); });
       if (p.depRule && p.depRule.kind !== "2MIN") add("26", { t: p.depRule.kind.replace("K", "K <") + " " + p.depRule.text.split("< ")[1], c: "blk" });
+      if (f.destAirport && s.type === "arrival") {
+        if (p.arrivalAlt < p.finalAlt) add("20", { t: SYM.descend + " " + hundreds(p.arrivalAlt), c: "blk" });
+        add("28", { t: p.holdMark, c: "blk" });
+        add("29", { t: p.tcp, c: "blk" });
+        add("15", { t: s.spaces["15"], c: "blk", circ: "red", replace: true });
+      }
       // coordination circle on the altitude of the strip leaving the sector
       if (s === f.strips[f.strips.length - 1] && f.nextSector) add("20", { t: hundreds(p.finalAlt), c: "blk", circ: "red", corner: true });
     } else if (f.kind === "arrival") {
