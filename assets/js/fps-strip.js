@@ -98,7 +98,9 @@
       const box = MARK_BOX[sp];
       const list = grouped[sp];
       if (!list || !list.length) return;
-      const m = el("div", "fps-marks mk-sp" + sp + (list.some(function (mk) { return mk.row; }) ? " mk-row" : ""));
+      // KMLU departure strip: the EDC sits directly above the plus time in 14a (the assumed and actual departure times are above it, under the P-time)
+      const bottom = sp === "14" && grouped["12b"] && grouped["12b"].length;
+      const m = el("div", "fps-marks mk-sp" + sp + (list.some(function (mk) { return mk.row; }) ? " mk-row" : "") + (bottom ? " mk-bottom" : ""));
       m.style.left = box.x + "%"; m.style.top = box.y + "%"; m.style.width = box.w + "%"; m.style.height = box.h + "%";
       list.forEach(function (mk) {
         if (mk.bar) { m.appendChild(el("span", "mk-bar")); return; }
@@ -107,7 +109,10 @@
           s.appendChild(document.createTextNode(slashZero(String(mk.t).slice(0, 2))));
           s.appendChild(el("span", "mk-circ-" + mk.circMm + " mk-mm", slashZero(String(mk.t).slice(2))));
         } else s.textContent = slashZero(mk.t);
-        m.appendChild(s);
+        // inline: written right after the previous mark on the same line (a red W beside the altitude)
+        const prev = m.lastElementChild;
+        if (mk.inline && prev && prev.classList.contains("mk")) { s.classList.add("mk-inline"); prev.appendChild(s); }
+        else m.appendChild(s);
       });
       wrap.appendChild(m);
     });

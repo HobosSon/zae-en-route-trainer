@@ -76,7 +76,8 @@ and its **Sector 66 "Jackson Low"** non-radar environment.
   altitude request, KVKS weather, and a scenario-level current ATIS letter
   (KGWO arrivals not yet on frequency check on “with <letter>”: their Remote
   strip shows `IC 0532 WITH TANGO` and `ATIS TANGO` (space 26 full times, space 27 minutes only); a KVKS arrival without the
-  weather shows `REQ VKS WX` under its IC line). A departure flight's plus
+  weather shows `REQ VKS WX` under its IC line, one that has it `HAS KVKS
+  WX`). A departure flight's plus
   time may be typed in space 23 as printed on the Remote's strip; the
   Controller's strip carries it in 14a of the next strip. The Remote's space-27
   reminders and space-26 lines are derived (`ZAERemote.decorateAuthored`),
@@ -91,16 +92,23 @@ Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
 
 ## Planned
 
-- KMLU departures (cleared through Monroe Approach, V18 by default): the
-  departure strip is posted at STUEE with KMLU and the P-time in 11/12, the
-  plus time to STUEE in 14a, EDC in 14, MHZ next; no split box — the assumed
-  departure time goes in red under the P-time (actual in black below it) and
-  space 18 is for the STUEE progression time. Other departures split space 18
-  when the EDC is issued (assumed time in red left of the slash, actual in
-  black right of it); a single-strip departure's assumed time is circled in
-  red as the coordinated time, a multi-strip departure's last-fix estimate
-  has its minutes circled. Recoordinate when a departure time or pilot
-  estimate is 4 or more minutes off what was coordinated.
+- KMLU departures (V18 MHZ only for now): the departure strip is posted at
+  STUEE with KMLU and the P-time in 11/12, the plus time to STUEE in 14a with
+  the EDC directly above it in 14, MHZ next; no split box — the assumed
+  departure time goes in red directly under the P-time and the actual
+  departure time in black directly under that; space 18 is for the STUEE
+  progression time. Departure rules (2-minute, 22/44-knot) are written in 26
+  rather than at the bottom of 15. A KMLU arrival always holds at DINKY, so
+  the departure crosses 48 NE MLU (the northeast edge of the pattern
+  airspace) at or below 6,000; if the arrival has not progressed DINKY when
+  the clearance is issued (P-time − 5) the controller asks it for its DME
+  southwest of MHZ and uses that mileage as the crossing point. Other
+  departures split space 18 when the EDC is issued (assumed time in red left
+  of the slash, actual in black right of it); a single-strip departure's
+  assumed time is circled in red as the coordinated time, a multi-strip
+  departure's last-fix estimate has its minutes circled. Recoordinate when a
+  departure time or pilot estimate is 4 or more minutes off what was
+  coordinated. Still to do: other KMLU departure routes.
 - Plus times: the Remote's strips print, in space 23, the plus time from the
   posted fix to the next fix; the controller writes it in 14a of the
   following strip. The builder accepts 23 as printed and copies it forward.
@@ -114,16 +122,35 @@ Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
   process). A Byerley departure may land at a JAN field: its departure strip
   and its MHZ arrival strip both sit in suspense, and the MHZ strip carries
   the JAN hold and TCP.
-- KVKS arrival vs. KVKS departure when the arrival is on the approach rather
-  than holding (Lab Procedures III-52, the 45 SE MLU report): the engine
-  forces the hold instead.
+- KVKS arrival vs. KVKS departure: the arrival has priority when its DORTS
+  estimate is not later than the departure's P-time — the departure clearance
+  waits for Flight Data's landed report (VKS estimate + 5, or the approach
+  clearance + 5 if later), the request gets an EDC for that time and the
+  assumed departure time becomes the report + 2 (the P-time stays as filed).
+  Otherwise the arrival holds at VKS, the departure reports past the pattern
+  (25 NE HEZ, 37 SW MHZ or 54 SE MLU) with a crossing restriction 1,000 below
+  the holder, and the approach clearance follows that report — with the MLU
+  Approach airspace restriction (31 SE MLU at or above 7,000) when an arrival
+  from the Monroe side has not progressed DORTS by then. The course words the
+  priority test on the VKS estimate in space 22 (Lab Procedures II.1.C); the
+  trainer uses the DORTS estimate as instructed. Lab Procedures III-52 (the
+  45 SE MLU report for an arrival on the approach) is not modelled.
+- MOA preplanning: a flight filed through Columbus 3 (V11 to HLI, 8,000 and
+  up) or Meridian 1 West (V245 to ZAMMA, the card's "AOB 090" check; the
+  charted floor is 8,000, so the trainer flags 8,000–9,000) gets a red W
+  right of its altitude (space 20 en route, 24 in suspense), lined through
+  when resolved: an altitude change under the floor coordinated with the next
+  sector, or for V11 traffic a reroute via V535 at the filed altitude.
+- Holding altitude: the answer key holds at the lowest ARTCC altitude
+  available; any higher altitude that keeps the aircraft clear of traffic is
+  also acceptable (JAN, MLU and VKS patterns alike). Stacks at fixes other
+  than MHZ work the same way (lowest + 1,000 each).
 - KGWO departure vs. KGWO arrival (tower visual separation, approach
   airspace reports), KGWO holding stacks.
 - Grading the controller's actions against the answer key.
-- Remote strip wording for a KVKS arrival that already has the Vicksburg
-  weather (currently `HAS VKS WX`; to be confirmed).
-- Holding stacks at fixes other than MHZ (SQS, DINKY, VKS): the engine stacks
-  them the same way (lowest + 1,000 each) pending confirmation.
+- KVKS arrivals from the Monroe side hold at 7,000 (MLU Approach airspace
+  ends 31 SE MLU); from the MHZ side at 6,000. The course's "most arrivals
+  hold at 70" may mean 7,000 is the VKS floor everywhere — to be confirmed.
 
 ## Running locally
 

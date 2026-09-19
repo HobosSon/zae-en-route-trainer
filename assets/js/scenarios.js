@@ -317,11 +317,19 @@
         if (f === "30") delete cell.dataset.auto; // typed by hand: leave it alone from now on
         refreshAll();
       });
+      // a departure strip's plus time is typed in 23 (as the Remote's strip prints it): pre-fill a "+" so it lands there
+      const plusHint = function () {
+        const c23 = cellOf("23"); if (!c23) return;
+        if (typeSel.value === "departure") { if (!c23.textContent.trim()) c23.textContent = "+"; }
+        else if (c23.textContent.trim() === "+") c23.textContent = "";
+      };
       typeSel.addEventListener("change", function () {
         const arrowCell = cellOf("16");
         if (arrowCell) arrowCell.textContent = typeSel.value === "departure" ? "↑" : typeSel.value === "arrival" ? "↓" : "";
+        plusHint();
         refreshAll();
       });
+      plusHint();
 
       stripsWrap.appendChild(block);
       renumber();
@@ -449,7 +457,7 @@
     const dest = (sp["21"] || "").toUpperCase().trim(), route = (sp["25"] || "").toUpperCase().split(/[\s./]+/).filter(Boolean);
     if (type !== "departure" && (dest === "KVKS" || route[route.length - 1] === "KVKS")) {
       const sel = document.createElement("select"); sel.className = "editor-type";
-      [["", "(not stated)"], ["yes", "has KVKS weather (HAS VKS WX)"], ["no", "needs it (REQ VKS WX under the IC line)"]].forEach(function (o) { const e = document.createElement("option"); e.value = o[0]; e.textContent = o[1]; sel.appendChild(e); });
+      [["", "(not stated)"], ["yes", "has KVKS weather (HAS KVKS WX under the IC line)"], ["no", "needs it (REQ VKS WX under the IC line)"]].forEach(function (o) { const e = document.createElement("option"); e.value = o[0]; e.textContent = o[1]; sel.appendChild(e); });
       sel.value = rf.vksWx === true ? "yes" : rf.vksWx === false ? "no" : (rf.vksWx || "");
       sel.addEventListener("change", function () { rf.vksWx = sel.value; refresh(); });
       field("KVKS weather", sel);

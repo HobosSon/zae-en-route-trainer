@@ -93,6 +93,7 @@
       allowHeavy: false,
       remarkChance: 0.1,
       iafdofChance: 0,
+      moaChance: 0,        // flights filed through an active MOA (red W preplanning item)
       onFreqChance: 0.3,   // en route / arrival flights already on frequency when the problem starts
       altReqChance: 0,     // level overflights that ask for a different altitude mid-flight
       gaChance: 0.35
@@ -107,6 +108,7 @@
       allowHeavy: true,
       remarkChance: 0.3,
       iafdofChance: 0.15,
+      moaChance: 0.12,
       onFreqChance: 0.35,
       altReqChance: 0.08,
       gaChance: 0.45
@@ -121,6 +123,7 @@
       allowHeavy: true,
       remarkChance: 0.5,
       iafdofChance: 0.2,
+      moaChance: 0.18,
       onFreqChance: 0.35,
       altReqChance: 0.12,
       gaChance: 0.5
@@ -246,6 +249,37 @@
       });
     });
     return cap;
+  }
+  // The active MOA this traversal flies through (its airway segment lies on the path), if any.
+  function moaOnPath(trav, fromIdx, toIdx) {
+    const pts = trav.points.slice(fromIdx == null ? 0 : fromIdx, (toIdx == null ? trav.points.length - 1 : toIdx) + 1);
+    let hit = null;
+    Object.keys(ZAE.MOA).forEach(function (k) {
+      ZAE.MOA[k].airways.forEach(function (seg) {
+        if (hit || trav.aw.id !== seg.airway) return;
+        const fi = pts.indexOf(seg.from), ti = pts.indexOf(seg.toward);
+        if (fi !== -1 && ti !== -1 && ti > fi) hit = { id: k, airway: seg.airway, from: seg.from, toward: seg.toward, floor: ZAE.MOA[k].floor, ceiling: ZAE.MOA[k].ceiling };
+      });
+    });
+    return hit;
+  }
+  // Preplanning item: an aircraft filed through an active MOA (the card's
+  // "V245 ZAMMA AOB 090 [MEI 1 WEST]" / "V11 HLI AOA 8000 [CBM3 MOA]" checks).
+  // Returns { moa, alt, fixAlt, reroute } or null: alt is the filed altitude
+  // inside the MOA, fixAlt the highest appropriate altitude under its floor
+  // (null when the aircraft is too high for a 2,000 ft change: V11 traffic is
+  // rerouted V535 instead), reroute the airway that avoids the MOA.
+  const MOA_MAX = { MEI1W: 9000 }; // the card checks V245 ZAMMA traffic at or below 9,000
+  function moaCase(trav, fromIdx, toIdx, floor, tier, ac) {
+    const moa = moaOnPath(trav, fromIdx, toIdx); if (!moa) return null;
+    const genCap = Math.min(tier.altCap, aircraftCap(ac), ZAE.LOW_CEILING);
+    const inside = altitudeOptions(trav, Math.max(floor, moa.floor), tier, ac, Math.min(genCap, MOA_MAX[moa.id] || moa.ceiling));
+    const under = altitudeOptions(trav, floor, tier, ac, moa.floor - 1000);
+    if (!inside.length || !under.length) return null;
+    const alt = pick(inside), fixAlt = under[under.length - 1];
+    const reroute = moa.id === "CBM3" ? "V535" : null;
+    if (alt - fixAlt > 2000 && !reroute) return null;
+    return { moa: moa, alt: alt, fixAlt: alt - fixAlt <= 2000 ? fixAlt : null, reroute: reroute };
   }
   function altitudeOptions(trav, floor, tier, ac, cap) {
     if (cap == null) cap = Math.min(tier.altCap, aircraftCap(ac), ZAE.LOW_CEILING);
@@ -535,9 +569,15 @@
       let cap = altitudeCap(trav, startIdx, endIdx, tier, ac);
       if (kind === "departure" && destAirport) cap = Math.min(cap, floor + 2000); // a short hop: no higher than two above the lowest
       if (cap < floor) continue; // e.g. V245 northeast of MHZ: 6,000 floor, 7,000 cap, parity may leave nothing
-      const alt = chooseAltitude(trav, floor, tier, ac, cap);
+      let alt = chooseAltitude(trav, floor, tier, ac, cap);
+      // filed through an active MOA (overflights and departures leaving on V245 to ZAMMA or V11 to HLI)
+      let moa = null;
+      if (kind !== "arrival" && !destAirport && tier.moaChance && chance(tier.moaChance)) {
+        const mc = moaCase(trav, startIdx, endIdx, floor, tier, ac);
+        if (mc) { moa = mc; alt = mc.alt; }
+      }
       let iafdofAlt = null;
-      if (kind === "overflight" && tier.iafdofChance && chance(tier.iafdofChance)) {
+      if (kind === "overflight" && !moa && tier.iafdofChance && chance(tier.iafdofChance)) {
         const w = wrongParityNear(alt, floor, cap);
         if (w) iafdofAlt = w; // the aircraft ARRIVES at the wrong altitude; `alt` is the appropriate one
       }
@@ -575,7 +615,8 @@
         entryNav: entryNav, exitNav: exitNav, exitFacility: exitFacility, nextSector: NEXT_SECTOR[exitNav] || null,
         holdFix: destAirport ? (arrSpec.holdFix || arrSpec.feeder) : null, hez026: hez026, depAtFix: depAtFix,
         nodes: nodes, events: events, baseT: baseT, route: routeStr, strips: [],
-        onFreq: onFreq, entryT: entryT, icT: icT, altReq: altReq, vksWx: vksWx
+        onFreq: onFreq, entryT: entryT, icT: icT, altReq: altReq, vksWx: vksWx,
+        moa: moa ? { id: moa.moa.id, airway: moa.moa.airway, from: moa.moa.from, toward: moa.moa.toward, floor: moa.moa.floor, fixAlt: moa.fixAlt, reroute: moa.reroute } : null
       };
       flight.strips = buildStrips(flight);
       return flight;
@@ -597,6 +638,54 @@
   function nodeIdxOf(nodes, id) { for (let i = 0; i < nodes.length; i++) if (nodes[i].id === id) return i; return -1; }
   function prevComp(flight, i) { for (let k = i - 1; k >= 0; k--) if (flight.nodes[k].comp) return flight.nodes[k]; return null; }
   function nextComp(flight, i) { for (let k = i + 1; k < flight.nodes.length; k++) if (flight.nodes[k].comp) return flight.nodes[k]; return null; }
+
+  // The filed proposal time. It equals the assumed departure time unless the
+  // clearance is held (a KVKS departure waiting for a KVKS arrival's landed report).
+  function pTimeOf(f) { return f.propT != null ? f.propT : f.baseT; }
+
+  // KVKS arrival vs. KVKS departure priority (Lab Procedures: the arrival has
+  // priority unless the departure's proposal time is earlier than the arrival's
+  // fix estimate; the course uses DORTS here). Arrival first: the departure
+  // clearance waits for Flight Data's landed report (VKS estimate + 5), so the
+  // assumed departure time becomes that report + 2 while the P-time stays as
+  // filed. Departure first: nothing to shift — the conflict engine holds the
+  // arrival at VKS until the departure reports past the pattern.
+  // Returns the shifts applied (for a revert if the trial fails).
+  function sequenceKVKS(all) {
+    const shifts = [];
+    const deps = all.filter(function (f) { return f.kind === "departure" && f.originAirport === "KVKS"; });
+    const arrs = all.filter(function (f) { return f.kind === "arrival" && f.destAirport === "KVKS"; });
+    deps.forEach(function (d) {
+      if (d.waitLand) return;
+      arrs.forEach(function (a) {
+        const di = nodeIdxOf(a.nodes, "DORTS");
+        const dortsT = di >= 0 ? a.nodes[di].t : a.nodes[a.nodes.length - 2].t;
+        const P = pTimeOf(d);
+        if (dortsT > P) return; // the departure has priority
+        const landT = a.nodes[a.nodes.length - 2].t + 5;
+        const clncT = P - 5; // the clearance is requested 5 minutes before the P-time
+        if (landT <= clncT) return; // landed before the request: cleared on request
+        const newBase = landT + 2;
+        if (newBase <= d.baseT) return;
+        const delta = newBase - d.baseT;
+        shifts.push({ f: d, baseT: d.baseT, propT: d.propT, waitLand: d.waitLand, strips: d.strips });
+        d.propT = P; d.baseT = newBase; d.waitLand = { arr: a.cs, arrId: a.id, landT: landT };
+        d.nodes.forEach(function (n) { n.t += delta; });
+        if (d.entryT != null) d.entryT += delta;
+        d.strips = buildStrips(d);
+        d.strips.forEach(function (s) { s.flight = d.seq; });
+      });
+    });
+    return shifts;
+  }
+  function revertShifts(shifts) {
+    shifts.forEach(function (sh) {
+      const d = sh.f, delta = d.baseT - sh.baseT;
+      d.nodes.forEach(function (n) { n.t -= delta; });
+      if (d.entryT != null) d.entryT -= delta;
+      d.baseT = sh.baseT; d.propT = sh.propT; d.waitLand = sh.waitLand; d.strips = sh.strips;
+    });
+  }
 
   function buildStrips(f) {
     const strips = [];
@@ -630,14 +719,14 @@
         // KMLU: the departure strip is the STUEE posting — airport and P-time in 11/12,
         // plus time to STUEE in 14a (no estimate: it depends on the departure time), MHZ next
         s["16"] = "↑";
-        s["11"] = f.originAirport; s["12"] = "P" + toHHMM(f.baseT);
+        s["11"] = f.originAirport; s["12"] = "P" + toHHMM(pTimeOf(f));
         const pt = Math.round(n.rel); if (pt) s["14a"] = "+" + pt;
         s["19"] = n.id;
         s["21"] = next ? next.id : firstFix.id;
       } else if (evt === "departure") {
         s["16"] = "↑";
         s["21"] = firstFix.id;
-        s["19"] = f.originAirport + " P" + toHHMM(f.baseT);
+        s["19"] = f.originAirport + " P" + toHHMM(pTimeOf(f));
       } else {
         // a boundary posting (first fix inside ZAE on an overflight/arrival)
         // has no previous fix in our airspace: its estimate is the one
@@ -647,7 +736,7 @@
         // actual departure time): only the P-time and the plus times
         if (!atEntry && prev) {
           s["11"] = prev.id;
-          if (prev.apt) s["12"] = "P" + toHHMM(prev.t); else if (!suspense) s["12"] = toHHMM(prev.t);
+          if (prev.apt) s["12"] = "P" + toHHMM(pTimeOf(f)); else if (!suspense) s["12"] = toHHMM(prev.t);
         }
         if (!suspense) s["15"] = toHHMM(n.t);
         s["19"] = n.id;
@@ -670,7 +759,7 @@
       if (s["21"]) key.nextFix = s["21"];
       const mea = maxMEA(f.trav, f.startIdx, f.endIdx);
       key.altitude = (suspense ? "Requested " : "Assigned ") + altPlain(f.alt) + "  (MEA " + mea.toLocaleString() + " ft; " + f.dirLabel + "-bound → " + (f.wantsOdd ? "odd" : "even") + " thousands" + (suspense ? "; in space 24 until coordinated" : "") + ")";
-      if (suspense && s["14a"]) key.estimateMath = "In suspense: no estimate until the aircraft is off. Assumed (P-time based): " + s["11"] + (s["12"] ? " " + s["12"] : "") + " " + s["14a"] + " = " + n.id + " " + toHHMM(n.t) + "; recompute from the actual departure time.";
+      if (suspense && s["14a"]) key.estimateMath = "In suspense: no estimate until the aircraft is off. Assumed (" + (f.waitLand ? "off " + toHHMM(f.baseT) + " after the landed report" : "P-time based") + "): " + s["11"] + (s["12"] ? " " + s["12"] : "") + " " + s["14a"] + " = " + n.id + " " + toHHMM(n.t) + "; recompute from the actual departure time.";
       else if (s["14a"]) key.estimateMath = "Est " + s["11"] + " " + s["12"] + " " + s["14a"] + " = " + n.id + " est " + s["15"];
       else if (s["15"] && s["11"]) key.estimateMath = "Est " + s["11"] + " " + s["12"] + " → " + n.id + " est " + s["15"];
       else if (s["15"]) key.estimateMath = "Est over " + n.id + " " + s["15"] + " received from " + ((ZAE.NAVAIDS[n.id] || {}).owner || "the adjacent facility") + " (boundary posting: no previous fix in ZAE)";
@@ -682,9 +771,9 @@
       const strip = { type: evt, spaces: s, meta: key, bay: n.bay, homeBay: n.bay, flightId: f.id, nodeIdx: ei, cs: f.cs, order: evNo };
       if (kind === "departure") {
         strip.suspense = true;
-        strip.suspenseTime = parseInt(toHHMM(f.baseT), 10);
+        strip.suspenseTime = parseInt(toHHMM(pTimeOf(f)), 10);
         strip.bay = depBay;
-        if (evt === "departure") key.proposedTime = "P" + toHHMM(f.baseT) + " (proposed departure; strip in suspense above the " + depBay + " bay header)";
+        if (evt === "departure") key.proposedTime = "P" + toHHMM(pTimeOf(f)) + " (proposed departure; strip in suspense above the " + depBay + " bay header)" + (f.waitLand ? "; clearance held for " + f.waitLand.arr + "'s landed report at " + toHHMM(f.waitLand.landT) + ", assumed off " + toHHMM(f.baseT) : "");
         else key.notes.push("Departure still in suspense: this posting is held directly above the departure strip in the " + depBay + " bay until a clearance request comes in; it normally posts under " + n.bay + ".");
       }
       strips.push(strip);
@@ -744,9 +833,10 @@
         const k = tries < 20 ? kind : "overflight"; // fall back to an overflight if this kind will not fit
         const f = generateFlight(tier, k, win, ++seq);
         if (!f || !f.strips.every(function (st) { return stripSane(st, k); })) continue;
+        const shifts = sequenceKVKS(flights.concat([f]));
         if (engine) {
           const trial = engine.analyze(flights.concat([f]), { window: win });
-          if (!trial.ok) continue;
+          if (!trial.ok) { revertShifts(shifts); continue; }
           analysis = trial;
         }
         f.seq = flights.length + 1;

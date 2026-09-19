@@ -36,8 +36,8 @@
  * "IC 0532 WITH TANGO" and "ATIS TANGO" under it (space 26 carries full
  * times; the space-27 reminders carry minutes only). Aircraft on frequency at
  * the start already have it. A KVKS arrival without the Vicksburg weather
- * shows "REQ VKS WX" under its IC line (wording for one that has it is still
- * to be confirmed: "HAS VKS WX" for now).
+ * shows "REQ VKS WX" under its IC line; one that has it shows "HAS KVKS WX"
+ * there instead.
  *
  *   ZAERemote.decorate(flights, { atis })       strip.remote for generated flights
  *   ZAERemote.derive(strip, fields, info)       { lines26, reminders, calls } from a strip's
@@ -115,7 +115,8 @@
         r.calls.push({ k: "RC", at: rq, who: who, text: "Jackson Low, " + who + ", request departure clearance " + cs + " to the " + (info.dest || "destination") + " airport." });
       }
       if (fields.depSeq) r.lines26.push("DEPARTURE #" + fields.depSeq);
-      add("IC", null, (P != null ? P : 0) + DEP_AFTER_CLNC + IC_AFTER_DEP);
+      const clnc = info.clncT != null ? info.clncT : (P != null ? P : 0); // the clearance time when it is not on request
+      add("IC", null, clnc + DEP_AFTER_CLNC + IC_AFTER_DEP);
       if (info.depAtFix && info.prEst != null) add("PR", null, info.prEst); // KMLU: the departure strip is also the STUEE posting
       r.calls.push({ k: "IC", at: null, who: cs, text: "Aero Center, " + cs + " off " + fixName(info.originAirport || "the airport") + " at (departure time), climbing to (assigned altitude)" + (info.depFirstFix ? ", " + fixName(info.depFirstFix) + " next" : "") + ". — 2 minutes after the departure time, which is 2 minutes after the clearance." });
     } else {
@@ -124,10 +125,10 @@
         if (fields.onFreq) r.lines26.push("ON FREQUENCY");
         else if (fields.ic != null) {
           const atis = info.destAirport === "KGWO" && fields.atis ? atisWord(fields.atis) : null;
-          const wx = info.destAirport === "KVKS" && fields.vksWx === true; // has the Vicksburg weather (wording to be confirmed)
-          r.lines26.push("IC " + toHHMM(fields.ic) + (atis ? " WITH " + atis.toUpperCase() : "") + (wx ? " WITH VKS WX" : ""));
+          r.lines26.push("IC " + toHHMM(fields.ic) + (atis ? " WITH " + atis.toUpperCase() : ""));
           if (atis) r.lines26.push("ATIS " + atis.toUpperCase());
           if (info.destAirport === "KVKS" && fields.vksWx === false) r.lines26.push("REQ VKS WX");
+          if (info.destAirport === "KVKS" && fields.vksWx === true) r.lines26.push("HAS KVKS WX");
           add("IC", mm(fields.ic), fields.ic);
           const icFix = info.icFix || info.fix, icT = info.icFixT != null ? info.icFixT : est;
           r.calls.push({ k: "IC", at: fields.ic, who: cs, text: "Aero Center, " + cs + " estimating " + fixName(icFix) + (icT != null ? " " + toHHMM(icT) : "") + (info.alt ? ", at " + spokenAlt(info.alt) : "") + (info.icNext ? ", " + fixName(info.icNext) + " next" : "") + (atis ? ", with information " + atis : "") + "." });
@@ -211,7 +212,8 @@
         const nx = s.type === "departure" ? null : nextComp(f, n.idx), nx2 = nx ? nextComp(f, nx.idx) : null;
         const icFix = !f.onFreq && f.icT != null ? (firstCompAfter(f, f.icT) || n) : n;
         const info = {
-          kind: f.kind, cs: f.cs, alt: f.alt, est: s.type === "departure" ? f.baseT : n.t, prEst: n.t, depAtFix: !!f.depAtFix, fix: n.id, nextFix: nx ? nx.id : null, nextFixT: nx ? nx.t : null, nextNextFix: nx2 ? nx2.id : null,
+          kind: f.kind, cs: f.cs, alt: f.alt, est: s.type === "departure" ? (f.propT != null ? f.propT : f.baseT) : n.t, prEst: n.t, depAtFix: !!f.depAtFix,
+          clncT: s.type === "departure" && f.waitLand ? f.waitLand.landT : null, fix: n.id, nextFix: nx ? nx.id : null, nextFixT: nx ? nx.t : null, nextNextFix: nx2 ? nx2.id : null,
           originAirport: f.originAirport, destAirport: f.destAirport, dest: f.dest, firstOfFlight: k === 0,
           landT: f.kind === "arrival" ? f.nodes[f.nodes.length - 2].t : null, landFix: f.kind === "arrival" ? f.nodes[f.nodes.length - 2].id : null,
           icFix: icFix.id, icFixT: icFix.t, icNext: (function () { const a = nextComp(f, icFix.idx); return a ? a.id : null; })(),
@@ -290,7 +292,8 @@
         if (f.kind === "departure") {
           const nxt = f.strips[k + 1];
           const p23 = plusOf(s.spaces["23"]);
-          if (p23) { delete s.spaces["23"]; if (nxt && !plusOf(nxt.spaces["14a"])) nxt.spaces["14a"] = p23; }
+          if (p23 || String(s.spaces["23"] || "").trim() === "+") delete s.spaces["23"]; // a lone "+" is the builder's placeholder
+          if (p23 && nxt && !plusOf(nxt.spaces["14a"])) nxt.spaces["14a"] = p23;
           plus23 = p23 || (nxt ? plusOf(nxt.spaces["14a"]) : null);
           if (plusOf(s.spaces["14a"])) s.spaces["14a"] = plusOf(s.spaces["14a"]);
         }

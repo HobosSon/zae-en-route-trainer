@@ -154,7 +154,11 @@
     });
     pairs.filter(function (p) { return p.ok; }).forEach(function (p) {
       const li = el("li");
-      li.appendChild(document.createTextNode(p.a.cs + " / " + p.b.cs + " at " + p.node + ": " + (p.type === "cross-ok" ? Math.round(p.dt) + " min — separated by time (report over the fix proves it)" : p.type === "same-dme-ok" ? "DME separation (" + p.req.nm + " nm) — solicit DME" : Math.round(p.gap) + " min behind a faster aircraft (" + p.req.rule + " rule)")));
+      const how = p.type === "cross-ok" ? Math.round(p.dt) + " min — separated by time (report over the fix proves it)"
+        : p.type === "same-dme-ok" ? "DME separation (" + p.req.nm + " nm) — solicit DME"
+        : p.type === "kmlu" ? "KMLU departure at or below 6,000 until past the DINKY arrival (" + (p.point && p.point.say ? p.point.nm + " " + p.point.dir + " " + p.point.say : p.point ? p.point.nm + " " + p.point.dir + " " + p.point.node : "crossing point") + ")"
+        : p.req ? Math.round(p.gap) + " min behind a faster aircraft (" + p.req.rule + " rule)" : "resolved";
+      li.appendChild(document.createTextNode(p.a.cs + " / " + p.b.cs + " at " + p.node + ": " + how));
       ul.appendChild(li);
     });
     box.appendChild(ul);
