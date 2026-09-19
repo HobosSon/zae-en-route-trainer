@@ -26,7 +26,7 @@
  * strip.remote are drawn at the top of space 27, earliest first. Clicking a
  * reminder's letters lines it through (call made); blank times (IC and PR on
  * departures, LD) are underlined boxes the Remote fills in; RP (report
- * passing, at the bottom) is added from the rail. Departure strips get a
+ * passing, at the bottom) comes from an "RP … /HHMM" line typed in space 26. Departure strips get a
  * black box in space 18 for the actual departure time, and the page hook
  * onDepTime(strip, hhmm) recomputes the flight's estimates from it.
  *
@@ -167,7 +167,7 @@
       b.addEventListener("click", function (e) { if (e.shiftKey) { e.preventDefault(); toggleItem(strip, stripEl, it.id, it.color); } });
       box26.appendChild(b);
     });
-    const t26 = editable("sm-text26", m.text26, function (d) { m.text26 = sanitize(d.innerHTML); }, { html: true });
+    const t26 = editable("sm-text26", m.text26, function (d) { m.text26 = sanitize(d.innerHTML); syncAutoRP(strip, stripEl, m); }, { html: true });
     t26.addEventListener("beforeinput", penInput);
     t26.title = "Space 26: remarks, reports, reminders (typed in the pen colour)";
     box26.appendChild(t26);
@@ -327,16 +327,15 @@
   function renderReminders(strip, stripEl, m) {
     const box = el("div", "sm-rmd");
     const rows = strip.remote.reminders.map(function (x) { return { id: x.id, k: x.k, t: x.t, blank: x.t == null }; })
-      .concat(m.rp.map(function (x) { return { id: x.iid, k: "RP", t: null, blank: true, rp: x }; }));
+      .concat(m.rp.map(function (x) { return { id: x.iid, k: "RP", t: x.t || null, blank: !x.t, rp: x }; }));
     rows.forEach(function (row) {
       const d = el("div", "sm-rmd-row sm-red" + (m.done[row.id] ? " is-done" : ""));
       d.dataset.rid = row.id;
       const k = el("span", "sm-rmd-k", row.k);
-      k.title = (row.rp ? "Report passing — click when called (lines it through), shift-click to remove" : "Click when the call is made (lines it through)");
+      k.title = (row.rp ? "Report passing (from the RP line in space 26) — click when called (lines it through)" : "Click when the call is made (lines it through)");
       k.addEventListener("click", function (e) {
         if (!selectedEl(stripEl)) return; // a click on an unselected strip just selects it
         e.stopPropagation();
-        if (row.rp && e.shiftKey) { m.rp = m.rp.filter(function (x) { return x !== row.rp; }); apply(stripEl, strip); return; }
         m.done[row.id] = !m.done[row.id];
         d.classList.toggle("is-done", !!m.done[row.id]);
       });
@@ -352,13 +351,24 @@
     });
     return box;
   }
-  function addRP() {
-    if (!ui.strip || !isRemote(ui.strip)) return;
-    const m = model(ui.strip);
-    const item = { iid: "rp" + (++ui.seq) + Date.now().toString(36), t: "" };
-    m.rp.push(item);
-    apply(ui.stripEl, ui.strip);
-    focusEnd(ui.stripEl.querySelector('.sm-rmd-t[data-rid="' + item.iid + '"]'));
+  // Reports written in space 26 on the Remote's strip ("RP 30 SW MHZ/1231") become
+  // RP reminders in space 27 with the minutes of the expected report.
+  function autoRPs(text26) {
+    const tmp = el("div"); tmp.innerHTML = String(text26 || "").replace(/<br\s*\/?>/gi, "\n").replace(/<\/div>/gi, "\n");
+    const out = [];
+    (tmp.textContent || "").split(/\n/).forEach(function (line) {
+      const mt = line.match(/^\s*RP\b[^\/]*\/\s*(\d{4})/i);
+      if (mt) out.push({ iid: "rpa" + out.length, t: mt[1].slice(2), auto: true });
+    });
+    return out;
+  }
+  function syncAutoRP(strip, stripEl, m) {
+    if (!isRemote(strip)) return;
+    const next = autoRPs(m.text26);
+    if (JSON.stringify(next) === JSON.stringify(m.rp)) return;
+    m.rp = next;
+    const old = stripEl && stripEl.querySelector(".sm-rmd");
+    if (old) old.replaceWith(renderReminders(strip, stripEl, m));
   }
   // Write a computed time into a reminder blank (and its model) without redrawing the strip.
   function setReminderTime(strip, stripEl, key, value) {
@@ -476,13 +486,13 @@
     blk.addEventListener("click", function () { ui.pen = "blk"; blk.classList.add("is-on"); red.classList.remove("is-on"); });
     pen.appendChild(red); pen.appendChild(blk); penSec.appendChild(pen);
 
-    const textSec = section("Highlighted text");
+    const textSec = section("Highlight text");
     const mk = function (label, title, fn) { const b = el("button", "btn btn-ghost sm-act", label); b.type = "button"; b.title = title; b.addEventListener("click", fn); textSec.appendChild(b); return b; };
     mk("◯ Circle", "Circle the highlighted text in the pen colour (again to remove; both colours may stack)", function () { applySelection("circ-" + ui.pen); });
     mk("— Strike", "Line the highlighted text through (black; again to remove)", function () { applySelection("strike"); });
     mk("_ Underline", "Underline the highlighted text in the pen colour (IAFDOF, TUX suffix, FRC in red)", function () { applySelection("ul-" + ui.pen); });
 
-    const routeSec = section("Route (25)");
+    const routeSec = section("Route");
     const caret = el("button", "btn btn-ghost sm-act", "^ Amend"); caret.type = "button"; caret.title = "Click a spot in the route, then insert a ^ with the amendment under it";
     caret.addEventListener("click", insertCaret); routeSec.appendChild(caret);
 
@@ -498,20 +508,13 @@
       });
       sec.appendChild(wrap);
     };
-    chipSec("Box 15 (red = preplan)", ["RLS", "SYD", "V"]);
+    chipSec("Box 15", ["RLS", "SYD", "V"]);
     chipSec("Space 26", ["C", "67"]);
     chipSec("Spaces 27–30", ["DA", "H", "VR", "APCH", "Z", "VV", "TXT"]);
 
-    const remSec = section("Remote (27)");
-    remSec.classList.add("sm-remote-only");
-    const rpWrap = el("div", "sm-chips");
-    const rp = el("div", "sm-pal-chip", "RP");
-    rp.title = "Report passing requested by the controller: adds RP at the bottom of the reminders with the minutes the aircraft is estimated to pass the point";
-    rp.addEventListener("click", addRP);
-    rpWrap.appendChild(rp); remSec.appendChild(rpWrap);
-    remSec.appendChild(el("div", "sm-hint", "Click a reminder's letters when the call is made. Departure strips: type the actual departure time in space 18 (2 min after the clearance) and the estimates, IC and PR follow."));
-
     const misc = section(null);
+    const remHint = el("div", "sm-hint sm-remote-only", "Remote: click a reminder's letters when the call is made. A report the controller asks for is written in black in space 26 with the time it is expected (RP 30 SW MHZ/1231) or, for a DME, the mileage and the time (25 NW MHZ/1231); an RP line adds RP with its minutes to the reminders. Departure strips: type the actual departure time (2 min after the clearance) and the estimates, IC and PR follow.");
+    misc.appendChild(remHint);
     const clear = el("button", "btn btn-ghost sm-act sm-danger", "Clear strip"); clear.type = "button"; clear.title = "Remove every mark on this strip";
     clear.addEventListener("click", function () { if (!ui.strip) return; if (!confirm("Clear all marks on " + (ui.strip.spaces["3"] || "this strip") + "?")) return; ui.strip.markup = null; apply(ui.stripEl, ui.strip); });
     misc.appendChild(clear);

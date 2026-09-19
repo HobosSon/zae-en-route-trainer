@@ -54,7 +54,7 @@
 
   function renderLevels() {
     const intro = el("div", "sc-intro");
-    intro.appendChild(el("p", null, "Select a scenario to practice. Levels unlock as they are added."));
+    intro.appendChild(el("p", null, "Select a scenario to practice."));
     // temporary authoring toggle
     const authRow = el("div", "author-row");
     const authToggle = el("label", "toggle");
@@ -256,11 +256,14 @@
       bar.appendChild(btn("Remove", "btn-ghost btn-xs btn-danger", function () { block.remove(); renumber(); }));
       block.appendChild(bar);
       const stripEl = FPSStrip.render(st ? st.spaces : null, { editable: true, showNums: true });
+      // space 10 is always the sector: fixed at 66, not typed
+      const c10 = stripEl.querySelector('.fps-cell[data-f="10"]');
+      if (c10) { c10.textContent = "66"; c10.setAttribute("contenteditable", "false"); c10.classList.add("editor-cell-fixed"); }
       block.appendChild(stripEl);
       block._typeSel = typeSel;
       block._strip = stripEl;
       // Remote-only data (space 26 on the Remote's strip); the reminders derive from it
-      const rf = Object.assign({ onFreq: false, ic: "", reqClnc: "", depSeq: "", altReq: { alt: "", t: "" }, vksWx: "" }, st && st.remoteFields ? st.remoteFields : {});
+      const rf = Object.assign({ onFreq: false, ic: "", reqClnc: "", depSeq: "", altReq: { alt: "", t: "" }, vksWx: "", frc: false }, st && st.remoteFields ? st.remoteFields : {});
       if (!rf.altReq) rf.altReq = { alt: "", t: "" };
       block._rf = rf;
       const rpanel = el("div", "editor-remote");
@@ -410,6 +413,7 @@
     if (rf.depSeq) out.depSeq = rf.depSeq;
     if (rf.altReq && (rf.altReq.alt || rf.altReq.t)) out.altReq = { alt: rf.altReq.alt || "", t: rf.altReq.t || "" };
     if (rf.vksWx === "yes" || rf.vksWx === "no" || rf.vksWx === true || rf.vksWx === false) out.vksWx = rf.vksWx === true || rf.vksWx === "yes";
+    if (rf.frc) out.frc = true;
     return out;
   }
   function timeInput(value, placeholder, onInput) {
@@ -435,6 +439,10 @@
       const seq = document.createElement("input"); seq.type = "number"; seq.min = "1"; seq.max = "9"; seq.className = "editor-input editor-input-xs"; seq.placeholder = "—"; seq.value = rf.depSeq || "";
       seq.addEventListener("input", function () { rf.depSeq = seq.value; refresh(); });
       field("Departure #", seq).title = "Same airport, same request time: the order the requests are made (DEPARTURE #1, #2, …)";
+      const frcLab = el("label", "toggle"); const frc = document.createElement("input"); frc.type = "checkbox"; frc.checked = !!rf.frc;
+      frc.addEventListener("change", function () { rf.frc = frc.checked; refresh(); });
+      frcLab.appendChild(frc); frcLab.appendChild(document.createTextNode(" FRC"));
+      field("Full route clearance", frcLab).title = "FRC is written first in space 26 on both the Remote's and the Controller's strips: the clearance must state every part of the route in space 25";
     } else if (first && String(sp["17"] || "").trim()) {
       row.appendChild(el("span", "editor-remote-note", "Pilot estimate in space 17: on frequency at the start (ON FREQUENCY on the Remote's strip; the controller checks the altitude as level during the problem)."));
     } else if (first) {
@@ -457,8 +465,9 @@
     const dest = (sp["21"] || "").toUpperCase().trim(), route = (sp["25"] || "").toUpperCase().split(/[\s./]+/).filter(Boolean);
     if (type !== "departure" && (dest === "KVKS" || route[route.length - 1] === "KVKS")) {
       const sel = document.createElement("select"); sel.className = "editor-type";
-      [["", "(not stated)"], ["yes", "has KVKS weather (HAS KVKS WX under the IC line)"], ["no", "needs it (REQ VKS WX under the IC line)"]].forEach(function (o) { const e = document.createElement("option"); e.value = o[0]; e.textContent = o[1]; sel.appendChild(e); });
-      sel.value = rf.vksWx === true ? "yes" : rf.vksWx === false ? "no" : (rf.vksWx || "");
+      [["no", "REQ KVKS WX"], ["yes", "HAS KVKS WX"]].forEach(function (o) { const e = document.createElement("option"); e.value = o[0]; e.textContent = o[1]; sel.appendChild(e); });
+      if (rf.vksWx == null || rf.vksWx === "") rf.vksWx = "no";
+      sel.value = rf.vksWx === true || rf.vksWx === "yes" ? "yes" : "no";
       sel.addEventListener("change", function () { rf.vksWx = sel.value; refresh(); });
       field("KVKS weather", sel);
     }

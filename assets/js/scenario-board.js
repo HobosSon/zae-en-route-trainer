@@ -110,7 +110,7 @@
     else { bar.appendChild(vt); (opts.bar || []).forEach(function (n) { if (n) bar.appendChild(n); }); }
     out.appendChild(bar);
     (opts.before || []).forEach(function (n) { if (n) out.appendChild(n); });
-    out.appendChild(el("p", "board-hint", opts.hint ||
+    if (opts.hint !== "") out.appendChild(el("p", "board-hint", opts.hint ||
       "Strips in suspense (a departure awaiting its clearance request, with its postings stacked directly above it) sit above the bay label; " +
       "active postings sit below, earliest time at the bottom. Hover a strip to enlarge it, click it for its details, drag it to any bay or position. " +
       "A selected strip stays enlarged and can be marked up with the tools on the left; press F or Space to flag it as a reminder; click anywhere else to deselect. " +
@@ -187,7 +187,7 @@
     root.StripMarkup.configure({ onDepTime: onDepTime });
     board = root.StripBoard.create(boardEl, {
       showNums: showNums,
-      keepSelectionWithin: ".strip-details, .sm-ui, .scenario-bar", // reading the details, the marking tools or the view toggle must not deselect
+      keepSelectionWithin: ".strip-details, .sm-ui, .scenario-bar, .controls", // reading the details, the marking tools, the view toggle or the page controls must not deselect
       renderOpts: function (st) { return view === "remote" && st.remote ? { remote: { mpm: st.remote.mpm, lines26: st.remote.lines26, plus23: st.remote.plus23, keep14a: st.remote.keep14a } } : null; },
       onSelect: function (strip, slot) {
         if (!revealAll) showDetails(strip);
@@ -203,7 +203,7 @@
     api.setView = setView;
     api.getView = function () { return view; };
     api.setShowNums = function (b) { showNums = !!b; board.setShowNums(showNums); };
-    api.setRevealAll = function (b) { revealAll = !!b; refreshDetails(); };
+    api.setRevealAll = function (b) { revealAll = !!b; details.innerHTML = ""; detailsMinHeight = 0; details.style.minHeight = ""; refreshDetails(); }; // no held height: unchecking must not leave blank space
     api.selected = function () { return selected; };
     api.refreshDetails = refreshDetails;
     api.bar = bar;

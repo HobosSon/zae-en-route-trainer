@@ -36,7 +36,7 @@
  * "IC 0532 WITH TANGO" and "ATIS TANGO" under it (space 26 carries full
  * times; the space-27 reminders carry minutes only). Aircraft on frequency at
  * the start already have it. A KVKS arrival without the Vicksburg weather
- * shows "REQ VKS WX" under its IC line; one that has it shows "HAS KVKS WX"
+ * shows "REQ KVKS WX" under its IC line; one that has it shows "HAS KVKS WX"
  * there instead.
  *
  *   ZAERemote.decorate(flights, { atis })       strip.remote for generated flights
@@ -127,7 +127,7 @@
           const atis = info.destAirport === "KGWO" && fields.atis ? atisWord(fields.atis) : null;
           r.lines26.push("IC " + toHHMM(fields.ic) + (atis ? " WITH " + atis.toUpperCase() : ""));
           if (atis) r.lines26.push("ATIS " + atis.toUpperCase());
-          if (info.destAirport === "KVKS" && fields.vksWx === false) r.lines26.push("REQ VKS WX");
+          if (info.destAirport === "KVKS" && fields.vksWx === false) r.lines26.push("REQ KVKS WX");
           if (info.destAirport === "KVKS" && fields.vksWx === true) r.lines26.push("HAS KVKS WX");
           add("IC", mm(fields.ic), fields.ic);
           const icFix = info.icFix || info.fix, icT = info.icFixT != null ? info.icFixT : est;
@@ -287,6 +287,10 @@
       const mpm = f.tas ? cardMPM(f.tas) : null;
       f.remote = { mpm: mpm };
       f.strips.forEach(function (s, k) {
+        // authored: space 10 is always the sector; a departure needing a full route
+        // clearance carries FRC first in space 26 on both views
+        if (!s.spaces["10"]) s.spaces["10"] = "66";
+        if (s.remoteFields && s.remoteFields.frc) { const cur = String(s.spaces["26"] || "").trim(); if (!/^FRC\b/.test(cur)) s.spaces["26"] = "FRC" + (cur ? " " + cur : ""); }
         // authored: a plus time typed in 23 (as printed) belongs in the next strip's 14a
         let plus23 = null;
         if (f.kind === "departure") {

@@ -39,6 +39,7 @@
       box.appendChild(cs);
     }
 
+    // control actions, coordination and phraseology only (the strip data itself is not repeated here)
     const ctrl = meta.controller;
     if (ctrl) {
       const ck = el("div", "ctrl-key");
@@ -50,21 +51,10 @@
         ck.appendChild(ul);
       };
       section("Control actions for " + ctrl.flight, ctrl.items);
-      section("Reports to solicit", ctrl.reports);
       section("Coordination", ctrl.coordination);
       section("Phraseology", ctrl.phraseology, "phr");
       box.appendChild(ck);
     }
-
-    const dl = el("dl");
-    KEY_ORDER.forEach(function (pair) {
-      const val = meta[pair[0]];
-      if (val == null || val === "") return;
-      dl.appendChild(el("dt", null, pair[1]));
-      dl.appendChild(el("dd", MATH_KEYS[pair[0]] ? "math" : null, val));
-    });
-    if (meta.notes && meta.notes.length) meta.notes.forEach(function (n) { dl.appendChild(el("div", "note", n)); });
-    box.appendChild(dl);
     return box;
   }
 
@@ -78,6 +68,7 @@
   const loadBtn = document.getElementById("load-code");
   const numsToggle = document.getElementById("show-nums");
   const revealAllToggle = document.getElementById("reveal-all");
+  const checkToggle = document.getElementById("check-answers"); // the answer key is hidden unless this is on
   const diffControl = diffSel ? diffSel.closest(".control") : null;
 
   let current = [];
@@ -85,7 +76,7 @@
   let sb = null;             // ScenarioBoard for generated strips (kept so drags survive toggles)
   let view = "controller";   // "controller" | "remote" — whose strips the board shows
 
-  function isBlank() { return typeSel.value === "blank"; }
+  function isBlank() { return false; } // blank templates were retired from the generator page
   function currentIsBlank() { return current.length && current[0].type === "blank"; }
 
   // Blank templates: the plain editable list.
@@ -106,7 +97,7 @@
     try { history.replaceState(null, "", "#" + scenario.code + (view === "remote" ? "/remote" : "")); } catch (e) { /* ignore */ }
   }
 
-  // Scenario bar content: the code (share it to reproduce the board), the window, the rules in force.
+  // Scenario bar content: the code (share it to reproduce the board), the start time, the size.
   function barHead() {
     const nodes = [];
     nodes.push(el("span", null, "Scenario"));
@@ -122,9 +113,8 @@
   }
   function barTail() {
     return [
-      el("span", null, "Window " + hhmm(scenario.window.start) + "–" + hhmm(scenario.window.start + scenario.window.span) + "Z"),
-      el("span", null, scenario.flights.length + " aircraft · " + scenario.strips.length + " strips · ATIS " + (ZAERemote.atisWord(scenario.atis) || scenario.atis)),
-      el("span", "rules", "Rules: 10 min / 20 DME · 44-kt 3 min · 22-kt 5 min · 2-minute departure rule · holding pattern airspace protected 10 min before the holder's estimate · EFC = fix estimate + 10 (DINKY + 5, none at MHZ) · CBM 3 and MEI 1 West MOAs active")
+      el("span", null, "Start time " + hhmm(scenario.window.start) + "Z"),
+      el("span", null, scenario.flights.length + " aircraft · " + scenario.strips.length + " strips · ATIS " + (ZAERemote.atisWord(scenario.atis) || scenario.atis))
     ];
   }
 
@@ -178,8 +168,8 @@
         bar.appendChild(toggle);
         if (scenario) barTail().forEach(function (n) { bar.appendChild(n); });
       },
-      before: scenario ? [renderTrafficSummary()] : [],
-      renderDetails: function (strip) { return renderAnswerKey(strip); },
+      hint: "",
+      renderDetails: function (strip) { return checkToggle && checkToggle.checked ? renderAnswerKey(strip) : null; },
       onViewChange: function (v) { view = v; updateHash(); }
     });
   }
@@ -256,6 +246,7 @@
     if (sb) sb.setRevealAll(revealAllToggle.checked);
     else render();
   });
+  if (checkToggle) checkToggle.addEventListener("change", function () { if (sb) sb.refreshDetails(); });
   typeSel.addEventListener("change", syncControls);
 
   syncControls();

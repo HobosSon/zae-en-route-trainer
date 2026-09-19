@@ -125,9 +125,12 @@ body {
 }
 
 .menu-intro h2 {
-  margin: 0 0 0.5rem;
+  display: inline-block;
+  margin: 0 0 2rem;
+  padding: 0 4rem 0.5rem 0;
   font-size: 1.4rem;
   letter-spacing: 0.5px;
+  border-bottom: 2px solid var(--text-dim);
 }
 
 .menu-intro p {

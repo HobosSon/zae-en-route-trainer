@@ -86,3 +86,6 @@
 .editor-remote-inline { display: flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; color: var(--text-dim); }
 .editor-input-xs { width: 6.2rem; max-width: 6.2rem; font-family: var(--mono); padding: 0.3rem 0.45rem; font-size: 0.85rem; }
 .editor-remote-preview { font-family: var(--mono); font-size: 0.74rem; color: var(--amber); white-space: pre-wrap; }
+
+/* builder: a cell that is always the same (space 10 = sector 66) */
+.editor-strip .fps-cell.editor-cell-fixed { opacity: 0.55; pointer-events: none; }

@@ -725,6 +725,7 @@
       const pt = c.point;
       addRestriction(p, { kind: "cross", node: pt.node, nm: pt.nm, dir: pt.dir, on: pt.on, say: pt.say, before: pt.before, limit: "below", alt: RULES.MLU_DEP_UNDER, why: "traffic", vs: [arr.cs], label: arr.cs + " inbound DINKY (holding 7,000 and up): under it until past " + (pt.say ? pt.nm + " " + pt.dir + " " + pt.say + ", the northeast edge of the DINKY pattern airspace" : "the DME the arrival reported southwest of MHZ when the clearance was issued") });
       p.kmluVs = { arr: arr.cs, clncT: c.clncT, progressedDinky: c.progressedDinky, dme: c.dme, edge: !!pt.say };
+      if (!pt.say) plan[arr.id].dmeAsk = { by: dep.cs, dme: c.dme, t: c.clncT }; // the arrival is asked for its DME southwest of MHZ
       p.warnings.push(arr.cs); plan[arr.id].warnings.push(dep.cs);
       return { ok: true };
     }
@@ -1231,6 +1232,7 @@
           if (p.altNote) ctrl.items.push("Clearance altitude " + hundreds(p.arrivalAlt) + ": " + p.altNote + ".");
         }
         p.coord.forEach(function (c) { ctrl.coordination.push(c.to + ": " + c.what); });
+        if (p.dmeAsk) ctrl.items.push("KMLU departure " + p.dmeAsk.by + " is cleared under this aircraft: ask it for its DME southwest of MHZ at " + toHHMM(p.dmeAsk.t) + " (about " + p.dmeAsk.dme + ") and record it in space 26 as " + p.dmeAsk.dme + " SW MHZ/" + toHHMM(p.dmeAsk.t) + ".");
         if (f.destAirport !== "KGWO" && (f.destAirport !== "KVKS" || kvksHolding(p))) ctrl.items.push("Holding altitude: the key holds at the lowest ARTCC altitude available (" + hundreds(p.arrivalAlt) + "); any higher altitude that keeps the aircraft clear of traffic is also acceptable.");
         if (p.stackedWith && p.stackedWith.length) {
           const N = holdFix(f);
@@ -1282,6 +1284,7 @@
       return ri <= nextEvIdx && ri >= nIdx;
     };
     const ws = uniq(p.warnings);
+    if (p.dmeAsk && bayNodes.indexOf("MHZ") !== -1) add("26", { t: p.dmeAsk.dme + " SW MHZ/" + toHHMM(p.dmeAsk.t), c: "blk" }); // the DME the aircraft reported and when
     if (f.kind === "departure") {
       const isDep = s.type === "departure";
       // space 20: assigned final altitude, bar, restrictions
@@ -1303,7 +1306,7 @@
       // multi-strip departure: the last fix's estimate is what is coordinated — its minutes circled in red
       if (!single && !f.destAirport && s === f.strips[f.strips.length - 1] && f.nextSector && nIdx >= 0) add("15", { t: toHHMM(f.nodes[nIdx].t), c: "blk", circMm: "red", replace: true }); // written from the assumed departure time + plus times
       if (p.altNotAvail) add("26", { t: hundreds(p.altNotAvail.requested) + " 10<D", c: "blk" });
-      p.reports.forEach(function (r) { if (bayNodes.indexOf(r.text.split(" ").pop()) !== -1 || isDep) add("26", { t: r.text, c: "blk" }); });
+      p.reports.forEach(function (r) { if (bayNodes.indexOf(r.text.split(" ").pop()) !== -1 || isDep) add("26", { t: r.text + "/" + r.at, c: "blk" }); }); // the report and the time it is expected
       if (p.depRule && p.depRule.kind !== "2MIN") add("26", { t: p.depRule.kind.replace("K", "K <") + " " + p.depRule.text.split("< ")[1], c: "blk" });
       if (f.destAirport && s.type === "arrival") {
         if (p.arrivalAlt < p.finalAlt) add("20", { t: SYM.descend + " " + hundreds(p.arrivalAlt), c: "blk" });

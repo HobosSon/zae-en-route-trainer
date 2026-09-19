@@ -30,17 +30,11 @@
     <h2 class="page-title">Flight Strip Generator</h2>
     <p class="page-sub">
       Generate randomized nonradar flight progress strips and post them to the
-      VKS, MHZ, and SQS bays. Departures in suspense sit above the bay label with
-      their postings stacked on top of them; active strips sit below, earliest
-      time at the bottom. Hover a strip to enlarge it, click it for the answer
-      key and to mark it up (circles, strikes, route amendments, remarks,
-      control data), drag it to any bay or position, press F or Space to flag
-      it, and click anywhere else to deselect. Every scenario is checked to be workable
-      without a separation error and carries a code &mdash; share it and a
-      partner can load the exact same board to act as the Remote while you
-      control. The scenario bar switches between the Controller's strips and
-      the Remote's, which add the initial-contact and request data in space 26
-      and the red call reminders in space 27.
+      VKS, MHZ, and SQS bays. Hover over a strip to enlarge it, click to select
+      it to mark it up, drag it around to another spot, or press F while
+      selected to flag it. Every scenario is checked to be workable, can be
+      graded, and is given a code you can use to load the same scenario later
+      or give to someone else to have them work as the Remote.
     </p>
 
     <div class="controls">
@@ -60,12 +54,11 @@
           <option value="departure">Departure</option>
           <option value="enroute">En Route</option>
           <option value="arrival">Arrival</option>
-          <option value="blank">Blank template (fill in)</option>
         </select>
       </div>
 
       <div class="control">
-        <label for="count">Count</label>
+        <label for="count">Aircraft count</label>
         <input type="number" id="count" min="1" max="12" value="6" placeholder="auto" />
       </div>
 
@@ -79,7 +72,8 @@
 
       <div class="toggles">
         <label class="toggle"><input type="checkbox" id="show-nums" /> Field numbers</label>
-        <label class="toggle"><input type="checkbox" id="reveal-all" /> Reveal all</label>
+        <label class="toggle"><input type="checkbox" id="check-answers" /> Check answers</label>
+        <label class="toggle"><input type="checkbox" id="reveal-all" /> Reveal all answers</label>
       </div>
     </div>
 

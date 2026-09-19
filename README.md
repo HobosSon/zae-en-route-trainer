@@ -152,6 +152,20 @@ Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
   ends 31 SE MLU); from the MHZ side at 6,000. The course's "most arrivals
   hold at 70" may mean 7,000 is the VKS floor everywhere — to be confirmed.
 
+- Builder: departure strips can be flagged FRC (written first in space 26 on
+  both views), space 10 is fixed at 66, the KVKS weather choice is `REQ KVKS
+  WX` / `HAS KVKS WX`. Community scenarios live in the browser's localStorage
+  only; sharing them means exporting the JSON (Author → Export) or baking
+  them into `assets/data/scenarios.js`.
+- Remote strips: a report the controller asks for is written in black in 26
+  with the expected time (`RP 30 SW MHZ/1231`; a DME as `25 NW MHZ/1231`);
+  an `RP …/HHMM` line adds the RP reminder with its minutes in 27.
+- To revisit later: remove "Prototype build" from the home page; the map and
+  study-guide pages; rework the difficulty tiers; the answer key (only
+  control actions, coordination and phraseology are shown now); the
+  stripmarking rail; remove the static level numbers once every level is
+  saved.
+
 ## Running locally
 
 No build step — it's plain static HTML/CSS/JS. Serve the folder with any static
