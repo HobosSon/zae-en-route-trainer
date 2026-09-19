@@ -125,7 +125,7 @@
         if (fields.onFreq) r.lines26.push("ON FREQUENCY");
         else if (fields.ic != null) {
           const atis = info.destAirport === "KGWO" && fields.atis ? atisWord(fields.atis) : null;
-          r.lines26.push("IC " + toHHMM(fields.ic) + (atis ? " WITH " + atis.toUpperCase() : ""));
+          r.lines26.push("IC " + toHHMM(fields.ic) + (atis ? " W/ " + atis.toUpperCase() : ""));
           if (atis) r.lines26.push("ATIS " + atis.toUpperCase());
           if (info.destAirport === "KVKS" && fields.vksWx === false) r.lines26.push("REQ KVKS WX");
           if (info.destAirport === "KVKS" && fields.vksWx === true) r.lines26.push("HAS KVKS WX");

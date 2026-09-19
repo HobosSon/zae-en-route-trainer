@@ -36,6 +36,42 @@
     return { type: "enroute", arrow: "" };
   }
 
+  // ---------------- Share links ----------------
+  // A community scenario packed into the page's hash (#share=…) reproduces it
+  // anywhere: the receiver can play it or save it to their own Community tab.
+  function encodeShare(sc) {
+    const data = { title: sc.title, description: sc.description, startTime: sc.startTime, atis: sc.atis, altimeters: sc.altimeters, strips: sc.strips };
+    const json = JSON.stringify(data);
+    const b64 = btoa(unescape(encodeURIComponent(json))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    return location.origin + location.pathname + "#share=" + b64;
+  }
+  function decodeShare(hash) {
+    const m = /^#share=([A-Za-z0-9_-]+)$/.exec(hash || ""); if (!m) return null;
+    try {
+      let b64 = m[1].replace(/-/g, "+").replace(/_/g, "/"); while (b64.length % 4) b64 += "=";
+      const sc = JSON.parse(decodeURIComponent(escape(atob(b64))));
+      if (!sc || !Array.isArray(sc.strips)) return null;
+      return sc;
+    } catch (e) { return null; }
+  }
+  function copyText(txt, b, done) {
+    const flash = function () { const old = b.textContent; b.textContent = done || "Copied"; setTimeout(function () { b.textContent = old; }, 1400); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(flash, function () { prompt("Copy this link:", txt); });
+    else prompt("Copy this link:", txt);
+  }
+  function renderShared(sc) {
+    clear();
+    const intro = el("div", "sc-intro");
+    intro.appendChild(el("h2", "sc-title", "Shared scenario: " + (sc.title || "Untitled scenario")));
+    intro.appendChild(el("p", null, (sc.description ? sc.description + "  ·  " : "") + sc.strips.length + " strips, from a share link. Play it here or save a copy to your Community tab."));
+    const row = el("div", "cc-actions");
+    row.appendChild(btn("Play", "", function () { play(sc, "community", function () { renderShared(sc); }); }));
+    row.appendChild(btn("Save to Community", "btn-ghost", function () { S.addCommunity(sc); history.replaceState(null, "", location.pathname); currentTab = "community"; renderGrid(); }));
+    row.appendChild(btn("Back to scenarios", "btn-ghost", function () { history.replaceState(null, "", location.pathname); renderGrid(); }));
+    intro.appendChild(row);
+    app.appendChild(intro);
+  }
+
   // ---------------- Level select ----------------
   let currentTab = "levels";
   let authorMode = false;
@@ -94,7 +130,7 @@
 
   function renderCommunity() {
     const intro = el("div", "sc-intro");
-    intro.appendChild(el("p", null, "Scenarios created by you, saved in this browser. Build your own traffic problems and come back to them."));
+    intro.appendChild(el("p", null, "Scenarios created by you, saved in this browser. Build your own traffic problems and come back to them; Share link copies a link that reproduces a scenario for anyone."));
     intro.appendChild(btn("+ Create scenario", "", function () { editScenario({ mode: "community" }); }));
     app.appendChild(intro);
 
@@ -113,6 +149,9 @@
       const actions = el("div", "cc-actions");
       actions.appendChild(btn("Play", "", function () { play(sc, "community"); }));
       actions.appendChild(btn("Edit", "btn-ghost", function () { editScenario({ mode: "community", existing: sc }); }));
+      const share = btn("Share link", "btn-ghost", function () { copyText(encodeShare(sc), share, "Link copied"); });
+      share.title = "Copy a link that reproduces this scenario anywhere (it carries the whole scenario, so it is long)";
+      actions.appendChild(share);
       actions.appendChild(btn("Delete", "btn-ghost btn-danger", function () {
         if (confirm("Delete \"" + (sc.title || "this scenario") + "\"?")) { S.deleteCommunity(sc.id); renderGrid(); }
       }));
@@ -511,5 +550,7 @@
     app.appendChild(row);
   }
 
-  renderGrid();
+  const shared = decodeShare(location.hash);
+  if (shared) renderShared(shared); else renderGrid();
+  window.addEventListener("hashchange", function () { const sc = decodeShare(location.hash); if (sc) renderShared(sc); });
 })();

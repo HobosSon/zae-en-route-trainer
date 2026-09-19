@@ -75,7 +75,7 @@ and its **Sector 66 "Jackson Low"** non-radar environment.
   or ON FREQUENCY, request clearance time (defaults to P−5) and DEPARTURE #,
   altitude request, KVKS weather, and a scenario-level current ATIS letter
   (KGWO arrivals not yet on frequency check on “with <letter>”: their Remote
-  strip shows `IC 0532 WITH TANGO` and `ATIS TANGO` (space 26 full times, space 27 minutes only); a KVKS arrival without the
+  strip shows `IC 0532 W/ TANGO` and `ATIS TANGO` (space 26 full times, space 27 minutes only); a KVKS arrival without the
   weather shows `REQ VKS WX` under its IC line, one that has it `HAS KVKS
   WX`). A departure flight's plus
   time may be typed in space 23 as printed on the Remote's strip; the
@@ -160,7 +160,7 @@ Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
 - Remote strips: a report the controller asks for is written in black in 26
   with the expected time (`RP 30 SW MHZ/1231`; a DME as `25 NW MHZ/1231`);
   an `RP …/HHMM` line adds the RP reminder with its minutes in 27.
-- To revisit later: remove "Prototype build" from the home page; the map and
+- To revisit later: the Community scenario page (rework); remove "Prototype build" from the home page; the map and
   study-guide pages; rework the difficulty tiers; the answer key (only
   control actions, coordination and phraseology are shown now); the
   stripmarking rail; remove the static level numbers once every level is
