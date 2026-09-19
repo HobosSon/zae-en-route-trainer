@@ -628,11 +628,10 @@
 
       if (evt === "departure" && f.depAtFix) {
         // KMLU: the departure strip is the STUEE posting — airport and P-time in 11/12,
-        // plus time to STUEE in 14a, STUEE estimate in 15, MHZ next
+        // plus time to STUEE in 14a (no estimate: it depends on the departure time), MHZ next
         s["16"] = "↑";
         s["11"] = f.originAirport; s["12"] = "P" + toHHMM(f.baseT);
         const pt = Math.round(n.rel); if (pt) s["14a"] = "+" + pt;
-        s["15"] = toHHMM(n.t);
         s["19"] = n.id;
         s["21"] = next ? next.id : firstFix.id;
       } else if (evt === "departure") {
@@ -644,14 +643,16 @@
         // has no previous fix in our airspace: its estimate is the one
         // received from the adjacent facility
         const atEntry = kind !== "departure" && ei === 0;
+        // strips in suspense carry no times at all (every estimate depends on the
+        // actual departure time): only the P-time and the plus times
         if (!atEntry && prev) {
           s["11"] = prev.id;
-          s["12"] = prev.apt ? "P" + toHHMM(prev.t) : toHHMM(prev.t);
+          if (prev.apt) s["12"] = "P" + toHHMM(prev.t); else if (!suspense) s["12"] = toHHMM(prev.t);
         }
-        s["15"] = toHHMM(n.t);
+        if (!suspense) s["15"] = toHHMM(n.t);
         s["19"] = n.id;
         if (f.onFreq && evNo === 0) s["17"] = toHHMM(n.t); // on frequency at the start: the pilot's estimate
-        if (evt === "arrival") { s["16"] = "↓"; s["21"] = next ? next.id : f.destAirport; s["22"] = toHHMM((next || f.nodes[f.nodes.length - 1]).t); }
+        if (evt === "arrival") { s["16"] = "↓"; s["21"] = next ? next.id : f.destAirport; if (!suspense) s["22"] = toHHMM((next || f.nodes[f.nodes.length - 1]).t); }
         else s["21"] = next ? next.id : f.dest;
         // plus time ONLY on en route strips that follow a ZAE departure
         if (kind === "departure" && prev) {
@@ -669,7 +670,8 @@
       if (s["21"]) key.nextFix = s["21"];
       const mea = maxMEA(f.trav, f.startIdx, f.endIdx);
       key.altitude = (suspense ? "Requested " : "Assigned ") + altPlain(f.alt) + "  (MEA " + mea.toLocaleString() + " ft; " + f.dirLabel + "-bound → " + (f.wantsOdd ? "odd" : "even") + " thousands" + (suspense ? "; in space 24 until coordinated" : "") + ")";
-      if (s["14a"]) key.estimateMath = "Est " + s["11"] + " " + s["12"] + " " + s["14a"] + " = " + n.id + " est " + s["15"];
+      if (suspense && s["14a"]) key.estimateMath = "In suspense: no estimate until the aircraft is off. Assumed (P-time based): " + s["11"] + (s["12"] ? " " + s["12"] : "") + " " + s["14a"] + " = " + n.id + " " + toHHMM(n.t) + "; recompute from the actual departure time.";
+      else if (s["14a"]) key.estimateMath = "Est " + s["11"] + " " + s["12"] + " " + s["14a"] + " = " + n.id + " est " + s["15"];
       else if (s["15"] && s["11"]) key.estimateMath = "Est " + s["11"] + " " + s["12"] + " → " + n.id + " est " + s["15"];
       else if (s["15"]) key.estimateMath = "Est over " + n.id + " " + s["15"] + " received from " + ((ZAE.NAVAIDS[n.id] || {}).owner || "the adjacent facility") + " (boundary posting: no previous fix in ZAE)";
       if (f.onFreq && evNo === 0) key.notes.push("On frequency when the problem starts (entered Sector 66 about " + toHHMM(f.entryT) + "): pilot estimate in space 17 — check the altitude as level.");
@@ -677,7 +679,7 @@
       if (f.exitFacility && ei === lastEv) key.notes.push("Leaving ZAE to " + f.exitFacility + " — noted in space 30.");
       if (f.events.length > 1) key.notes.push("Part of a " + f.events.length + "-bay flight (" + f.events.map(function (i) { return f.nodes[i].bay; }).join(" → ") + "); all strips are one plane.");
 
-      const strip = { type: evt, spaces: s, meta: key, bay: n.bay, homeBay: n.bay, flightId: f.id, nodeIdx: ei, cs: f.cs };
+      const strip = { type: evt, spaces: s, meta: key, bay: n.bay, homeBay: n.bay, flightId: f.id, nodeIdx: ei, cs: f.cs, order: evNo };
       if (kind === "departure") {
         strip.suspense = true;
         strip.suspenseTime = parseInt(toHHMM(f.baseT), 10);

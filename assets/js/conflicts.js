@@ -1203,7 +1203,7 @@
         else { add("18", { t: toHHMM(f.baseT), c: "red", circ: single ? "red" : null, row: true }); add("18", { t: "/", c: "red", row: true }); } // split box: assumed | actual
       }
       // multi-strip departure: the last fix's estimate is what is coordinated — its minutes circled in red
-      if (!single && !f.destAirport && s === f.strips[f.strips.length - 1] && f.nextSector && s.spaces["15"]) add("15", { t: s.spaces["15"], c: "blk", circMm: "red", replace: true });
+      if (!single && !f.destAirport && s === f.strips[f.strips.length - 1] && f.nextSector && nIdx >= 0) add("15", { t: toHHMM(f.nodes[nIdx].t), c: "blk", circMm: "red", replace: true }); // written from the assumed departure time + plus times
       if (p.altNotAvail) add("26", { t: hundreds(p.altNotAvail.requested) + " 10<D", c: "blk" });
       p.reports.forEach(function (r) { if (bayNodes.indexOf(r.text.split(" ").pop()) !== -1 || isDep) add("26", { t: r.text, c: "blk" }); });
       if (p.depRule && p.depRule.kind !== "2MIN") add("26", { t: p.depRule.kind.replace("K", "K <") + " " + p.depRule.text.split("< ")[1], c: "blk" });
@@ -1211,7 +1211,7 @@
         if (p.arrivalAlt < p.finalAlt) add("20", { t: SYM.descend + " " + hundreds(p.arrivalAlt), c: "blk" });
         add("28", { t: p.holdMark, c: "blk" });
         add("29", { t: p.tcp, c: "blk" });
-        add("15", { t: s.spaces["15"], c: "blk", circ: "red", replace: true });
+        add("15", { t: toHHMM(f.nodes[nIdx].t), c: "blk", circ: "red", replace: true }); // MHZ estimate from the assumed departure time
       }
     } else if (f.kind === "arrival") {
       add("20", { t: hundreds(f.alt), c: "blk", alt: true });

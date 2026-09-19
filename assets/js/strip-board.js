@@ -81,7 +81,8 @@
       // directly above it by estimate. Below, plain estimate order.
       function aboveKey(st) {
         const t = sortTime(st);
-        return [st.suspenseTime != null ? st.suspenseTime : t, st.type === "departure" ? -1 : t];
+        // a suspense flight's postings carry no times: keep the flight's own order
+        return [st.suspenseTime != null ? st.suspenseTime : t, st.type === "departure" ? -1 : (st.order != null ? st.order : t)];
       }
       BAYS.forEach(function (b) {
         const by = function (uid) { return sortTime(state.byUid[uid]); };

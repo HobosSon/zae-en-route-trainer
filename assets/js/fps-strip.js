@@ -164,7 +164,7 @@
     wrap.classList.add("remote");
     if (r.mpm != null) {
       const m = el("div", "fps-cell fps-mpm", String(r.mpm));
-      m.style.left = "9.6%"; m.style.top = "76%"; m.style.width = "4.5%";
+      m.style.left = "7.4%"; m.style.top = "45%"; m.style.width = "4.5%"; // right beside the filed airspeed (space 5)
       m.title = "Miles per minute (Color Card Stock Map speed table)";
       wrap.appendChild(m);
     }
@@ -172,7 +172,7 @@
       const c23 = wrap.querySelector('.fps-cell[data-f="23"]');
       if (c23) { c23.textContent = slashZero(r.plus23); c23.classList.add("fps-plus23"); }
     }
-    if (!r.keep14a) { const c14 = wrap.querySelector('.fps-cell[data-f="14a"]'); if (c14 && c14.textContent) c14.classList.add("mk-hidden"); }
+    // the Remote's strips show everything the controller's do (14a included), plus 23
     if (r.lines26 && r.lines26.length) {
       const b = el("div", "fps-cell fps-r26");
       r.lines26.forEach(function (t) { b.appendChild(el("div", null, slashZero(t))); });

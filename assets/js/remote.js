@@ -134,11 +134,12 @@
         }
       }
       const arrHold = strip.type === "arrival" && HOLD_APCH[info.destAirport];
+      const susAt = est != null ? est : (info.fallbackAt != null ? info.fallbackAt : 0); // suspense strips carry no estimate; keep the reminder order
       if (arrHold && info.kind === "departure") {
-        if (est != null) add("Z", null, est + TOWER_JUR_AFTER); // a departure landing at a JAN field: its time follows from the departure time
+        add("Z", null, susAt + TOWER_JUR_AFTER); // a departure landing at a JAN field: its time follows from the departure time
         r.calls.push({ k: "Z", at: null, who: HOLD_APCH[info.destAirport], text: "Jackson Low, " + HOLD_APCH[info.destAirport] + ", " + cs + " tower jurisdiction. — 2 minutes after the MHZ estimate once the aircraft is off." });
       } else if (info.kind === "departure") {
-        if (est != null) add("PR", null, est); // its time follows from the actual departure time
+        add("PR", null, susAt); // its time follows from the actual departure time
       } else if (arrHold) {
         if (est != null) {
           const zBase = info.holdT != null ? info.holdT : (info.destAirport === "KMLU" ? est - DINKY_FROM_STUEE : est); // KMLU: DINKY estimate = STUEE - 3
@@ -304,6 +305,7 @@
         const fix = postedFix(s), nextFix = String((s.spaces || {})["21"] || "").trim().split(/\s+/)[0].toUpperCase() || null;
         const info = {
           kind: f.kind, cs: f.cs, alt: altOf(s) || f.alt, est: stripEst(s), prEst: fromHHMM((s.spaces || {})["15"]), depAtFix: !!f.depAtFix, fix: fix, nextFix: nextFix,
+          fallbackAt: (function () { const d = f.strips[0]; const P = fromHHMM(pTime(d)); return P != null ? P + 10 * (k + 1) : 10 * (k + 1); })(),
           nextFixT: nxt && postedFix(nxt) === nextFix ? stripEst(nxt) : null,
           nextNextFix: nxt && postedFix(nxt) === nextFix ? (String(nxt.spaces["21"] || "").trim().split(/\s+/)[0].toUpperCase() || null) : null,
           originAirport: f.originAirport, destAirport: f.destAirport, dest: f.dest, firstOfFlight: k === 0,
