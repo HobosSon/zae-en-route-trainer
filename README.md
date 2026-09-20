@@ -165,6 +165,12 @@ Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
   flight's first strip; the generator adds it for aircraft entering IAFDOF,
   3-6 minutes before the initial contact, and keeps such aircraft rare)
   shows in 26 with `RQ mm` in 27.
+- Landline names: we are `D66` to Flight Data and other ZAE sectors (D65,
+  D12, D15, D67), `JAN LO` to another center's sector (MLU LO, PCU LO, POE
+  LO) and `Jackson Low` to the approach controls and towers. IAFDOF is
+  coordinated as an APREQ exchange ("D65, D66, APREQ" / "D65" / "AT MEI,
+  N1234 descending to seven thousand" / "N1234 approved as requested,
+  [initials]" / "[initials]"); an aircraft never leaves the sector IAFDOF.
 - Builder: a KMLU arrival is recognised from a route ending at KMLU (the last
   strip posts STUEE with MLU next); strips in suspense get a `+` placeholder
   in 23, KMLU departure strips also in 14a.
