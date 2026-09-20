@@ -241,7 +241,7 @@
     let m = String(sp["19"] || "").replace(/Ø/g, "0").match(/P\s*(\d{4})/i); if (m) return m[1];
     m = String(sp["12"] || "").replace(/Ø/g, "0").match(/^P\s*(\d{4})/i); return m ? m[1] : null;
   }
-  function depAtFixOf(s) { const sp = s.spaces || {}; return !/P\s*\d{4}/i.test(String(sp["19"] || "")) && /^P\s*\d{4}/i.test(String(sp["12"] || "")) ? postedFix(s) : null; }
+  function depAtFixOf(s) { const sp = s.spaces || {}; return String(sp["11"] || "").trim().toUpperCase() === "KMLU" && !/P\s*\d{4}/i.test(String(sp["19"] || "")) && /^P\s*\d{4}/i.test(String(sp["12"] || "")) ? postedFix(s) : null; } // KMLU only
   function stripEst(s) { return s.type === "departure" ? fromHHMM(pTime(s)) : fromHHMM((s.spaces || {})["15"]); }
   function altOf(s) { const v = parseInt(String((s.spaces || {})["20"] || (s.spaces || {})["24"] || "").replace(/\D/g, ""), 10); return v ? v * 100 : null; }
 

@@ -32,7 +32,9 @@
     const posted = (f19 || "").trim().split(/\s+/)[0];
     const next = (f21 || "").trim().split(/\s+/)[0];
     if (isAirport(posted)) return { type: "departure", arrow: "↑" };
-    if (isAirport(f11) && /^P\s*\d/i.test((f12 || "").trim())) return { type: "departure", arrow: "↑" }; // KMLU: airport and P-time in 11/12, STUEE posted
+    // KMLU only: its departure strip carries the airport and P-time in 11/12 with STUEE posted.
+    // Any other airport in 11 (0M8, KVKS, ... with the P-time) is the strip after the departure strip.
+    if ((f11 || "").trim().toUpperCase() === "KMLU" && /^P\s*\d/i.test((f12 || "").trim())) return { type: "departure", arrow: "↑" };
     if (isAirport(next)) return { type: "arrival", arrow: "↓" };
     return { type: "enroute", arrow: "" };
   }
