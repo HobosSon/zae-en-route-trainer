@@ -175,7 +175,7 @@
       add("RQ", mm(fields.iafdof), fields.iafdof);
       // the exchange: the adjacent sector calls, JAN LO answers, the request names the fix
       const who = String(info.prevSector || "Adjacent sector").replace(/\s*\(.*$/, "");
-      r.calls.push({ k: "RQ", at: fields.iafdof, who: who, text: "“JAN LO, " + who + ", APREQ.” — “JAN LO.” — “AT " + fixName(info.fix || "(fix)") + ", " + cs + " at " + (info.alt ? spokenAlt(info.alt) : "(altitude)") + ".” — the controller answers “" + cs + " approved as requested, [initials]” and the Remote reads back “[initials]”." });
+      r.calls.push({ k: "RQ", at: fields.iafdof, who: who, text: "“JAN LO, " + who + ", APREQ.” — “JAN LO.” — “AT " + (info.fix || "(fix)") + ", " + cs + " at " + (info.alt ? spokenAlt(info.alt) : "(altitude)") + ".” — the controller answers “" + cs + " approved as requested, [initials]” and the Remote reads back “[initials]”." });
     }
     if (fields.altReq && fields.altReq.alt && fields.altReq.t != null) {
       line("RQ " + hundreds(fields.altReq.alt) + " " + toHHMM(fields.altReq.t), fields.altReq.t);
