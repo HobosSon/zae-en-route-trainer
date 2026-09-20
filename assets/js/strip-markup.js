@@ -531,8 +531,11 @@
     ui.rail = buildRail();
     document.body.appendChild(ui.rail);
     document.body.classList.add("has-sm-rail");
-    window.addEventListener("resize", scheduleLayout);
-    document.addEventListener("selectionchange", function () { if (ui.stripEl) captureSelection(); });
+    if (!ui.listening) { // once per page, even if the rail is detached and attached again
+      ui.listening = true;
+      window.addEventListener("resize", scheduleLayout);
+      document.addEventListener("selectionchange", function () { if (ui.stripEl) captureSelection(); });
+    }
   }
   function activate(strip, slot) {
     ui.strip = strip; ui.slot = slot;
@@ -546,6 +549,13 @@
     ui.strip = null; ui.slot = null; ui.stripEl = null; ui.sel = null;
     if (ui.rail) ui.rail.classList.add("is-idle");
   }
+  // Remove the rail from the page (a page that leaves the board, e.g. back to the scenario list).
+  function detach() {
+    deactivate();
+    if (ui.rail && ui.rail.parentNode) ui.rail.parentNode.removeChild(ui.rail);
+    ui.rail = null;
+    document.body.classList.remove("has-sm-rail");
+  }
   function rebind(slot) { if (ui.strip && slot) { ui.slot = slot; ui.stripEl = slot.querySelector(".fps-strip"); apply(ui.stripEl, ui.strip); scheduleLayout(); } }
   function setView(v) { ui.view = v === "remote" ? "remote" : "controller"; if (ui.rail) ui.rail.classList.toggle("is-remote", ui.view === "remote"); }
   function configure(hooks) { Object.assign(ui.hooks, hooks || {}); }
@@ -557,5 +567,5 @@
     if (!on && has >= 0) m.ranges.splice(has, 1);
   }
 
-  root.StripMarkup = { attach: attach, activate: activate, deactivate: deactivate, apply: apply, rebind: rebind, reposition: scheduleLayout, toggleItem: toggleItem, setView: setView, configure: configure, model: model, setStrike: setStrike, setReminderTime: setReminderTime, PALETTE: PALETTE, _ui: ui };
+  root.StripMarkup = { attach: attach, detach: detach, activate: activate, deactivate: deactivate, apply: apply, rebind: rebind, reposition: scheduleLayout, toggleItem: toggleItem, setView: setView, configure: configure, model: model, setStrike: setStrike, setReminderTime: setReminderTime, PALETTE: PALETTE, _ui: ui };
 })(typeof window !== "undefined" ? window : this);

@@ -21,7 +21,7 @@
   const app = document.getElementById("app");
   const S = window.ScenarioStore;
 
-  function clear() { app.innerHTML = ""; }
+  function clear() { app.innerHTML = ""; if (window.StripMarkup) StripMarkup.detach(); } // the marking rail belongs to the board only
   function btn(label, cls, fn) { const b = el("button", "btn " + (cls || ""), label); b.addEventListener("click", fn); return b; }
 
   const ALTIM_SITES = ["KMLU", "KVKS", "KJAN", "KGWO"];
