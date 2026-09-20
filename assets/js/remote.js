@@ -117,7 +117,7 @@
       if (fields.depSeq) r.lines26.push("DEPARTURE #" + fields.depSeq);
       const clnc = info.clncT != null ? info.clncT : (P != null ? P : 0); // the clearance time when it is not on request
       add("IC", null, clnc + DEP_AFTER_CLNC + IC_AFTER_DEP);
-      if (info.depAtFix && info.prEst != null) add("PR", null, info.prEst); // KMLU: the departure strip is also the STUEE posting
+      if (info.depAtFix) add("PR", null, info.prEst != null ? info.prEst : (P != null ? P : 0) + DEP_AFTER_CLNC + IC_AFTER_DEP + 1); // KMLU: the departure strip is also the STUEE posting (blank until the aircraft is off)
       r.calls.push({ k: "IC", at: null, who: cs, text: "Aero Center, " + cs + " off " + fixName(info.originAirport || "the airport") + " at (departure time), climbing to (assigned altitude)" + (info.depFirstFix ? ", " + fixName(info.depFirstFix) + " next" : "") + ". — 2 minutes after the departure time, which is 2 minutes after the clearance." });
     } else {
       const est = info.est != null ? info.est : fromHHMM((strip.spaces || {})["15"]);
@@ -232,6 +232,9 @@
   // ---- authored scenarios: strips only, no flight model ---------------------
   function tokens(route) { return String(route || "").toUpperCase().split(/[\s./]+/).filter(Boolean); }
   function isAirport(x) { x = String(x || "").trim().toUpperCase(); return x === "0M8" || /^K[A-Z0-9]{3}$/.test(x); }
+  // the last airport in a route (a trailing "/HHMM" estimate is not an airport)
+  function lastAirport(route) { for (let i = route.length - 1; i >= 0; i--) if (isAirport(route[i])) return route[i]; return null; }
+  const INTERNAL_APTS = { KJAN: 1, KJVW: 1, KGWO: 1, KVKS: 1, KMLU: 1, "0M8": 1 }; // fields inside Sector 66
   function postedFix(s) { return String((s.spaces || {})["19"] || "").trim().split(/\s+/)[0].toUpperCase(); }
   function pTime(s) { // "KVKS P0516" in 19, or (KMLU) P0516 in 12 with the airport in 11
     const sp = s.spaces || {};
@@ -264,8 +267,11 @@
       const kind = dep ? "departure" : arr ? "arrival" : "overflight";
       const originAirport = dep ? (depAtFixOf(dep) ? String(dep.spaces["11"] || "").trim().toUpperCase() : postedFix(dep)) : (isAirport(route[0]) ? route[0] : null);
       const arrNext = arr ? String(arr.spaces["21"] || "").trim().toUpperCase() : "";
-      const destAirport = arr ? (isAirport(arrNext) ? arrNext : (isAirport(route[route.length - 1]) ? route[route.length - 1] : null)) : null;
-      const f = { id: "A" + (fi + 1), seq: fi + 1, cs: cs, kind: kind, strips: list, originAirport: originAirport, destAirport: destAirport, dest: route[route.length - 1] || null, alt: altOf(list[0]), tas: parseInt(String(list[0].spaces["5"] || "").replace(/\D/g, ""), 10) || null, authored: true, depAtFix: dep ? depAtFixOf(dep) : null };
+      // destination: the arrival strip's next fix, else the route's last airport; a flight
+      // landing inside the sector is an arrival even before its arrival strip is authored
+      const routeApt = lastAirport(route);
+      const destAirport = arr ? (isAirport(arrNext) ? arrNext : routeApt) : (routeApt && INTERNAL_APTS[routeApt] && !dep ? routeApt : null);
+      const f = { id: "A" + (fi + 1), seq: fi + 1, cs: cs, kind: kind, strips: list, originAirport: originAirport, destAirport: destAirport, dest: routeApt || route[route.length - 1] || null, alt: altOf(list[0]), tas: parseInt(String(list[0].spaces["5"] || "").replace(/\D/g, ""), 10) || null, authored: true, depAtFix: dep ? depAtFixOf(dep) : null };
       list.forEach(function (s) { s.flightId = f.id; s.cs = cs; });
       return f;
     });

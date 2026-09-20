@@ -28,10 +28,11 @@
   const STATIC_FIELDS = ["4", "5", "20", "24", "25"]; // shared per-plane data copied by callsign
   function isAirport(x) { x = (x || "").trim().toUpperCase(); return x === "0M8" || /^K[A-Z0-9]{3}$/.test(x); }
   // Determine strip type + dep/arr arrow from the posted fix (19) and next fix (21).
-  function detectFromFixes(f19, f21) {
+  function detectFromFixes(f19, f21, f11, f12) {
     const posted = (f19 || "").trim().split(/\s+/)[0];
     const next = (f21 || "").trim().split(/\s+/)[0];
     if (isAirport(posted)) return { type: "departure", arrow: "↑" };
+    if (isAirport(f11) && /^P\s*\d/i.test((f12 || "").trim())) return { type: "departure", arrow: "↑" }; // KMLU: airport and P-time in 11/12, STUEE posted
     if (isAirport(next)) return { type: "arrival", arrow: "↓" };
     return { type: "enroute", arrow: "" };
   }
@@ -326,7 +327,7 @@
       }
       // auto-detect strip type + dep/arr arrow from posted/next fix
       function applyArrow() {
-        const d = detectFromFixes(valOf("19"), valOf("21"));
+        const d = detectFromFixes(valOf("19"), valOf("21"), valOf("11"), valOf("12"));
         typeSel.value = d.type;
         const arrowCell = cellOf("16");
         if (arrowCell) arrowCell.textContent = d.arrow;
@@ -354,7 +355,7 @@
         if (!cell) return;
         const f = cell.dataset.f;
         if (f === "3") autofill();
-        if (f === "19" || f === "21") applyArrow();
+        if (f === "19" || f === "21" || f === "11" || f === "12") applyArrow();
         if (f === "21") autoCenter();
         if (f === "30") delete cell.dataset.auto; // typed by hand: leave it alone from now on
         refreshAll();
@@ -479,7 +480,15 @@
       seq.addEventListener("input", function () { rf.depSeq = seq.value; refresh(); });
       field("Departure #", seq).title = "Same airport, same request time: the order the requests are made (DEPARTURE #1, #2, …)";
       const frcLab = el("label", "toggle"); const frc = document.createElement("input"); frc.type = "checkbox"; frc.checked = !!rf.frc;
-      frc.addEventListener("change", function () { rf.frc = frc.checked; refresh(); });
+      frc.addEventListener("change", function () {
+        rf.frc = frc.checked;
+        const c26 = block.querySelector('.fps-cell[data-f="26"]');
+        if (c26) { // FRC is written first in space 26 (shown on the strip here, as it will be in play)
+          const cur = c26.textContent.replace(/^\s*FRC\b\s*/i, "").trim();
+          c26.textContent = frc.checked ? "FRC" + (cur ? " " + cur : "") : cur;
+        }
+        refresh();
+      });
       frcLab.appendChild(frc); frcLab.appendChild(document.createTextNode(" FRC"));
       field("Full route clearance", frcLab).title = "FRC is written first in space 26 on both the Remote's and the Controller's strips: the clearance must state every part of the route in space 25";
     } else if (first && String(sp["17"] || "").trim()) {
@@ -502,7 +511,8 @@
     ar.appendChild(timeInput(rf.altReq.t, "HHMM", function (v) { rf.altReq.t = v; refresh(); }));
     field("Altitude request", ar).title = "Uncommon: the pilot asks for a different altitude at this time";
     const dest = (sp["21"] || "").toUpperCase().trim(), route = (sp["25"] || "").toUpperCase().split(/[\s./]+/).filter(Boolean);
-    if (type !== "departure" && (dest === "KVKS" || route[route.length - 1] === "KVKS")) {
+    let routeApt = null; for (let i = route.length - 1; i >= 0; i--) if (isAirport(route[i])) { routeApt = route[i]; break; }
+    if (type !== "departure" && first && (dest === "KVKS" || routeApt === "KVKS")) {
       const sel = document.createElement("select"); sel.className = "editor-type";
       [["no", "REQ KVKS WX"], ["yes", "HAS KVKS WX"]].forEach(function (o) { const e = document.createElement("option"); e.value = o[0]; e.textContent = o[1]; sel.appendChild(e); });
       if (rf.vksWx == null || rf.vksWx === "") rf.vksWx = "no";
