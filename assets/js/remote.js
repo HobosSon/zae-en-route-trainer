@@ -74,6 +74,9 @@
   const LAND_AFTER = { KGWO: 7, KVKS: 5 };
   const HOLD_APCH = { KJAN: "Jackson Approach", KHKS: "Jackson Approach", KJVW: "Jackson Approach", KMLU: "Monroe Approach" };
   const LAND_CALLER = { KGWO: "Greenwood Tower", KVKS: "Flight Service" };
+  // Our own name on the landline: "D66" to Flight Data and other ZAE sectors
+  // (D65, D12, ...), "JAN LO" to another center's sector (MLU LO, PCU LO, POE LO).
+  function ourName(who) { const w = String(who || ""); return /^D\d+$/.test(w.trim()) || /flight data/i.test(w) ? "D66" : /\bLO\b/.test(w) ? "JAN LO" : "Jackson Low"; }
   // who calls Jackson Low for the departure clearance
   const REQUESTER = { KGWO: "Greenwood Tower", KJAN: "Jackson Approach", KHKS: "Jackson Approach", KJVW: "Jackson Approach", KVKS: "Flight Data", "0M8": "Flight Data", KMLU: "Monroe Approach" };
 
@@ -123,7 +126,7 @@
         line("RC " + toHHMM(rq), rq);
         add("RC", mm(rq), rq);
         const who = REQUESTER[info.originAirport] || "Flight Data";
-        r.calls.push({ k: "RC", at: rq, who: who, text: "Jackson Low, " + who + ", request departure clearance " + cs + " to the " + (info.dest || "destination") + " airport." });
+        r.calls.push({ k: "RC", at: rq, who: who, text: ourName(who) + ", " + who + ", request departure clearance " + cs + " to the " + (info.dest || "destination") + " airport." });
       }
       if (fields.depSeq) line("DEPARTURE #" + fields.depSeq);
       const clnc = info.clncT != null ? info.clncT : (P != null ? P : 0); // the clearance time when it is not on request
@@ -175,7 +178,7 @@
       add("RQ", mm(fields.iafdof), fields.iafdof);
       // the exchange: the adjacent sector calls, JAN LO answers, the request names the fix
       const who = String(info.prevSector || "Adjacent sector").replace(/\s*\(.*$/, "");
-      r.calls.push({ k: "RQ", at: fields.iafdof, who: who, text: "“JAN LO, " + who + ", APREQ.” — “JAN LO.” — “AT " + (info.fix || "(fix)") + ", " + cs + " at " + (info.alt ? spokenAlt(info.alt) : "(altitude)") + ".” — the controller answers “" + cs + " approved as requested, [initials]” and the Remote reads back “[initials]”." });
+      r.calls.push({ k: "RQ", at: fields.iafdof, who: who, text: "“" + ourName(who) + ", " + who + ", APREQ.” — “" + ourName(who) + ".” — “AT " + (info.fix || "(fix)") + ", " + cs + " at " + (info.alt ? spokenAlt(info.alt) : "(altitude)") + ".” — the controller answers “" + cs + " approved as requested, [initials]” and the Remote reads back “[initials]”." });
     }
     if (fields.altReq && fields.altReq.alt && fields.altReq.t != null) {
       line("RQ " + hundreds(fields.altReq.alt) + " " + toHHMM(fields.altReq.t), fields.altReq.t);
@@ -388,6 +391,6 @@
     decorate: decorate, derive: derive, depTimes: depTimes, cardMPM: cardMPM, MPM_TABLE: MPM_TABLE,
     flightsFromStrips: flightsFromStrips, decorateAuthored: decorateAuthored, atisWord: atisWord, ICAO: ICAO, normalizeFields: normalizeFields, pTime: pTime, postedFix: postedFix, stripEst: stripEst,
     toHHMM: toHHMM, fromHHMM: fromHHMM, mm: mm,
-    IC_AFTER_DEP: IC_AFTER_DEP, DEP_AFTER_CLNC: DEP_AFTER_CLNC, REQ_BEFORE_P: REQ_BEFORE_P, LAND_AFTER: LAND_AFTER, TOWER_JUR_AFTER: TOWER_JUR_AFTER
+    ourName: ourName, IC_AFTER_DEP: IC_AFTER_DEP, DEP_AFTER_CLNC: DEP_AFTER_CLNC, REQ_BEFORE_P: REQ_BEFORE_P, LAND_AFTER: LAND_AFTER, TOWER_JUR_AFTER: TOWER_JUR_AFTER
   };
 })(typeof window !== "undefined" ? window : this);

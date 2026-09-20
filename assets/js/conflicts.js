@@ -1253,9 +1253,10 @@
           if (f.nextSector) {
             // the aircraft is coordinated as climbing/descending unless it is restricted to cross a point in our airspace AT the new altitude
             const nxt = String(f.nextSector).replace(/\s*\(.*$/, "");
+            const us = /^D\d+$/.test(nxt) ? "D66" : "JAN LO"; // D numbers inside ZAE, sector names to another center
             const atNew = p.restrictions.some(function (r) { return (r.kind === "crossfix" || r.limit === "at" || r.kind === "cross") && r.alt === p.finalAlt && (r.limit === "at" || r.kind === "crossfix"); });
             const how = atNew ? "at " + spoken(p.finalAlt) : dir + "ing to " + spoken(p.finalAlt);
-            ctrl.coordination.push("APREQ " + f.nextSector + ": “" + nxt + ", JAN LO, APREQ.” — “" + nxt + ".” — “AT " + f.exitNav + ", " + f.cs + " " + how + ".” — “" + f.cs + " approved as requested, [initials].” — “[initials].”");
+            ctrl.coordination.push("APREQ " + f.nextSector + ": “" + nxt + ", " + us + ", APREQ.” — “" + nxt + ".” — “AT " + f.exitNav + ", " + f.cs + " " + how + ".” — “" + f.cs + " approved as requested, [initials].” — “[initials].”");
           }
         } else {
           ctrl.items.push("Level en route aircraft that is not changing altitude: no restriction required. Acknowledge the check-on, issue the altimeter, altitude checkmark in space 20.");
