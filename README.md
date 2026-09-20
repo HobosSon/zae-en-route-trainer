@@ -68,8 +68,9 @@ and its **Sector 66 "Jackson Low"** non-radar environment.
   kept separately so a scenario only has to supply it, never the reminders.
 
 - **Practice Scenarios / scenario builder** (`scenarios.html`) — hand-built
-  scenarios (27 static level slots baked from `assets/data/scenarios.js`,
-  plus Community scenarios saved in the browser) are built from the Remote's
+  scenarios (27 static level slots baked from `assets/data/scenarios.js`;
+  NR-11 and NR-13 through NR-22 are authored, the other 16 slots are still
+  empty; plus Community scenarios saved in the browser) are built from the Remote's
   strips: each strip is the printed strip (every space, with the shared
   remarks such as FRC in 26) plus a Remote-data panel — initial contact time
   or ON FREQUENCY, request clearance time (defaults to P−5) and DEPARTURE #,
