@@ -64,7 +64,8 @@
     clear();
     const intro = el("div", "sc-intro");
     intro.appendChild(el("h2", "sc-title", "Shared scenario: " + (sc.title || "Untitled scenario")));
-    intro.appendChild(el("p", null, (sc.description ? sc.description + "  ·  " : "") + sc.strips.length + " strips, from a share link. Play it here or save a copy to your Community tab."));
+    if (sc.description) intro.appendChild(el("p", "sc-desc", sc.description));
+    intro.appendChild(el("p", null, sc.strips.length + " strips, from a share link. Play it here or save a copy to your Community tab."));
     const row = el("div", "cc-actions");
     row.appendChild(btn("Play", "", function () { play(sc, "community", function () { renderShared(sc); }); }));
     row.appendChild(btn("Save to Community", "btn-ghost", function () { S.addCommunity(sc); history.replaceState(null, "", location.pathname); currentTab = "community"; renderGrid(); }));
@@ -145,7 +146,8 @@
       const card = el("div", "community-card");
       const info = el("div", "cc-info");
       info.appendChild(el("h3", null, sc.title || "Untitled scenario"));
-      info.appendChild(el("p", null, (sc.description || "") + "  ·  " + (sc.strips ? sc.strips.length : 0) + " strips"));
+      if (sc.description) info.appendChild(el("p", "cc-desc", sc.description));
+      info.appendChild(el("p", null, (sc.strips ? sc.strips.length : 0) + " strips"));
       card.appendChild(info);
       const actions = el("div", "cc-actions");
       actions.appendChild(btn("Play", "", function () { play(sc, "community"); }));
@@ -249,7 +251,7 @@
 
     const form = el("div", "editor");
     const titleIn = document.createElement("input"); titleIn.type = "text"; titleIn.className = "editor-input"; titleIn.placeholder = "Scenario title"; titleIn.value = existing ? (existing.title || "") : "";
-    const descIn = document.createElement("textarea"); descIn.className = "editor-input"; descIn.placeholder = "Description / instructions (optional)"; descIn.rows = 2; descIn.value = existing ? (existing.description || "") : "";
+    const descIn = document.createElement("textarea"); descIn.className = "editor-input"; descIn.placeholder = "Description / instructions (optional)"; descIn.rows = 4; descIn.value = existing ? (existing.description || "") : "";
     form.appendChild(fieldWrap("Title", titleIn));
     form.appendChild(fieldWrap("Description", descIn));
 
