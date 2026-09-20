@@ -177,6 +177,7 @@
     const g = el("div", "sm-gbox");
     if (isRemote(strip)) {
       g.appendChild(renderReminders(strip, stripEl, m));
+      layer.appendChild(el("div", "sm-xout")); // black X through 27-30 once no reminder is left (set below)
       if (strip.remote.dep) {
         const d = editable("sm-dep18 sm-blk" + (strip.remote.depBox === "12" ? " sm-dep12" : ""), m.dep18, function (x) { m.dep18 = x.textContent.replace(/[^\d]/g, "").slice(0, 4); if (ui.hooks.onDepTime) ui.hooks.onDepTime(strip, m.dep18, stripEl); }, { placeholder: "    " });
         d.title = (strip.remote.depBox === "12" ? "Actual departure time under the P-time (KMLU: space 18 is for the STUEE progression)" : "Actual departure time (2 minutes after the clearance)") + ": the fix estimates, IC and PR times follow from it";
@@ -187,6 +188,7 @@
     const hasH = m.misc.some(function (c) { return c.id === "H"; });
     m.misc.forEach(function (chip) { if (!(def(chip.id).over && hasH)) g.appendChild(renderChip(chip, strip, stripEl)); });
     layer.appendChild(g);
+    updateXout(strip, stripEl, m);
     if (hasH) overs.forEach(function (chip, i) { // written over the holding instructions
       const o = el("div", "sm-over sm-" + chip.color, def(chip.id).label);
       o.style.marginLeft = (i * 2.5) + "cqw"; o.title = def(chip.id).title + " — click to remove";
@@ -338,6 +340,7 @@
         e.stopPropagation();
         m.done[row.id] = !m.done[row.id];
         d.classList.toggle("is-done", !!m.done[row.id]);
+        updateXout(strip, stripEl, m);
       });
       d.appendChild(k);
       if (row.blank) {
@@ -369,6 +372,16 @@
     m.rp = next;
     const old = stripEl && stripEl.querySelector(".sm-rmd");
     if (old) old.replaceWith(renderReminders(strip, stripEl, m));
+    updateXout(strip, stripEl, m);
+  }
+  // The Remote's strip is done when every reminder in 27 is lined through (or
+  // there was none): a black X through 27-30. A report the controller asks for
+  // later (an RP line in 26) brings the strip back until that RP is crossed out.
+  function updateXout(strip, stripEl, m) {
+    const x = stripEl && stripEl.querySelector(".sm-xout"); if (!x) return;
+    if (!isRemote(strip)) { x.classList.remove("is-on"); return; }
+    const rows = strip.remote.reminders.map(function (r) { return r.id; }).concat(m.rp.map(function (r) { return r.iid; }));
+    x.classList.toggle("is-on", rows.every(function (id) { return !!m.done[id]; }));
   }
   // Write a computed time into a reminder blank (and its model) without redrawing the strip.
   function setReminderTime(strip, stripEl, key, value) {

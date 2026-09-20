@@ -401,6 +401,8 @@
 .sm-over { position: absolute; left: 91.5%; top: 6%; font-size: 5.5cqw; line-height: 1; font-weight: 700; opacity: 0.85; pointer-events: auto; cursor: pointer; }
 /* Remote view: red call reminders at the top of space 27, actual departure time in 18 */
 .sm-rmd { display: flex; flex-direction: column; gap: 0; margin-bottom: 0.2cqw; }
+.sm-xout { position: absolute; left: 91.2%; top: 2%; width: 8.6%; height: 96%; display: none; pointer-events: none; }
+.sm-xout.is-on { display: block; background: linear-gradient(to top right, transparent 48.6%, #111 48.6%, #111 51.4%, transparent 51.4%), linear-gradient(to top left, transparent 48.6%, #111 48.6%, #111 51.4%, transparent 51.4%); }
 .sm-rmd-row { display: flex; align-items: baseline; gap: 0.35cqw; font-size: 1.3cqw; line-height: 1.1; font-weight: 700; white-space: pre; }
 .sm-rmd-row.is-done { text-decoration: line-through; text-decoration-color: #111; text-decoration-thickness: 0.22cqw; }
 .sm-rmd-k { cursor: pointer; }

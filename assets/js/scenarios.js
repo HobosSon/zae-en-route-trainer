@@ -28,9 +28,14 @@
   const STATIC_FIELDS = ["4", "5", "20", "24", "25"]; // shared per-plane data copied by callsign
   function isAirport(x) { x = (x || "").trim().toUpperCase(); return x === "0M8" || /^K[A-Z0-9]{3}$/.test(x); }
   // Determine strip type + dep/arr arrow from the posted fix (19) and next fix (21).
-  function detectFromFixes(f19, f21, f11, f12) {
-    const posted = (f19 || "").trim().split(/\s+/)[0];
-    const next = (f21 || "").trim().split(/\s+/)[0];
+  function lastAirportOf(route) { const t = (route || "").toUpperCase().split(/[\s./]+/).filter(Boolean); for (let i = t.length - 1; i >= 0; i--) if (isAirport(t[i])) return { apt: t[i], before: t[i - 1] || null }; return null; }
+  function detectFromFixes(f19, f21, f11, f12, f25) {
+    const posted = (f19 || "").trim().split(/\s+/)[0].toUpperCase();
+    const next = (f21 || "").trim().split(/\s+/)[0].toUpperCase();
+    // KMLU arrivals: the last strip posts STUEE with MLU next (the airport is only in the route,
+    // possibly followed by an estimate): an arrival when the route ends at KMLU and 21 is the fix before it
+    const ra = lastAirportOf(f25);
+    if (ra && ra.apt === "KMLU" && next && next === ra.before && posted !== "KMLU") return { type: "arrival", arrow: "↓" };
     if (isAirport(posted)) return { type: "departure", arrow: "↑" };
     // KMLU only: its departure strip carries the airport and P-time in 11/12 with STUEE posted.
     // Any other airport in 11 (0M8, KVKS, ... with the P-time) is the strip after the departure strip.
@@ -309,7 +314,7 @@
       block._typeSel = typeSel;
       block._strip = stripEl;
       // Remote-only data (space 26 on the Remote's strip); the reminders derive from it
-      const rf = Object.assign({ onFreq: false, ic: "", reqClnc: "", depSeq: "", altReq: { alt: "", t: "" }, vksWx: "", frc: false }, st && st.remoteFields ? st.remoteFields : {});
+      const rf = Object.assign({ onFreq: false, ic: "", reqClnc: "", depSeq: "", altReq: { alt: "", t: "" }, vksWx: "", frc: false, iafdof: "" }, st && st.remoteFields ? st.remoteFields : {});
       if (!rf.altReq) rf.altReq = { alt: "", t: "" };
       block._rf = rf;
       const rpanel = el("div", "editor-remote");
@@ -333,7 +338,7 @@
       }
       // auto-detect strip type + dep/arr arrow from posted/next fix
       function applyArrow() {
-        const d = detectFromFixes(valOf("19"), valOf("21"), valOf("11"), valOf("12"));
+        const d = detectFromFixes(valOf("19"), valOf("21"), valOf("11"), valOf("12"), valOf("25"));
         typeSel.value = d.type;
         const arrowCell = cellOf("16");
         if (arrowCell) arrowCell.textContent = d.arrow;
@@ -362,24 +367,17 @@
         if (!cell) return;
         const f = cell.dataset.f;
         if (f === "3") autofill();
-        if (f === "19" || f === "21" || f === "11" || f === "12") applyArrow();
+        if (f === "19" || f === "21" || f === "11" || f === "12" || f === "25") applyArrow();
         if (f === "21") autoCenter();
         if (f === "30") delete cell.dataset.auto; // typed by hand: leave it alone from now on
         refreshAll();
       });
-      // a departure strip's plus time is typed in 23 (as the Remote's strip prints it): pre-fill a "+" so it lands there
-      const plusHint = function () {
-        const c23 = cellOf("23"); if (!c23) return;
-        if (typeSel.value === "departure") { if (!c23.textContent.trim()) c23.textContent = "+"; }
-        else if (c23.textContent.trim() === "+") c23.textContent = "";
-      };
+      const plusHint = function () { plusHints(); };
       typeSel.addEventListener("change", function () {
         const arrowCell = cellOf("16");
         if (arrowCell) arrowCell.textContent = typeSel.value === "departure" ? "↑" : typeSel.value === "arrival" ? "↓" : "";
-        plusHint();
         refreshAll();
       });
-      plusHint();
 
       stripsWrap.appendChild(block);
       renumber();
@@ -388,7 +386,27 @@
     function renumber() {
       stripsWrap.querySelectorAll(".editor-strip-n").forEach(function (n, i) { n.textContent = "Strip #" + (i + 1); });
     }
-    function refreshAll() { stripsWrap.querySelectorAll(".editor-strip").forEach(function (b) { if (b._refresh) b._refresh(); }); }
+    // Plus-time placeholders: every strip in suspense (a departure strip and the
+    // other strips of that callsign) gets a "+" in 23, where the Remote's strip
+    // prints the plus time to the next fix; a KMLU departure strip also gets one
+    // in 14a for its plus time to STUEE. A lone "+" is dropped when played.
+    function plusHints() {
+      const blocks = [].slice.call(stripsWrap.querySelectorAll(".editor-strip"));
+      const depCs = {};
+      blocks.forEach(function (b) { if (blockType(b) === "departure" && blockCs(b)) depCs[blockCs(b)] = true; });
+      blocks.forEach(function (b) {
+        const type = blockType(b), sp = blockSpaces(b);
+        const inSuspense = type === "departure" || !!depCs[blockCs(b)];
+        const kmluDep = type === "departure" && String(sp["11"] || "").trim().toUpperCase() === "KMLU";
+        const hint = function (f, on) {
+          const c = b.querySelector('.fps-cell[data-f="' + f + '"]'); if (!c) return;
+          if (on) { if (!c.textContent.trim()) c.textContent = "+"; }
+          else if (c.textContent.trim() === "+") c.textContent = "";
+        };
+        hint("23", inSuspense); hint("14a", kmluDep);
+      });
+    }
+    function refreshAll() { plusHints(); stripsWrap.querySelectorAll(".editor-strip").forEach(function (b) { if (b._refresh) b._refresh(); }); }
     if (existing && existing.strips && existing.strips.length) existing.strips.forEach(addStripEditor);
     else addStripEditor(null);
 
@@ -467,6 +485,7 @@
     if (rf.altReq && (rf.altReq.alt || rf.altReq.t)) out.altReq = { alt: rf.altReq.alt || "", t: rf.altReq.t || "" };
     if (rf.vksWx === "yes" || rf.vksWx === "no" || rf.vksWx === true || rf.vksWx === false) out.vksWx = rf.vksWx === true || rf.vksWx === "yes";
     if (rf.frc) out.frc = true;
+    if (rf.iafdof) out.iafdof = rf.iafdof;
     return out;
   }
   function timeInput(value, placeholder, onInput) {
@@ -523,6 +542,9 @@
     ar.appendChild(alt); ar.appendChild(document.createTextNode(" at "));
     ar.appendChild(timeInput(rf.altReq.t, "HHMM", function (v) { rf.altReq.t = v; refresh(); }));
     field("Altitude request", ar).title = "Uncommon: the pilot asks for a different altitude at this time";
+    if (first && type === "enroute") {
+      field("APREQ IAFDOF at", timeInput(rf.iafdof, "HHMM", function (v) { rf.iafdof = v; refresh(); })).title = "The adjacent facility APREQs an altitude inappropriate for direction of flight at this time: APREQ IAFDOF HHMM in 26, RQ mm in 27";
+    }
     const dest = (sp["21"] || "").toUpperCase().trim(), route = (sp["25"] || "").toUpperCase().split(/[\s./]+/).filter(Boolean);
     let routeApt = null; for (let i = route.length - 1; i >= 0; i--) if (isAirport(route[i])) { routeApt = route[i]; break; }
     if (type !== "departure" && first && (dest === "KVKS" || routeApt === "KVKS")) {

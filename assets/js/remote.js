@@ -105,6 +105,12 @@
     const r = { lines26: [], reminders: [], calls: [] };
     const add = function (key, t, at) { r.reminders.push({ id: key + "_" + Math.round(at), k: key, t: t, at: at }); };
     const cs = info.cs || (strip.spaces && strip.spaces["3"]) || "";
+    // a strip whose fix has already been progressed (a time in 18): the aircraft
+    // is on frequency and nothing is left for the Remote to call on it
+    if (strip.type !== "departure" && /^\d{4}$/.test(String((strip.spaces || {})["18"] || "").trim())) {
+      r.lines26.push("ON FREQUENCY");
+      return r;
+    }
     if (strip.type === "departure") {
       const P = info.est != null ? info.est : fromHHMM((strip.spaces || {})["19"]);
       const rq = fields.reqClnc != null ? fields.reqClnc : (P != null ? P - REQ_BEFORE_P : null);
@@ -158,6 +164,11 @@
         add("LD", null, landBase + LAND_AFTER[info.destAirport]);
         r.calls.push({ k: "LD", at: null, who: LAND_CALLER[info.destAirport], text: "Jackson Low, " + LAND_CALLER[info.destAirport] + ", " + cs + " landed (time). — " + LAND_AFTER[info.destAirport] + " minutes after the " + landFix + " estimate (" + toHHMM(landBase + LAND_AFTER[info.destAirport]) + ") or " + LAND_AFTER[info.destAirport] + " minutes after the approach clearance, whichever is later." });
       }
+    }
+    if (fields.iafdof != null) { // the adjacent facility APREQs an altitude inappropriate for direction of flight
+      r.lines26.push("APREQ IAFDOF " + toHHMM(fields.iafdof));
+      add("RQ", mm(fields.iafdof), fields.iafdof);
+      r.calls.push({ k: "RQ", at: fields.iafdof, who: "Adjacent sector", text: "Jackson Low, APREQ: " + cs + " IAFDOF at " + (info.alt ? spokenAlt(info.alt) : "(altitude)") + "." });
     }
     if (fields.altReq && fields.altReq.alt && fields.altReq.t != null) {
       r.lines26.push("RQ " + hundreds(fields.altReq.alt) + " " + toHHMM(fields.altReq.t));
@@ -283,7 +294,8 @@
       onFreq: !!rf.onFreq, ic: rf.onFreq ? null : fromHHMM(rf.ic), reqClnc: fromHHMM(rf.reqClnc),
       depSeq: rf.depSeq ? parseInt(rf.depSeq, 10) || null : null,
       altReq: alt && fromHHMM(rf.altReq.t) != null ? { alt: alt * 100, t: fromHHMM(rf.altReq.t) } : null,
-      vksWx: rf.vksWx == null || rf.vksWx === "" ? null : (rf.vksWx === true || rf.vksWx === "yes")
+      vksWx: rf.vksWx == null || rf.vksWx === "" ? null : (rf.vksWx === true || rf.vksWx === "yes"),
+      iafdof: fromHHMM(rf.iafdof)
     };
   }
   function decorateAuthored(strips, opts) {
@@ -296,6 +308,7 @@
         // authored: space 10 is always the sector; a departure needing a full route
         // clearance carries FRC first in space 26 on both views
         if (!s.spaces["10"]) s.spaces["10"] = "66";
+        if (String(s.spaces["14a"] || "").trim() === "+") delete s.spaces["14a"]; // the builder's placeholder
         if (s.remoteFields && s.remoteFields.frc) { const cur = String(s.spaces["26"] || "").trim(); if (!/^FRC\b/.test(cur)) s.spaces["26"] = "FRC" + (cur ? " " + cur : ""); }
         // authored: a plus time typed in 23 (as printed) belongs in the next strip's 14a
         let plus23 = null;

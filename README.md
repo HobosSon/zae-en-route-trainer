@@ -157,6 +157,15 @@ Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
   WX` / `HAS KVKS WX`. Community scenarios live in the browser's localStorage
   only; sharing them means exporting the JSON (Author → Export) or baking
   them into `assets/data/scenarios.js`.
+- Remote strips: a strip whose fix is already progressed (a time in 18) shows
+  only `ON FREQUENCY` in 26 and no reminders; once every reminder in 27 is
+  lined through (or there was none) a black X goes through 27-30, and an RP
+  line typed in 26 brings the strip back until that RP is crossed out. An
+  adjacent facility's `APREQ IAFDOF HHMM` (builder field on an en route
+  flight's first strip) shows in 26 with `RQ mm` in 27.
+- Builder: a KMLU arrival is recognised from a route ending at KMLU (the last
+  strip posts STUEE with MLU next); strips in suspense get a `+` placeholder
+  in 23, KMLU departure strips also in 14a.
 - Remote strips: a report the controller asks for is written in black in 26
   with the expected time (`RP 30 SW MHZ/1231`; a DME as `25 NW MHZ/1231`);
   an `RP …/HHMM` line adds the RP reminder with its minutes in 27.
