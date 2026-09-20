@@ -278,9 +278,11 @@
       altInputs[site] = inp;
     });
     const altGrid = el("div", "altim-grid");
-    const cell = function (label, inp) { const w = el("div", "editor-field"); w.appendChild(el("label", "editor-flabel", label)); w.appendChild(inp); altGrid.appendChild(w); };
-    cell("KMLU altimeter", altInputs.KMLU); cell("KGWO altimeter", altInputs.KGWO); cell("Scenario start time (Zulu)", startIn);
-    cell("KVKS altimeter", altInputs.KVKS); cell("KJAN altimeter", altInputs.KJAN); cell("Current ATIS (KGWO)", atisIn);
+    // DOM order is the Tab order (MLU, GWO, VKS, JAN, start time, ATIS); the grid placement keeps the layout
+    const cell = function (label, inp, col, row) { const w = el("div", "editor-field"); w.style.gridColumn = String(col); w.style.gridRow = String(row); w.appendChild(el("label", "editor-flabel", label)); w.appendChild(inp); altGrid.appendChild(w); };
+    cell("KMLU altimeter", altInputs.KMLU, 1, 1); cell("KGWO altimeter", altInputs.KGWO, 2, 1);
+    cell("KVKS altimeter", altInputs.KVKS, 1, 2); cell("KJAN altimeter", altInputs.KJAN, 2, 2);
+    cell("Scenario start time (Zulu)", startIn, 3, 1); cell("Current ATIS (KGWO)", atisIn, 3, 2);
     form.appendChild(fieldWrap("Altimeters", altGrid));
 
     const stripsWrap = el("div", "editor-strips");
@@ -390,7 +392,12 @@
     if (existing && existing.strips && existing.strips.length) existing.strips.forEach(addStripEditor);
     else addStripEditor(null);
 
-    form.appendChild(btn("+ Add strip", "btn-ghost", function () { addStripEditor(null); }));
+    form.appendChild(btn("+ Add strip", "btn-ghost", function () {
+      addStripEditor(null);
+      const blocks = stripsWrap.querySelectorAll(".editor-strip");
+      const cs = blocks.length ? blocks[blocks.length - 1].querySelector('.fps-cell[data-f="3"]') : null;
+      if (cs) { cs.focus(); cs.scrollIntoView({ block: "center" }); }
+    }));
 
     const saveRow = el("div", "editor-save-row");
     const msg = el("span", "editor-msg");
@@ -412,6 +419,7 @@
       };
     }
 
+    saveRow.appendChild(btn("← Cancel", "btn-ghost", renderGrid));
     saveRow.appendChild(btn("Preview on the board", "btn-ghost", function () {
       const sc = collect();
       if (!sc.strips.length) { msg.textContent = "Add at least one strip with data."; return; }
