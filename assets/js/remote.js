@@ -104,23 +104,28 @@
     fields = fields || {}; info = info || {};
     const r = { lines26: [], reminders: [], calls: [] };
     const add = function (key, t, at) { r.reminders.push({ id: key + "_" + Math.round(at), k: key, t: t, at: at }); };
+    // space 26 lines in time order (like the reminders); a line with no time of its
+    // own (ATIS, weather, DEPARTURE #) stays under the line it belongs to
+    const l26 = [];
+    const line = function (text, at) { l26.push({ text: text, at: at != null ? at : (l26.length ? l26[l26.length - 1].at : -1), n: l26.length }); };
+    const finish = function () { l26.sort(function (a, b) { return (a.at - b.at) || (a.n - b.n); }); r.lines26 = l26.map(function (x) { return x.text; }); return r; };
     const cs = info.cs || (strip.spaces && strip.spaces["3"]) || "";
     // a strip whose fix has already been progressed (a time in 18): the aircraft
     // is on frequency and nothing is left for the Remote to call on it
     if (strip.type !== "departure" && /^\d{4}$/.test(String((strip.spaces || {})["18"] || "").trim())) {
-      r.lines26.push("ON FREQUENCY");
-      return r;
+      line("ON FREQUENCY", -1);
+      return finish();
     }
     if (strip.type === "departure") {
       const P = info.est != null ? info.est : fromHHMM((strip.spaces || {})["19"]);
       const rq = fields.reqClnc != null ? fields.reqClnc : (P != null ? P - REQ_BEFORE_P : null);
       if (rq != null) {
-        r.lines26.push("RC " + toHHMM(rq));
+        line("RC " + toHHMM(rq), rq);
         add("RC", mm(rq), rq);
         const who = REQUESTER[info.originAirport] || "Flight Data";
         r.calls.push({ k: "RC", at: rq, who: who, text: "Jackson Low, " + who + ", request departure clearance " + cs + " to the " + (info.dest || "destination") + " airport." });
       }
-      if (fields.depSeq) r.lines26.push("DEPARTURE #" + fields.depSeq);
+      if (fields.depSeq) line("DEPARTURE #" + fields.depSeq);
       const clnc = info.clncT != null ? info.clncT : (P != null ? P : 0); // the clearance time when it is not on request
       add("IC", null, clnc + DEP_AFTER_CLNC + IC_AFTER_DEP);
       if (info.depAtFix) add("PR", null, info.prEst != null ? info.prEst : (P != null ? P : 0) + DEP_AFTER_CLNC + IC_AFTER_DEP + 1); // KMLU: the departure strip is also the STUEE posting (blank until the aircraft is off)
@@ -128,13 +133,13 @@
     } else {
       const est = info.est != null ? info.est : fromHHMM((strip.spaces || {})["15"]);
       if (info.firstOfFlight) {
-        if (fields.onFreq) r.lines26.push("ON FREQUENCY");
+        if (fields.onFreq) line("ON FREQUENCY", -1);
         else if (fields.ic != null) {
           const atis = info.destAirport === "KGWO" && fields.atis ? atisWord(fields.atis) : null;
-          r.lines26.push("IC " + toHHMM(fields.ic) + (atis ? " W/ " + atis.toUpperCase() : ""));
-          if (atis) r.lines26.push("ATIS " + atis.toUpperCase());
-          if (info.destAirport === "KVKS" && fields.vksWx === false) r.lines26.push("REQ KVKS WX");
-          if (info.destAirport === "KVKS" && fields.vksWx === true) r.lines26.push("HAS KVKS WX");
+          line("IC " + toHHMM(fields.ic) + (atis ? " W/ " + atis.toUpperCase() : ""), fields.ic);
+          if (atis) line("ATIS " + atis.toUpperCase());
+          if (info.destAirport === "KVKS" && fields.vksWx === false) line("REQ KVKS WX");
+          if (info.destAirport === "KVKS" && fields.vksWx === true) line("HAS KVKS WX");
           add("IC", mm(fields.ic), fields.ic);
           const icFix = info.icFix || info.fix, icT = info.icFixT != null ? info.icFixT : est;
           r.calls.push({ k: "IC", at: fields.ic, who: cs, text: "Aero Center, " + cs + " estimating " + fixName(icFix) + (icT != null ? " " + toHHMM(icT) : "") + (info.alt ? ", at " + spokenAlt(info.alt) : "") + (info.icNext ? ", " + fixName(info.icNext) + " next" : "") + (atis ? ", with information " + atis : "") + "." });
@@ -166,16 +171,17 @@
       }
     }
     if (fields.iafdof != null) { // the adjacent facility APREQs an altitude inappropriate for direction of flight
-      r.lines26.push("APREQ IAFDOF " + toHHMM(fields.iafdof));
+      line("APREQ IAFDOF " + toHHMM(fields.iafdof), fields.iafdof);
       add("RQ", mm(fields.iafdof), fields.iafdof);
       r.calls.push({ k: "RQ", at: fields.iafdof, who: "Adjacent sector", text: "Jackson Low, APREQ: " + cs + " IAFDOF at " + (info.alt ? spokenAlt(info.alt) : "(altitude)") + "." });
     }
     if (fields.altReq && fields.altReq.alt && fields.altReq.t != null) {
-      r.lines26.push("RQ " + hundreds(fields.altReq.alt) + " " + toHHMM(fields.altReq.t));
+      line("RQ " + hundreds(fields.altReq.alt) + " " + toHHMM(fields.altReq.t), fields.altReq.t);
       add("RQ", mm(fields.altReq.t), fields.altReq.t);
       r.calls.push({ k: "RQ", at: fields.altReq.t, who: cs, text: "Aero Center, " + cs + " request " + spokenAlt(fields.altReq.alt) + "." });
     }
     r.reminders.sort(function (a, b) { return a.at - b.at; });
+    finish();
     r.calls.sort(function (a, b) { return (a.at == null ? 1e9 : a.at) - (b.at == null ? 1e9 : b.at); });
     return r;
   }
