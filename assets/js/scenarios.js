@@ -333,6 +333,7 @@
         typeSel.value = d.type;
         const arrowCell = cellOf("16");
         if (arrowCell) arrowCell.textContent = d.arrow;
+        if (typeof plusHint === "function") plusHint(); // the "+" placeholder in 23 follows the detected type
       }
       // autofill shared static data when this callsign matches another strip
       function autofill() {
