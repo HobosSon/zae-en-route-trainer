@@ -1248,9 +1248,15 @@
       } else {
         if (f.iafdof) {
           const dir = p.finalAlt > f.alt ? "climb" : "descend";
-          ctrl.items.push("IAFDOF: " + hundreds(f.alt) + " is inappropriate for direction of flight (" + f.dirLabel + "-bound on " + f.aw + (["V9", "V555", "V557"].indexOf(f.aw) !== -1 ? ", ZHU LOA northbound odd / southbound even" : "") + "). Underline the altitude in red; assign an appropriate altitude before the aircraft leaves Sector 66.");
+          ctrl.items.push("IAFDOF: " + hundreds(f.alt) + " is inappropriate for direction of flight (" + f.dirLabel + "-bound on " + f.aw + (["V9", "V555", "V557"].indexOf(f.aw) !== -1 ? ", ZHU LOA northbound odd / southbound even" : "") + "). Underline the altitude in red; assign an appropriate altitude before the aircraft leaves Sector 66 — an aircraft never exits our airspace IAFDOF. APREQ the next sector before the aircraft enters their airspace, the same exchange the adjacent facility used to send it to us.");
           ctrl.phraseology.push(f.cs + ", " + dir + " and maintain " + spoken(p.finalAlt) + ".");
-          if (f.nextSector) ctrl.coordination.push("APREQ " + f.nextSector + ": “" + f.cs + " revised altitude, " + dir + "ing to " + spoken(p.finalAlt) + ".”");
+          if (f.nextSector) {
+            // the aircraft is coordinated as climbing/descending unless it is restricted to cross a point in our airspace AT the new altitude
+            const nxt = String(f.nextSector).replace(/\s*\(.*$/, "");
+            const atNew = p.restrictions.some(function (r) { return (r.kind === "crossfix" || r.limit === "at" || r.kind === "cross") && r.alt === p.finalAlt && (r.limit === "at" || r.kind === "crossfix"); });
+            const how = atNew ? "at " + spoken(p.finalAlt) : dir + "ing to " + spoken(p.finalAlt);
+            ctrl.coordination.push("APREQ " + f.nextSector + ": “" + nxt + ", JAN LO, APREQ.” — “" + nxt + ".” — “AT " + navName(f.exitNav) + ", " + f.cs + " " + how + ".” — “" + f.cs + " approved as requested, [initials].” — “[initials].”");
+          }
         } else {
           ctrl.items.push("Level en route aircraft that is not changing altitude: no restriction required. Acknowledge the check-on, issue the altimeter, altitude checkmark in space 20.");
         }
