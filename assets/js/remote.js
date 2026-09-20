@@ -173,7 +173,7 @@
     if (fields.iafdof != null) { // the adjacent facility APREQs an altitude inappropriate for direction of flight
       line("APREQ IAFDOF " + toHHMM(fields.iafdof), fields.iafdof);
       add("RQ", mm(fields.iafdof), fields.iafdof);
-      r.calls.push({ k: "RQ", at: fields.iafdof, who: "Adjacent sector", text: "Jackson Low, APREQ: " + cs + " IAFDOF at " + (info.alt ? spokenAlt(info.alt) : "(altitude)") + "." });
+      r.calls.push({ k: "RQ", at: fields.iafdof, who: info.prevSector || "Adjacent sector", text: "Jackson Low, " + (info.prevSector || "adjacent sector") + ", APREQ " + cs + " IAFDOF at " + (info.alt ? spokenAlt(info.alt) : "(altitude)") + "." });
     }
     if (fields.altReq && fields.altReq.alt && fields.altReq.t != null) {
       line("RQ " + hundreds(fields.altReq.alt) + " " + toHHMM(fields.altReq.t), fields.altReq.t);
@@ -224,14 +224,14 @@
       f.remote = { mpm: mpm, onFreq: !!f.onFreq, icT: f.onFreq ? null : f.icT };
       f.strips.forEach(function (s, k) {
         const n = f.nodes[s.nodeIdx];
-        const fields = { onFreq: k === 0 && !!f.onFreq, ic: k === 0 && !f.onFreq ? f.icT : null, depSeq: f.depSeq || null, vksWx: f.vksWx, altReq: null, atis: opts.atis || null };
+        const fields = { onFreq: k === 0 && !!f.onFreq, ic: k === 0 && !f.onFreq ? f.icT : null, depSeq: f.depSeq || null, vksWx: f.vksWx, altReq: null, atis: opts.atis || null, iafdof: k === 0 && !f.onFreq && f.iafdofApreqT != null ? f.iafdofApreqT : null };
         if (f.altReq && activeStrip(f, f.altReq.t) === s) fields.altReq = f.altReq;
         const nx = s.type === "departure" ? null : nextComp(f, n.idx), nx2 = nx ? nextComp(f, nx.idx) : null;
         const icFix = !f.onFreq && f.icT != null ? (firstCompAfter(f, f.icT) || n) : n;
         const info = {
           kind: f.kind, cs: f.cs, alt: f.alt, est: s.type === "departure" ? (f.propT != null ? f.propT : f.baseT) : n.t, prEst: n.t, depAtFix: !!f.depAtFix,
           clncT: s.type === "departure" && f.waitLand ? f.waitLand.landT : null, fix: n.id, nextFix: nx ? nx.id : null, nextFixT: nx ? nx.t : null, nextNextFix: nx2 ? nx2.id : null,
-          originAirport: f.originAirport, destAirport: f.destAirport, dest: f.dest, firstOfFlight: k === 0,
+          originAirport: f.originAirport, destAirport: f.destAirport, dest: f.dest, firstOfFlight: k === 0, prevSector: f.prevSector || null,
           landT: f.kind === "arrival" ? f.nodes[f.nodes.length - 2].t : null, landFix: f.kind === "arrival" ? f.nodes[f.nodes.length - 2].id : null,
           icFix: icFix.id, icFixT: icFix.t, icNext: (function () { const a = nextComp(f, icFix.idx); return a ? a.id : null; })(),
           depFirstFix: s.type === "departure" ? (f.strips[1] ? f.nodes[f.strips[1].nodeIdx].id : (f.nodes[1] ? f.nodes[1].id : null)) : null

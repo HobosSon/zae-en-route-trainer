@@ -162,7 +162,9 @@ Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
   lined through (or there was none) a black X goes through 27-30, and an RP
   line typed in 26 brings the strip back until that RP is crossed out. An
   adjacent facility's `APREQ IAFDOF HHMM` (builder field on an en route
-  flight's first strip) shows in 26 with `RQ mm` in 27.
+  flight's first strip; the generator adds it for aircraft entering IAFDOF,
+  3-6 minutes before the initial contact, and keeps such aircraft rare)
+  shows in 26 with `RQ mm` in 27.
 - Builder: a KMLU arrival is recognised from a route ending at KMLU (the last
   strip posts STUEE with MLU next); strips in suspense get a `+` placeholder
   in 23, KMLU departure strips also in 14a.

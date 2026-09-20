@@ -107,7 +107,7 @@
       allowBlocks: false,
       allowHeavy: true,
       remarkChance: 0.3,
-      iafdofChance: 0.15,
+      iafdofChance: 0.06,  // aircraft entering the sector IAFDOF (nonstandard: kept rare)
       moaChance: 0.12,
       onFreqChance: 0.35,
       altReqChance: 0.08,
@@ -122,7 +122,7 @@
       allowBlocks: false,
       allowHeavy: true,
       remarkChance: 0.5,
-      iafdofChance: 0.2,
+      iafdofChance: 0.08,
       moaChance: 0.18,
       onFreqChance: 0.35,
       altReqChance: 0.12,
@@ -582,6 +582,13 @@
         if (w) iafdofAlt = w; // the aircraft ARRIVES at the wrong altitude; `alt` is the appropriate one
       }
       const filedAlt = iafdofAlt || alt;
+      // an aircraft entering IAFDOF is APREQ'd by the adjacent facility before it
+      // enters (and before its initial contact); the Remote makes that call
+      let apreqT = null;
+      if (iafdofAlt && icT != null) {
+        apreqT = icT - rint(3, 6);
+        if (win && apreqT < win.start) { icT += win.start - apreqT; apreqT = win.start; }
+      }
       // an uncommon mid-flight altitude request from a level overflight (the
       // Remote asks at altReq.t; the controller must check it against traffic)
       let altReq = null;
@@ -612,7 +619,8 @@
         course: trav.course, dirLabel: dir.label, wantsOdd: wantsOdd(trav),
         alt: filedAlt, reqAlt: filedAlt, appropriateAlt: alt, iafdof: !!iafdofAlt, floor: floor, cap: cap,
         originAirport: originAirport, destAirport: destAirport, origin: origin, dest: dest,
-        entryNav: entryNav, exitNav: exitNav, exitFacility: exitFacility, nextSector: NEXT_SECTOR[exitNav] || null,
+        entryNav: entryNav, exitNav: exitNav, exitFacility: exitFacility, nextSector: NEXT_SECTOR[exitNav] || null, prevSector: NEXT_SECTOR[entryNav] || null,
+        iafdofApreqT: apreqT,
         holdFix: destAirport ? (arrSpec.holdFix || arrSpec.feeder) : null, hez026: hez026, depAtFix: depAtFix,
         nodes: nodes, events: events, baseT: baseT, route: routeStr, strips: [],
         onFreq: onFreq, entryT: entryT, icT: icT, altReq: altReq, vksWx: vksWx,
