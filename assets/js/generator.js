@@ -848,7 +848,7 @@
           analysis = trial;
         }
         f.seq = flights.length + 1;
-        f.strips.forEach(function (s) { s.flight = f.seq; });
+        f.strips.forEach(function (s) { s.flight = f.seq; s.flightRank = f.depSeq || f.seq; });
         flights.push(f);
         placed = true;
       }

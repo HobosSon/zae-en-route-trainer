@@ -82,13 +82,15 @@
       function aboveKey(st) {
         const t = sortTime(st);
         // a suspense flight's postings carry no times: keep the flight's own order
-        return [st.suspenseTime != null ? st.suspenseTime : t, st.type === "departure" ? -1 : (st.order != null ? st.order : t)];
+        // ...and flights with the same P-time stay together (DEPARTURE #1 below #2), each departure strip under its postings
+        const flightRank = st.flightRank != null ? st.flightRank : (st.flight != null ? st.flight : 0);
+        return [st.suspenseTime != null ? st.suspenseTime : t, st.suspenseTime != null ? flightRank : 0, st.type === "departure" ? -1 : (st.order != null ? st.order : t)];
       }
       BAYS.forEach(function (b) {
         const by = function (uid) { return sortTime(state.byUid[uid]); };
         state.bays[b].above.sort(function (a, c) {
           const ka = aboveKey(state.byUid[a]), kc = aboveKey(state.byUid[c]);
-          return (ka[0] - kc[0]) || (ka[1] - kc[1]);
+          return (ka[0] - kc[0]) || (ka[1] - kc[1]) || (ka[2] - kc[2]);
         });
         state.bays[b].below.sort(function (a, c) { return by(a) - by(c); });
       });

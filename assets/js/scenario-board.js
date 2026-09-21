@@ -48,8 +48,11 @@
       const dep = f.strips.filter(function (s) { return s.type === "departure"; })[0];
       const depBay = dep ? bayOf(root.ZAERemote.postedFix(dep)) : null;
       const pt = dep ? parseInt(root.ZAERemote.pTime(dep) || "9999", 10) : null;
-      f.strips.forEach(function (s) {
+      const depSeq = dep && dep.remoteFields && parseInt(dep.remoteFields.depSeq, 10) ? parseInt(dep.remoteFields.depSeq, 10) : null;
+      f.strips.forEach(function (s, k) {
         s.flight = f.seq || i + 1;
+        s.flightRank = depSeq != null ? depSeq : (f.seq || i + 1); // same P-time: DEPARTURE #1 first, else authoring order
+        if (s.order == null) s.order = k;                          // postings stack in the flight's own order
         s.homeBay = bayOf(root.ZAERemote.postedFix(s)) || "MHZ";
         if (dep) { s.suspense = true; s.suspenseTime = pt; s.bay = depBay || s.homeBay; }
         else { s.suspense = false; s.bay = s.homeBay; }
