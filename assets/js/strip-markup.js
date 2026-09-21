@@ -11,7 +11,10 @@
  *     underline it (pen colour)
  *   - click in the route (space 25) -> a caret ^ between two route elements
  *     with an amendment written under it (which can itself be circled)
- *   - a revised estimate box beside the center estimate (space 15)
+ *   - the printed cells 12, 14, 17, 18, 19, 20, 24 and the route are written in
+ *     directly (pen colour); boxes for restrictions under 20 (a black bar
+ *     separates them from the altitude), the coordinated altitude left of 24,
+ *     the landing time under 22; box 18 can be split (assumed / actual)
  *   - RLS / SYD / V<: red = the preplanning reminder outside the left border
  *     of box 15, black = the actual entry inside box 15 with its text
  *   - space 26: C (comm change: time, fix or mileage) and 67 (block) entries
@@ -45,12 +48,13 @@
     { id: "RLS", label: "RLS", where: "15", seed: "RLS ", title: "Released (rule): red = preplan reminder, black = actual entry in box 15" },
     { id: "SYD", label: "SYD", where: "15", seed: "SYD / ", title: "Visual separation approved: red = preplan reminder, black = actual entry in box 15" },
     { id: "V", label: "V<", where: "15", seed: "V< ", title: "Void time: red = preplan reminder, black = actual entry in box 15" },
-    { id: "C", label: "C", where: "26", seed: "C ", title: "Communications change: the time, fix or mileage where the pilot contacts the next facility (space 26)" },
+    { id: "C", label: "C", where: "26", seed: "", title: "Communications change: the time, fix or mileage where the pilot contacts the next facility (space 26)" },
+    { id: "EDC", label: "EDC", where: "edc", title: "Expect departure clearance: EDC with the time under it, in 14a (above the plus time when there is one)" },
     { id: "67", label: "67", where: "26", seed: "67 ", title: "Airspace blocked with sector 67 and the altitude (space 26)" },
     { id: "DA", label: "D-A", where: "g", editable: true, seed: "D-A", title: "Operating initials: yours and the receiver's" },
     { id: "H", label: "H-", where: "g", title: "Cleared to hold: holding instructions typed beside it (Space or Enter = next line)" },
-    { id: "VR", label: "VR", where: "g", title: "VOR approach (KGWO: VOR runway 5 circle to runway 23)" },
-    { id: "APCH", label: "APCH", where: "g", title: "Cleared approach (KVKS / 0M8)" },
+    { id: "VR", label: "VR", where: "g", timed: true, title: "VOR approach (KGWO: VOR runway 5 circle to runway 23) with the time under it" },
+    { id: "APCH", label: "APCH", where: "g", timed: true, title: "Cleared approach (KVKS / 0M8) with the time under it" },
     { id: "Z", label: "Z", where: "g", over: true, title: "Tower jurisdiction (written over the holding instructions)" },
     { id: "VV", label: "V", where: "g", over: true, title: "Cleared beyond the fix / for approach (written over the holding instructions)" },
     { id: "TXT", label: "abc", where: "g", editable: true, seed: "", title: "Free text" }
@@ -60,11 +64,12 @@
   const ui = { pen: "red", strip: null, slot: null, stripEl: null, rail: null, sel: null, seq: 0, view: "controller", hooks: {} };
 
   function model(strip) {
-    if (!strip.markup) strip.markup = { ranges: [], carets: [], text26: "", items26: [], s15: [], est15: "", misc: [], rtimes: {}, done: {}, rp: [], dep18: "" };
+    if (!strip.markup) strip.markup = { ranges: [], carets: [], text26: "", items26: [], s15: [], misc: [], rtimes: {}, done: {}, rp: [], dep18: "", cells: {}, restr: "", coord: "", land: "", split18: false, b18L: "", b18R: "", edc: null };
     const m = strip.markup;
     ["ranges", "carets", "items26", "s15", "misc", "rp"].forEach(function (k) { if (!m[k]) m[k] = []; });
-    ["rtimes", "done"].forEach(function (k) { if (!m[k]) m[k] = {}; });
-    if (m.text26 == null) m.text26 = ""; if (m.est15 == null) m.est15 = ""; if (m.dep18 == null) m.dep18 = "";
+    ["rtimes", "done", "cells"].forEach(function (k) { if (!m[k]) m[k] = {}; });
+    ["text26", "dep18", "restr", "coord", "land", "b18L", "b18R"].forEach(function (k) { if (m[k] == null) m[k] = ""; });
+    if (m.edc === undefined) m.edc = null;
     return m;
   }
   function isRemote(strip) { return ui.view === "remote" && !!(strip && strip.remote); }
@@ -145,11 +150,45 @@
     stripEl.classList.add("sm-marked");
     const m = model(strip);
 
-    // space 15: revised estimate beside the minutes, actual entries inside the
-    // box, preplanning reminders just outside its left border
-    const est = editable("sm-est15 sm-blk", m.est15, function (d) { m.est15 = d.textContent; }, { placeholder: "" });
-    est.title = "Revised center estimate (strike the old one, write the new one here)";
-    layer.appendChild(est);
+    // printed cells the controller writes in (typed in the pen colour): 12, 14,
+    // 17 (fix estimates), 18 (progression; split for departures), 19 (an amended
+    // next fix such as DINKY), 20 (altitude changes), 24 (requested altitude), 25 (route)
+    applyCells(stripEl, strip, m);
+    // restrictions under the altitude (with the black bar once there are any),
+    // the coordinated-altitude box left of 24, the landing time under 22
+    const restr = editable("sm-restr", m.restr, function (d) { m.restr = sanitize(d.innerHTML); bar.classList.toggle("is-on", !!d.textContent.trim()); }, { html: true, placeholder: "restrictions" });
+    restr.addEventListener("beforeinput", penInput);
+    restr.title = "Restrictions, one per line (Enter = next line)";
+    layer.appendChild(restr);
+    const bar = el("div", "sm-bar20" + (String(m.restr || "").replace(/<[^>]*>/g, "").trim() ? " is-on" : ""));
+    layer.appendChild(bar);
+    const coord = editable("sm-coord", m.coord, function (d) { m.coord = sanitize(d.innerHTML); }, { html: true, placeholder: "" });
+    coord.addEventListener("beforeinput", penInput);
+    coord.title = "Altitude coordinated with the next sector (red; circled once approved)";
+    layer.appendChild(coord);
+    const land = editable("sm-land", m.land, function (d) { m.land = sanitize(d.innerHTML); }, { html: true, placeholder: "" });
+    land.addEventListener("beforeinput", penInput);
+    land.title = "Landing time (KGWO / KVKS arrivals)";
+    layer.appendChild(land);
+    // split box 18 (departures): assumed departure time left, actual right
+    if (m.split18 && !(isRemote(strip) && strip.remote.dep)) {
+      const L = editable("sm-18L", m.b18L, function (d) { m.b18L = sanitize(d.innerHTML); }, { html: true, placeholder: "" });
+      L.addEventListener("beforeinput", penInput); L.title = "Assumed departure time (red)";
+      const R = editable("sm-18R", m.b18R, function (d) { m.b18R = sanitize(d.innerHTML); }, { html: true, placeholder: "" });
+      R.addEventListener("beforeinput", penInput); R.title = "Actual departure time (black)";
+      layer.appendChild(L); layer.appendChild(el("div", "sm-18slash", "/")); layer.appendChild(R);
+    }
+    // EDC with its time under it: in 14a, or above the plus time when there is one
+    if (m.edc) {
+      const hasPlus = !!((strip.spaces || {})["14a"] || "").trim() || !!((m.cells["14a"] || "").replace(/<[^>]*>/g, "").trim());
+      const e = el("div", "sm-edc sm-blk" + (hasPlus ? " above-plus" : ""));
+      e.appendChild(el("div", "sm-edc-k", "EDC"));
+      const t = editable("sm-edc-t sm-blk", m.edc.time, function (d) { m.edc.time = d.textContent.replace(/[^\dØ]/g, "").slice(0, 4); }, { placeholder: "" });
+      t.title = "EDC time (shift-click EDC to remove)";
+      e.appendChild(t);
+      e.addEventListener("click", function (ev) { if (ev.shiftKey) { ev.stopPropagation(); m.edc = null; apply(stripEl, strip); } });
+      layer.appendChild(e);
+    }
     const in15 = el("div", "sm-in15");
     const pre15 = el("div", "sm-pre15");
     m.s15.forEach(function (it) {
@@ -162,6 +201,16 @@
     // space 26: entries (C, 67) then free text
     const box26 = el("div", "sm-box26");
     m.items26.forEach(function (it) {
+      if (it.id === "C") {
+        const row = el("div", "sm-item26 sm-item26-c sm-" + it.color);
+        const big = el("span", "sm-c-big", "C"); big.title = def(it.id).title + " (shift-click to remove)";
+        big.addEventListener("click", function (e) { if (e.shiftKey) { e.preventDefault(); e.stopPropagation(); toggleItem(strip, stripEl, it.id, it.color); } });
+        const val = editable("sm-c-val", String(it.text || "").replace(/^C\s*/, ""), function (x) { it.text = x.textContent; });
+        val.dataset.iid = it.iid;
+        row.appendChild(big); row.appendChild(val);
+        box26.appendChild(row);
+        return;
+      }
       const b = editable("sm-item26 sm-" + it.color, it.text, function (x) { it.text = x.textContent; });
       b.dataset.iid = it.iid; b.title = def(it.id).title + " (shift-click to remove)";
       b.addEventListener("click", function (e) { if (e.shiftKey) { e.preventDefault(); toggleItem(strip, stripEl, it.id, it.color); } });
@@ -215,7 +264,7 @@
   function layoutMarks(stripEl, strip) {
     const layer = stripEl.querySelector(".sm-layer"); if (!layer) return;
     const m = model(strip);
-    Array.prototype.forEach.call(layer.querySelectorAll(".sm-circ, .sm-strike, .sm-ul"), function (n) { n.remove(); });
+    Array.prototype.forEach.call(layer.querySelectorAll(".sm-circ, .sm-strike, .sm-ul, .sm-x"), function (n) { n.remove(); });
     const s = stripEl.getBoundingClientRect();
     if (!s.width) return;
     const aspect = s.width / s.height;
@@ -241,6 +290,12 @@
           // through the middle of the capitals/digits (they sit in the upper part of the line box)
           const d = el("div", "sm-strike");
           d.style.left = p.left + "%"; d.style.width = p.width + "%"; d.style.top = (p.top + p.height * 0.42) + "%";
+          layer.appendChild(d);
+          return;
+        }
+        if (rk.kind === "x") { // an X through the text
+          const d = el("div", "sm-x");
+          d.style.left = p.left + "%"; d.style.top = p.top + "%"; d.style.width = p.width + "%"; d.style.height = p.height + "%";
           layer.appendChild(d);
           return;
         }
@@ -307,9 +362,10 @@
       const tn = range.startContainer.nodeType === 3 ? range.startContainer : null;
       const parentSpan = tn ? tn.parentNode : null;
       const inSpan = parentSpan && parentSpan.classList && (parentSpan.classList.contains("sm-red") || parentSpan.classList.contains("sm-blk"));
-      if (inSpan && parentSpan.classList.contains("sm-" + ui.pen)) node = document.createTextNode(e.data);
+      const data = String(e.data).replace(/0/g, "Ø");
+      if (inSpan && parentSpan.classList.contains("sm-" + ui.pen)) node = document.createTextNode(data);
       else {
-        node = el("span", "sm-" + ui.pen, e.data);
+        node = el("span", "sm-" + ui.pen, data);
         if (inSpan) {
           const off = range.startOffset;
           if (off >= tn.nodeValue.length) range.setStartAfter(parentSpan);
@@ -359,7 +415,7 @@
   function autoRPs(text26) {
     const tmp = el("div"); tmp.innerHTML = String(text26 || "").replace(/<br\s*\/?>/gi, "\n").replace(/<\/div>/gi, "\n");
     const out = [];
-    (tmp.textContent || "").split(/\n/).forEach(function (line) {
+    (tmp.textContent || "").replace(/Ø/g, "0").split(/\n/).forEach(function (line) {
       const mt = line.match(/^\s*RP\b[^\/]*\/\s*(\d{4})/i);
       if (mt) out.push({ iid: "rpa" + out.length, t: mt[1].slice(2), auto: true });
     });
@@ -405,6 +461,12 @@
       const h = editable("sm-hold-text", chip.hold, function (x) { chip.hold = x.textContent; }, { lines: true, placeholder: "SW\n256\nLT\n1243" });
       c.appendChild(h);
     }
+    if (d.timed) { // VR / APCH: the 4-digit time directly under the label
+      c.classList.add("sm-chip-col");
+      const t = editable("sm-chip-time", chip.time || "", function (x) { chip.time = x.textContent.replace(/[^\dØ]/g, "").slice(0, 4); }, { placeholder: "" });
+      t.title = "Time (HHMM)";
+      c.appendChild(t);
+    }
     c.title = d.title + " — shift-click to remove";
     c.addEventListener("click", function (e) { e.stopPropagation(); if (e.shiftKey) toggleItem(strip, stripEl, chip.id, chip.color); });
     return c;
@@ -416,6 +478,12 @@
     const d = def(id); if (!d) return;
     const m = model(strip);
     color = color || ui.pen;
+    if (d.where === "edc") { // EDC: on or off, black, with a time box under it
+      m.edc = m.edc ? null : { time: "" };
+      apply(stripEl, strip);
+      const t = stripEl.querySelector(".sm-edc-t"); if (t) focusEnd(t);
+      return;
+    }
     const list = d.where === "15" ? m.s15 : d.where === "26" ? m.items26 : m.misc;
     const i = list.findIndex(function (x) { return x.id === id && x.color === color; });
     if (i >= 0) { list.splice(i, 1); apply(stripEl, strip); return; }
@@ -428,9 +496,10 @@
     // put the caret where the value goes
     let target = null;
     if (d.where === "15" && color === "blk") target = stripEl.querySelector('.sm-actual[data-iid="' + item.iid + '"]');
-    else if (d.where === "26") target = stripEl.querySelector('.sm-item26[data-iid="' + item.iid + '"]');
+    else if (d.where === "26") target = stripEl.querySelector('.sm-item26[data-iid="' + item.iid + '"], .sm-c-val[data-iid="' + item.iid + '"]');
     else if (id === "H") target = stripEl.querySelector('.sm-chip[data-cid="' + item.cid + '"] .sm-hold-text');
     else if (d.editable) target = stripEl.querySelector('.sm-chip[data-cid="' + item.cid + '"] .sm-chip-text');
+    else if (d.timed) target = stripEl.querySelector('.sm-chip[data-cid="' + item.cid + '"] .sm-chip-time');
     if (target) focusEnd(target);
   }
 
@@ -473,10 +542,41 @@
     off = (off - left <= right - off) ? Math.max(0, left) : Math.min(text.length, right);
     if (off === 0 || off === text.length) { alert("The ^ must sit between two route elements."); return; }
     const m = model(ui.strip);
+    const at = m.carets.find(function (c) { return c.offset === off; });
+    if (at) { removeCaret(ui.strip, ui.stripEl, at.id); return; } // a toggle: the same spot again removes the ^
     const c = { id: "k" + (++ui.seq) + Date.now().toString(36), offset: off, color: ui.pen, text: "" };
     m.carets.push(c);
     apply(ui.stripEl, ui.strip);
     const box = ui.stripEl.querySelector('.sm-caret-text[data-id="' + c.id + '"]'); if (box) box.focus();
+  }
+
+  // ---- printed cells the controller writes in ------------------------------------
+  const EDIT_CELLS = ["12", "14", "17", "18", "19", "20", "24", "25"];
+  function applyCells(stripEl, strip, m) {
+    EDIT_CELLS.forEach(function (f) {
+      const c = cellOf(stripEl, f); if (!c) return;
+      if (m.cells[f] != null) c.innerHTML = m.cells[f];
+      const off = f === "18" && (m.split18 || (isRemote(strip) && strip.remote.dep)); // the split boxes / the Remote's departure box take over 18
+      c.classList.toggle("sm-cell-edit", !off);
+      if (c.dataset.smBound) return;
+      c.dataset.smBound = "1";
+      c.addEventListener("beforeinput", penInput);
+      c.addEventListener("input", function () { m.cells[f] = sanitize(c.innerHTML); layoutMarks(stripEl, strip); });
+    });
+    setCellsEditable(stripEl, selectedEl(stripEl));
+  }
+  function setCellsEditable(stripEl, on) {
+    if (!stripEl) return;
+    Array.prototype.forEach.call(stripEl.querySelectorAll(".fps-cell.sm-cell-edit"), function (c) {
+      if (on) { c.contentEditable = "true"; c.spellcheck = false; } else c.removeAttribute("contenteditable");
+    });
+  }
+  // Write a value into one of those cells from code (the Remote's recomputed fix estimates go in 17).
+  function setCell(strip, stripEl, f, text) {
+    const m = model(strip);
+    m.cells[f] = text ? '<span class="sm-blk">' + escapeHtml(text) + "</span>" : null;
+    const c = stripEl && cellOf(stripEl, f);
+    if (c) { if (m.cells[f] != null) c.innerHTML = m.cells[f]; else c.textContent = (strip.spaces || {})[f] ? String(strip.spaces[f]).replace(/0/g, "Ø") : ""; }
   }
   function removeCaret(strip, stripEl, id) {
     const m = model(strip);
@@ -504,10 +604,17 @@
     mk("◯ Circle", "Circle the highlighted text in the pen colour (again to remove; both colours may stack)", function () { applySelection("circ-" + ui.pen); });
     mk("— Strike", "Line the highlighted text through (black; again to remove)", function () { applySelection("strike"); });
     mk("_ Underline", "Underline the highlighted text in the pen colour (IAFDOF, TUX suffix, FRC in red)", function () { applySelection("ul-" + ui.pen); });
+    mk("✕ X out", "Put an X through the highlighted text (black; again to remove)", function () { applySelection("x"); });
 
     const routeSec = section("Route");
-    const caret = el("button", "btn btn-ghost sm-act", "^ Amend"); caret.type = "button"; caret.title = "Click a spot in the route, then insert a ^ with the amendment under it";
+    const caret = el("button", "btn btn-ghost sm-act", "^ Amend"); caret.type = "button"; caret.title = "Put the cursor in the route, then insert a ^ there with the amendment under it; the same spot again removes it";
     caret.addEventListener("click", insertCaret); routeSec.appendChild(caret);
+
+    const boxSec = section("Boxes");
+    const split = el("button", "btn btn-ghost sm-act", "Split 18"); split.type = "button"; split.title = "Departures: split box 18 — assumed departure time on the left, actual on the right (again to join)";
+    split.addEventListener("click", function () { if (!ui.strip) return; const m = model(ui.strip); m.split18 = !m.split18; split.classList.toggle("is-on", m.split18); apply(ui.stripEl, ui.strip); const L = ui.stripEl.querySelector(".sm-18L"); if (L) focusEnd(L); });
+    boxSec.appendChild(split);
+    ui.splitBtn = split;
 
     const chipSec = function (title, ids) {
       const sec = section(title);
@@ -522,6 +629,7 @@
       sec.appendChild(wrap);
     };
     chipSec("Box 15", ["RLS", "SYD", "V"]);
+    chipSec("Space 14a", ["EDC"]);
     chipSec("Space 26", ["C", "67"]);
     chipSec("Spaces 27–30", ["DA", "H", "VR", "APCH", "Z", "VV", "TXT"]);
 
@@ -531,7 +639,7 @@
     const clear = el("button", "btn btn-ghost sm-act sm-danger", "Clear strip"); clear.type = "button"; clear.title = "Remove every mark on this strip";
     clear.addEventListener("click", function () { if (!ui.strip) return; if (!confirm("Clear all marks on " + (ui.strip.spaces["3"] || "this strip") + "?")) return; ui.strip.markup = null; apply(ui.stripEl, ui.strip); });
     misc.appendChild(clear);
-    misc.appendChild(el("div", "sm-hint", "Select a strip on the board to mark it up. Highlight text for circles, strikes and underlines."));
+    misc.appendChild(el("div", "sm-hint", "Select a strip on the board to mark it up. Highlight text to circle, underline, x, or strike it through"));
     return rail;
   }
 
@@ -555,10 +663,12 @@
     ui.stripEl = slot ? slot.querySelector(".fps-strip") : null;
     if (!ui.stripEl) return deactivate();
     apply(ui.stripEl, strip);
-    if (ui.rail) ui.rail.classList.remove("is-idle");
+    setCellsEditable(ui.stripEl, true);
+    if (ui.rail) { ui.rail.classList.remove("is-idle"); if (ui.splitBtn) ui.splitBtn.classList.toggle("is-on", !!model(strip).split18); }
     setTimeout(scheduleLayout, 160);
   }
   function deactivate() {
+    setCellsEditable(ui.stripEl, false);
     ui.strip = null; ui.slot = null; ui.stripEl = null; ui.sel = null;
     if (ui.rail) ui.rail.classList.add("is-idle");
   }
@@ -569,7 +679,7 @@
     ui.rail = null;
     document.body.classList.remove("has-sm-rail");
   }
-  function rebind(slot) { if (ui.strip && slot) { ui.slot = slot; ui.stripEl = slot.querySelector(".fps-strip"); apply(ui.stripEl, ui.strip); scheduleLayout(); } }
+  function rebind(slot) { if (ui.strip && slot) { ui.slot = slot; ui.stripEl = slot.querySelector(".fps-strip"); apply(ui.stripEl, ui.strip); setCellsEditable(ui.stripEl, true); scheduleLayout(); } }
   function setView(v) { ui.view = v === "remote" ? "remote" : "controller"; if (ui.rail) ui.rail.classList.toggle("is-remote", ui.view === "remote"); }
   function configure(hooks) { Object.assign(ui.hooks, hooks || {}); }
   // Programmatic marks (used when a departure time recomputes a flight's estimates).
@@ -580,5 +690,5 @@
     if (!on && has >= 0) m.ranges.splice(has, 1);
   }
 
-  root.StripMarkup = { attach: attach, detach: detach, activate: activate, deactivate: deactivate, apply: apply, rebind: rebind, reposition: scheduleLayout, toggleItem: toggleItem, setView: setView, configure: configure, model: model, setStrike: setStrike, setReminderTime: setReminderTime, PALETTE: PALETTE, _ui: ui };
+  root.StripMarkup = { attach: attach, detach: detach, activate: activate, deactivate: deactivate, apply: apply, rebind: rebind, reposition: scheduleLayout, toggleItem: toggleItem, setView: setView, configure: configure, model: model, setStrike: setStrike, setCell: setCell, setReminderTime: setReminderTime, PALETTE: PALETTE, _ui: ui };
 })(typeof window !== "undefined" ? window : this);

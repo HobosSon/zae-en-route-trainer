@@ -170,15 +170,14 @@
       root.StripMarkup.setReminderTime(strip, stripEl, "IC", ok ? root.ZAERemote.mm(times.ic) : "");
       flight.strips.forEach(function (sib, k) {
         if (k === 0) { // KMLU: the departure strip's own STUEE estimate and PR follow the departure time too
-          if (times && times.est[0] != null) { const m0 = root.StripMarkup.model(sib); m0.est15 = root.ZAERemote.toHHMM(times.est[0]); root.StripMarkup.setStrike(sib, "15", !!sib.spaces["15"]); const e = stripEl && stripEl.querySelector(".sm-est15"); if (e) e.textContent = m0.est15; root.StripMarkup.setReminderTime(sib, stripEl, "PR", root.ZAERemote.mm(times.est[0])); }
-          else if (!ok && flight.depAtFix) { const m0 = root.StripMarkup.model(sib); m0.est15 = ""; root.StripMarkup.setStrike(sib, "15", false); const e = stripEl && stripEl.querySelector(".sm-est15"); if (e) e.textContent = ""; root.StripMarkup.setReminderTime(sib, stripEl, "PR", ""); }
+          if (times && times.est[0] != null) { root.StripMarkup.setCell(sib, stripEl, "17", root.ZAERemote.toHHMM(times.est[0])); root.StripMarkup.setStrike(sib, "15", !!sib.spaces["15"]); root.StripMarkup.setReminderTime(sib, stripEl, "PR", root.ZAERemote.mm(times.est[0])); }
+          else if (!ok && flight.depAtFix) { root.StripMarkup.setCell(sib, stripEl, "17", ""); root.StripMarkup.setStrike(sib, "15", false); root.StripMarkup.setReminderTime(sib, stripEl, "PR", ""); }
           root.StripMarkup.reposition(); // draw / clear the strike on the selected strip without redrawing it
           return;
         }
-        const m = root.StripMarkup.model(sib);
-        m.est15 = ok ? root.ZAERemote.toHHMM(times.est[k]) : "";
-        root.StripMarkup.setStrike(sib, "15", ok && !!sib.spaces["15"]); // suspense strips have no printed estimate to strike
         const sEl = sib.uid ? board.stripEl(sib.uid) : null;
+        root.StripMarkup.setCell(sib, sEl, "17", ok ? root.ZAERemote.toHHMM(times.est[k]) : ""); // the recomputed fix estimate goes in 17
+        root.StripMarkup.setStrike(sib, "15", ok && !!sib.spaces["15"]); // suspense strips have no printed estimate to strike
         root.StripMarkup.setReminderTime(sib, sEl, "PR", ok ? root.ZAERemote.mm(times.est[k]) : "");
         root.StripMarkup.setReminderTime(sib, sEl, "Z", ok ? root.ZAERemote.mm(times.est[k] + root.ZAERemote.TOWER_JUR_AFTER) : "");
         if (sEl) root.StripMarkup.apply(sEl, sib);

@@ -178,7 +178,16 @@ Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
 - Remote strips: a report the controller asks for is written in black in 26
   with the expected time (`RP 30 SW MHZ/1231`; a DME as `25 NW MHZ/1231`);
   an `RP …/HHMM` line adds the RP reminder with its minutes in 27.
-- To revisit later: the Community scenario page (rework); remove "Prototype build" from the home page; the map and
+- Stripmarking editor: the printed cells 12, 14, 17, 18, 19, 20, 24 and the
+  route are written in directly in the pen colour (typed zeros are slashed);
+  boxes for restrictions under 20 (a black bar appears above them), the
+  coordinated altitude left of 24 and the landing time under 22; Split 18
+  (assumed / actual departure time), EDC with its time (14a, or above a plus
+  time), VR and APCH with a time under them, a large C in 26, an X through
+  highlighted text, and Amend as a toggle at the cursor in the route. The
+  Remote's recomputed fix estimates go in 17.
+- To revisit later: space 20 (altitude changes and strikes need more), box
+  15, the Community scenario page (rework); remove "Prototype build" from the home page; the map and
   study-guide pages; rework the difficulty tiers; the answer key (only
   control actions, coordination and phraseology are shown now); the
   stripmarking rail; remove the static level numbers once every level is
