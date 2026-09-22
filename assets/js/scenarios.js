@@ -401,7 +401,9 @@
       blocks.forEach(function (b) {
         const type = blockType(b);
         const inSuspense = type === "departure" || !!depCs[blockCs(b)];
-        const kmluDep = !!kmluCs[blockCs(b)];
+        // 14a: the strips after a departure strip carry the plus time from the previous fix;
+        // a KMLU departure carries one on the departure strip too (its plus to STUEE)
+        const kmluDep = !!kmluCs[blockCs(b)] || (inSuspense && type !== "departure");
         const hint = function (f, on) {
           const c = b.querySelector('.fps-cell[data-f="' + f + '"]'); if (!c) return;
           if (on) { if (!c.textContent.trim()) c.textContent = "+"; }

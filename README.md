@@ -174,7 +174,7 @@ Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
   [initials]" / "[initials]"); an aircraft never leaves the sector IAFDOF.
 - Builder: a KMLU arrival is recognised from a route ending at KMLU (the last
   strip posts STUEE with MLU next); strips in suspense get a `+` placeholder
-  in 23, every strip of a KMLU departure also in 14a.
+  in 23 and, after the departure strip, in 14a too (a KMLU departure strip has one in 14a as well).
 - Remote strips: a report the controller asks for is written in black in 26
   with the expected time (`RP 30 SW MHZ/1231`; a DME as `25 NW MHZ/1231`);
   an `RP …/HHMM` line adds the RP reminder with its minutes in 27.
