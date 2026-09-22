@@ -392,12 +392,16 @@
     // in 14a for its plus time to STUEE. A lone "+" is dropped when played.
     function plusHints() {
       const blocks = [].slice.call(stripsWrap.querySelectorAll(".editor-strip"));
-      const depCs = {};
-      blocks.forEach(function (b) { if (blockType(b) === "departure" && blockCs(b)) depCs[blockCs(b)] = true; });
+      const depCs = {}, kmluCs = {};
       blocks.forEach(function (b) {
-        const type = blockType(b), sp = blockSpaces(b);
+        if (blockType(b) !== "departure" || !blockCs(b)) return;
+        depCs[blockCs(b)] = true;
+        if (String(blockSpaces(b)["11"] || "").trim().toUpperCase() === "KMLU") kmluCs[blockCs(b)] = true; // a KMLU departure: every strip carries a plus time in 14a
+      });
+      blocks.forEach(function (b) {
+        const type = blockType(b);
         const inSuspense = type === "departure" || !!depCs[blockCs(b)];
-        const kmluDep = type === "departure" && String(sp["11"] || "").trim().toUpperCase() === "KMLU";
+        const kmluDep = !!kmluCs[blockCs(b)];
         const hint = function (f, on) {
           const c = b.querySelector('.fps-cell[data-f="' + f + '"]'); if (!c) return;
           if (on) { if (!c.textContent.trim()) c.textContent = "+"; }
