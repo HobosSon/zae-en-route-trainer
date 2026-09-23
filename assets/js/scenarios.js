@@ -1,9 +1,9 @@
 /*
- * Practice Scenarios controller. Level-select for 27 static "levels",
+ * Practice Scenarios controller. Level-select for the 27 baked levels,
  * a Community tab (user-created, saved to localStorage), a player on the bay
  * board (Controller / Remote toggle, stripmarking), and the scenario builder
- * (used for Community scenarios and, via the authoring tool, for
- * staging/exporting the static levels).
+ * (used for Community scenarios; the baked levels live in
+ * assets/data/scenarios.js and are edited there directly).
  *
  * Scenarios are built from the Remote's strips: each strip is the printed
  * strip (every space, including the shared remarks in 26 such as FRC) plus
@@ -83,7 +83,6 @@
 
   // ---------------- Level select ----------------
   let currentTab = "levels";
-  let authorMode = false;
 
   function renderGrid() {
     clear();
@@ -100,15 +99,6 @@
   function renderLevels() {
     const intro = el("div", "sc-intro");
     intro.appendChild(el("p", null, "Select a scenario to practice."));
-    // temporary authoring toggle
-    const authRow = el("div", "author-row");
-    const authToggle = el("label", "toggle");
-    const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = authorMode;
-    cb.addEventListener("change", function () { authorMode = cb.checked; renderGrid(); });
-    authToggle.appendChild(cb); authToggle.appendChild(document.createTextNode(" Author static levels (temporary)"));
-    authRow.appendChild(authToggle);
-    if (authorMode) authRow.appendChild(btn("Export static JSON", "btn-ghost", exportStatic));
-    intro.appendChild(authRow);
     app.appendChild(intro);
 
     const grid = el("div", "level-grid");
@@ -116,21 +106,13 @@
     for (let i = 1; i <= total; i++) {
       const got = S.getStatic(i);
       const tile = el("div", "level-tile" + (got ? "" : " locked"));
-      tile.appendChild(el("span", "level-num", String(i)));
       if (got) {
         tile.appendChild(el("span", "level-title", got.scenario.title || ("Scenario " + i)));
-        tile.appendChild(el("span", "level-meta", (got.scenario.strips ? got.scenario.strips.length : 0) + " strips" + (got.source === "staged" ? " · staged" : "")));
+        tile.appendChild(el("span", "level-meta", (got.scenario.strips ? got.scenario.strips.length : 0) + " strips"));
         tile.addEventListener("click", function () { play(got.scenario, "levels"); });
       } else {
         tile.appendChild(el("span", "level-title", "Locked"));
         tile.appendChild(el("span", "level-meta", "Coming soon"));
-      }
-      if (authorMode) {
-        const a = btn(got ? "Edit" : "Author", "btn-ghost btn-xs", function (e) {
-          e.stopPropagation();
-          editScenario({ mode: "static", slot: i, existing: got ? got.scenario : null });
-        });
-        tile.appendChild(a);
       }
       grid.appendChild(tile);
     }
@@ -252,7 +234,7 @@
     const existing = opts.existing || null;
     const head = el("div", "sc-head");
     head.appendChild(btn("← Cancel", "btn-ghost", renderGrid));
-    const label = opts.mode === "static" ? ("Static level " + opts.slot) : (existing ? "Edit community scenario" : "New community scenario");
+    const label = existing ? "Edit community scenario" : "New community scenario";
     head.appendChild(el("span", "editor-label", label));
     app.appendChild(head);
 
@@ -448,23 +430,14 @@
     saveRow.appendChild(btn("Preview on the board", "btn-ghost", function () {
       const sc = collect();
       if (!sc.strips.length) { msg.textContent = "Add at least one strip with data."; return; }
-      play(sc, currentTab, function () { editScenario({ mode: opts.mode, slot: opts.slot, existing: existing ? Object.assign({}, sc, { id: existing.id }) : sc, isDraft: true }); });
+      play(sc, currentTab, function () { editScenario({ mode: "community", existing: existing ? Object.assign({}, sc, { id: existing.id }) : sc, isDraft: true }); });
     }));
-    if (opts.mode === "community") {
-      saveRow.appendChild(btn("Save scenario", "", function () {
-        const sc = collect();
-        if (!sc.strips.length) { msg.textContent = "Add at least one strip with data."; return; }
-        if (existing && existing.id) S.updateCommunity(existing.id, sc); else S.addCommunity(sc);
-        currentTab = "community"; renderGrid();
-      }));
-    } else {
-      saveRow.appendChild(btn("Save to slot " + opts.slot, "", function () {
-        const sc = collect();
-        S.setStaging(opts.slot, sc.strips.length ? sc : null);
-        msg.textContent = "Saved to staging slot " + opts.slot + ". Use \"Export static JSON\" to bake it in.";
-      }));
-      saveRow.appendChild(btn("Export static JSON", "btn-ghost", exportStatic));
-    }
+    saveRow.appendChild(btn("Save scenario", "", function () {
+      const sc = collect();
+      if (!sc.strips.length) { msg.textContent = "Add at least one strip with data."; return; }
+      if (existing && existing.id) S.updateCommunity(existing.id, sc); else S.addCommunity(sc);
+      currentTab = "community"; renderGrid();
+    }));
     saveRow.appendChild(msg);
     form.appendChild(saveRow);
     app.appendChild(form);
@@ -589,23 +562,6 @@
     w.appendChild(el("label", "editor-flabel", labelText));
     w.appendChild(inputEl);
     return w;
-  }
-
-  function exportStatic() {
-    clear();
-    app.appendChild(btn("← Back", "btn-ghost", renderGrid));
-    app.appendChild(el("h2", "sc-title", "Export static scenarios"));
-    app.appendChild(el("p", "sc-desc", "Copy this into assets/data/scenarios.js (replace the window.ZAE_STATIC_SCENARIOS assignment) and commit to bake these in for everyone."));
-    const ta = document.createElement("textarea");
-    ta.className = "export-box"; ta.rows = 20; ta.readOnly = true;
-    ta.value = "window.ZAE_STATIC_SCENARIOS = " + S.exportStatic() + ";";
-    app.appendChild(ta);
-    const row = el("div", "editor-save-row");
-    row.appendChild(btn("Copy to clipboard", "", function () {
-      ta.select();
-      try { navigator.clipboard.writeText(ta.value); } catch (e) { document.execCommand("copy"); }
-    }));
-    app.appendChild(row);
   }
 
   const shared = decodeShare(location.hash);

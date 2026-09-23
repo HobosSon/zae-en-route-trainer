@@ -68,8 +68,8 @@ and its **Sector 66 "Jackson Low"** non-radar environment.
   kept separately so a scenario only has to supply it, never the reminders.
 
 - **Practice Scenarios / scenario builder** (`scenarios.html`) — hand-built
-  scenarios (27 static level slots baked from `assets/data/scenarios.js`;
-  all 27 are authored, NR-1 to NR-3 still need their altimeter settings;
+  scenarios (27 levels baked into `assets/data/scenarios.js`; NR-1 to NR-3
+  still need their altimeter settings, added straight into that file;
   plus Community scenarios saved in the browser) are built from the Remote's
   strips: each strip is the printed strip (every space, with the shared
   remarks such as FRC in 26) plus a Remote-data panel — initial contact time
@@ -82,8 +82,9 @@ and its **Sector 66 "Jackson Low"** non-radar environment.
   time may be typed in space 23 as printed on the Remote's strip; the
   Controller's strip carries it in 14a of the next strip. The Remote's space-27
   reminders and space-26 lines are derived (`ZAERemote.decorateAuthored`),
-  never typed. To bake a level: Author static levels → Save to slot N →
-  Export static JSON → paste into `assets/data/scenarios.js` and commit. The player
+  never typed. The levels are edited directly in `assets/data/scenarios.js`
+  (the in-page authoring toggle and export view were removed once all 27
+  were baked). The player
   posts the strips on the bay board (`assets/js/scenario-board.js`, shared
   with the generator) with the Controller / Remote toggle and stripmarking;
   authored scenarios have no conflict-engine answer key.
@@ -156,8 +157,8 @@ Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
 - Builder: departure strips can be flagged FRC (written first in space 26 on
   both views), space 10 is fixed at 66, the KVKS weather choice is `REQ KVKS
   WX` / `HAS KVKS WX`. Community scenarios live in the browser's localStorage
-  only; sharing them means exporting the JSON (Author → Export) or baking
-  them into `assets/data/scenarios.js`.
+  only; sharing them means a Share link or baking them into
+  `assets/data/scenarios.js`.
 - Remote strips: a strip whose fix is already progressed (a time in 18) shows
   only `ON FREQUENCY` in 26 and no reminders; once every reminder in 27 is
   lined through (or there was none) a black X goes through 27-30, and an RP
@@ -201,8 +202,7 @@ Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
   15, the Community scenario page (rework); remove "Prototype build" from the home page; the map and
   study-guide pages; rework the difficulty tiers; the answer key (only
   control actions, coordination and phraseology are shown now); the
-  stripmarking rail; remove the static level numbers (every level is saved
-  now); altimeters for NR-1 to NR-3.
+  stripmarking rail; altimeters for NR-1 to NR-3.
 
 ## Running locally
 

@@ -12,7 +12,6 @@
 
 .sc-intro { margin-bottom: 1.25rem; color: var(--text-dim); font-size: 0.9rem; display: flex; flex-direction: column; gap: 0.75rem; }
 .sc-intro p { margin: 0; }
-.author-row { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
 
 /* level grid */
 .level-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.85rem; }
@@ -23,10 +22,8 @@
 }
 .level-tile:hover:not(.locked) { border-color: var(--green); transform: translateY(-2px); background: var(--bg-card-hover); }
 .level-tile.locked { opacity: 0.5; cursor: not-allowed; border-style: dashed; }
-.level-num { font-family: var(--mono); font-size: 0.72rem; color: var(--text-faint); }
 .level-title { font-weight: 700; font-size: 0.98rem; }
 .level-meta { font-family: var(--mono); font-size: 0.72rem; color: var(--text-dim); }
-.level-tile .btn-xs { margin-top: 0.4rem; align-self: flex-start; }
 
 /* community */
 .community-list { display: flex; flex-direction: column; gap: 0.75rem; }
