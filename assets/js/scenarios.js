@@ -553,7 +553,9 @@
     }
     const dest = (sp["21"] || "").toUpperCase().trim(), route = (sp["25"] || "").toUpperCase().split(/[\s./]+/).filter(Boolean);
     let routeApt = null; for (let i = route.length - 1; i >= 0; i--) if (isAirport(route[i])) { routeApt = route[i]; break; }
-    if (type !== "departure" && first && (dest === "KVKS" || routeApt === "KVKS")) {
+    // a KVKS arrival already on frequency (the radio, an estimate in 17, a progressed time in 18) has no weather question
+    const onFreqNow = !!rf.onFreq || !!String(sp["17"] || "").trim() || /^\d{4}$/.test(String(sp["18"] || "").trim());
+    if (type !== "departure" && first && !onFreqNow && (dest === "KVKS" || routeApt === "KVKS")) {
       const sel = document.createElement("select"); sel.className = "editor-type";
       [["no", "REQ KVKS WX"], ["yes", "HAS KVKS WX"]].forEach(function (o) { const e = document.createElement("option"); e.value = o[0]; e.textContent = o[1]; sel.appendChild(e); });
       if (rf.vksWx == null || rf.vksWx === "") rf.vksWx = "no";
