@@ -119,7 +119,7 @@
     const d = el("div", cls + " sm-edit");
     d.contentEditable = "true"; d.spellcheck = false;
     if (opts.key) d.dataset.mk = opts.key;
-    if (opts.html) d.innerHTML = text || ""; else d.textContent = text || "";
+    if (opts.html) { d.innerHTML = text || ""; d.dataset.html = "1"; } else d.textContent = text || "";
     if (opts.placeholder) d.dataset.ph = opts.placeholder;
     if (opts.lines) { // Space or Enter starts a new line (holding instructions)
       d.addEventListener("keydown", function (e) {
@@ -342,6 +342,7 @@
       if (n.tagName === "BR") { out.push({ br: true }); return; }
       if (n.tagName === "DIV") { out.push({ br: true }); runsOf(n, colour, out); return; }
       const c = /sm-red/.test(n.className) ? "red" : /sm-blk/.test(n.className) ? "blk" : colour;
+      if (/\bsm-g\b/.test(n.className) && GLYPHS[n.dataset.g]) { out.push({ c: c, g: n.dataset.g }); return; }
       runsOf(n, c, out);
     });
     return out;
@@ -353,12 +354,29 @@
     runs.forEach(function (r) {
       if (r.br) { out.push("<br>"); return; }
       const last = out[out.length - 1];
-      if (last && last !== "<br>" && last.c === r.c) { last.t += r.t; return; }
-      out.push({ c: r.c, t: r.t });
+      if (last && last !== "<br>" && !last.g && !r.g && last.c === r.c) { last.t += r.t; return; }
+      out.push(r.g ? { c: r.c, g: r.g } : { c: r.c, t: r.t });
     });
-    return out.map(function (r) { return r === "<br>" ? r : '<span class="sm-' + r.c + '">' + escapeHtml(r.t) + "</span>"; }).join("");
+    return out.map(function (r) {
+      if (r === "<br>") return r;
+      if (r.g) return glyphEl(r.g, r.c).outerHTML;
+      return '<span class="sm-' + r.c + '">' + escapeHtml(r.t) + "</span>";
+    }).join("");
   }
   function escapeHtml(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  // Marks from the AERO Center commonly used stripmarking list that no font has: drawn, in the pen colour.
+  // Each is an inline glyph span (non-editable, deleted as one character) that sanitize() keeps.
+  const GLYPHS = {
+    aoa: { name: "at or above", fallback: "↑" },
+    aob: { name: "at or below", fallback: "↓" },
+    join: { name: "joining", fallback: "⟋" },
+    eca: { name: "enter controlled airspace", fallback: "△" }
+  };
+  function glyphEl(g, colour) {
+    const e = el("span", (colour ? "sm-" + colour + " " : "") + "sm-g");
+    e.dataset.g = g; e.contentEditable = "false"; e.title = GLYPHS[g] ? GLYPHS[g].name : "";
+    return e;
+  }
   // Typed text goes into a span of the current pen colour, never nested in the other colour.
   function penInput(e) {
     if (e.inputType !== "insertText" && e.inputType !== "insertParagraph") return;
@@ -367,19 +385,19 @@
     if (e.inputType === "insertParagraph") insertAtCursor(e.target, null);
     else insertAtCursor(e.target, String(e.data).replace(/0/g, "Ø"));
   }
-  // Insert text (or a line break when text is null) at the caret of an editable box, in the pen colour.
-  function insertAtCursor(box, text) {
+  // Insert text (or a line break when text is null, or a drawn glyph) at the caret of an editable box, in the pen colour.
+  function insertAtCursor(box, text, glyph) {
     const sel = window.getSelection(); if (!sel.rangeCount) return;
     const range = sel.getRangeAt(0); range.deleteContents();
     let node;
-    if (text == null) node = el("br");
+    if (text == null && !glyph) node = el("br");
     else {
       const tn = range.startContainer.nodeType === 3 ? range.startContainer : null;
       const parentSpan = tn ? tn.parentNode : null;
       const inSpan = parentSpan && parentSpan.classList && (parentSpan.classList.contains("sm-red") || parentSpan.classList.contains("sm-blk"));
-      if (inSpan && parentSpan.classList.contains("sm-" + ui.pen)) node = document.createTextNode(text);
+      if (inSpan && !glyph && parentSpan.classList.contains("sm-" + ui.pen)) node = document.createTextNode(text);
       else {
-        node = el("span", "sm-" + ui.pen, text);
+        node = glyph ? glyphEl(glyph, ui.pen) : el("span", "sm-" + ui.pen, text);
         if (inSpan) {
           const off = range.startOffset;
           if (off >= tn.nodeValue.length) range.setStartAfter(parentSpan);
@@ -625,13 +643,16 @@
     // symbols from the AERO Center commonly used stripmarking list, typed at the cursor in the pen colour
     const symSec = section("Special marks");
     const syms = el("div", "sm-syms");
-    [["T→", "via depart"], ["↑", "climb and maintain"], ["⤒", "at or above"], ["↓", "descend and maintain"], ["⤓", "at or below"], ["⌒", "joining"], ["⊿", "enter controlled airspace"]].forEach(function (pair) {
-      const c = el("button", "sm-sym", pair[0]); c.type = "button";
-      c.title = pair[1] + " — written at the cursor in the pen colour";
+    // [text or null, glyph id or null, meaning]
+    [["T→", null, "via depart"], ["↑", null, "climb and maintain"], [null, "aoa", "at or above"], ["↓", null, "descend and maintain"], [null, "aob", "at or below"], [null, "join", "joining"], [null, "eca", "enter controlled airspace"]].forEach(function (d) {
+      const c = el("button", "sm-sym", d[0]); c.type = "button";
+      if (d[1]) c.appendChild(glyphEl(d[1], null));
+      c.title = d[2] + " — written at the cursor in the pen colour";
       c.addEventListener("click", function () {
         const a = document.activeElement;
         if (!ui.stripEl || !a || !a.isContentEditable || !ui.stripEl.contains(a)) return;
-        insertAtCursor(a, pair[0]);
+        if (d[1] && !a.dataset.html) insertAtCursor(a, GLYPHS[d[1]].fallback); // plain-text boxes cannot hold a drawn glyph
+        else insertAtCursor(a, d[0], d[1]);
       });
       syms.appendChild(c);
     });
