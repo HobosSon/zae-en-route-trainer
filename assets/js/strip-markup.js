@@ -364,17 +364,22 @@
     if (e.inputType !== "insertText" && e.inputType !== "insertParagraph") return;
     const sel = window.getSelection(); if (!sel.rangeCount) return;
     e.preventDefault();
+    if (e.inputType === "insertParagraph") insertAtCursor(e.target, null);
+    else insertAtCursor(e.target, String(e.data).replace(/0/g, "Ø"));
+  }
+  // Insert text (or a line break when text is null) at the caret of an editable box, in the pen colour.
+  function insertAtCursor(box, text) {
+    const sel = window.getSelection(); if (!sel.rangeCount) return;
     const range = sel.getRangeAt(0); range.deleteContents();
     let node;
-    if (e.inputType === "insertParagraph") node = el("br");
+    if (text == null) node = el("br");
     else {
       const tn = range.startContainer.nodeType === 3 ? range.startContainer : null;
       const parentSpan = tn ? tn.parentNode : null;
       const inSpan = parentSpan && parentSpan.classList && (parentSpan.classList.contains("sm-red") || parentSpan.classList.contains("sm-blk"));
-      const data = String(e.data).replace(/0/g, "Ø");
-      if (inSpan && parentSpan.classList.contains("sm-" + ui.pen)) node = document.createTextNode(data);
+      if (inSpan && parentSpan.classList.contains("sm-" + ui.pen)) node = document.createTextNode(text);
       else {
-        node = el("span", "sm-" + ui.pen, data);
+        node = el("span", "sm-" + ui.pen, text);
         if (inSpan) {
           const off = range.startOffset;
           if (off >= tn.nodeValue.length) range.setStartAfter(parentSpan);
@@ -387,7 +392,7 @@
     range.insertNode(node);
     range.setStartAfter(node); range.collapse(true);
     sel.removeAllRanges(); sel.addRange(range);
-    e.target.dispatchEvent(new Event("input", { bubbles: true }));
+    box.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
   // ---- Remote call reminders (space 27) ------------------------------------------------
@@ -619,14 +624,14 @@
 
     // symbols from the AERO Center commonly used stripmarking list, typed at the cursor in the pen colour
     const symSec = section("Special marks");
-    const syms = el("div", "sm-chips");
+    const syms = el("div", "sm-syms");
     [["T→", "via depart"], ["↑", "climb and maintain"], ["⤒", "at or above"], ["↓", "descend and maintain"], ["⤓", "at or below"], ["⌒", "joining"], ["⊿", "enter controlled airspace"]].forEach(function (pair) {
-      const c = el("div", "sm-pal-chip sm-sym", pair[0]);
-      c.title = pair[1] + " — typed at the cursor in a box on the strip";
+      const c = el("button", "sm-sym", pair[0]); c.type = "button";
+      c.title = pair[1] + " — written at the cursor in the pen colour";
       c.addEventListener("click", function () {
         const a = document.activeElement;
         if (!ui.stripEl || !a || !a.isContentEditable || !ui.stripEl.contains(a)) return;
-        document.execCommand("insertText", false, pair[0]);
+        insertAtCursor(a, pair[0]);
       });
       syms.appendChild(c);
     });

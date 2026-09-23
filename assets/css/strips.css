@@ -403,7 +403,14 @@
 .sm-edc-t { font-size: 1.3cqw; line-height: 1.05; min-height: 1.3cqw; min-width: 3cqw; white-space: pre-wrap; }
 .sm-b13 { position: absolute; left: 15.8%; top: 38%; width: 8%; height: 14%; font-size: 1.5cqw; line-height: 1.1; font-weight: 700; white-space: pre; }
 .sm-15b { position: absolute; left: 30%; top: 22%; width: 9.5%; height: 11%; font-size: 1.5cqw; line-height: 1.1; font-weight: 700; white-space: pre; }
-.sm-pal-chip.sm-sym { font-size: 1rem; line-height: 1; padding: 0.15rem 0.45rem; }
+.sm-syms { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.25rem; }
+.sm-sym {
+  height: 1.9rem; display: flex; align-items: center; justify-content: center;
+  background: var(--bg-card); color: var(--text); border: 1px solid var(--border-bright); border-radius: 6px;
+  font-family: "Segoe UI Symbol", "Noto Sans Symbols 2", "Noto Sans Symbols", "Apple Symbols", "DejaVu Sans", system-ui, sans-serif;
+  font-size: 1.05rem; line-height: 1; cursor: pointer; padding: 0;
+}
+.sm-sym:hover { border-color: var(--green); background: var(--bg-card-hover); }
 .sm-x { position: absolute; background: linear-gradient(to top right, transparent 46%, #111 46%, #111 54%, transparent 54%), linear-gradient(to top left, transparent 46%, #111 46%, #111 54%, transparent 54%); }
 .sm-item26-c { display: flex; align-items: baseline; gap: 0.35cqw; }
 .sm-c-big { font-size: 2.7cqw; line-height: 0.9; pointer-events: auto; cursor: pointer; }
