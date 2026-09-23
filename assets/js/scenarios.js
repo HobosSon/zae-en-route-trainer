@@ -314,7 +314,7 @@
       block._typeSel = typeSel;
       block._strip = stripEl;
       // Remote-only data (space 26 on the Remote's strip); the reminders derive from it
-      const rf = Object.assign({ onFreq: false, ic: "", reqClnc: "", depSeq: "", altReq: { alt: "", t: "" }, vksWx: "", frc: false, iafdof: "" }, st && st.remoteFields ? st.remoteFields : {});
+      const rf = Object.assign({ onFreq: false, ic: "", reqClnc: "", depSeq: "", altReq: { alt: "", t: "" }, vksWx: "", frc: false, iafdof: "", inopDme: "" }, st && st.remoteFields ? st.remoteFields : {});
       if (!rf.altReq) rf.altReq = { alt: "", t: "" };
       block._rf = rf;
       const rpanel = el("div", "editor-remote");
@@ -492,6 +492,7 @@
     if (rf.vksWx === "yes" || rf.vksWx === "no" || rf.vksWx === true || rf.vksWx === false) out.vksWx = rf.vksWx === true || rf.vksWx === "yes";
     if (rf.frc) out.frc = true;
     if (rf.iafdof) out.iafdof = rf.iafdof;
+    if (rf.inopDme) out.inopDme = rf.inopDme;
     return out;
   }
   function timeInput(value, placeholder, onInput) {
@@ -550,6 +551,9 @@
     field("Altitude request", ar).title = "Uncommon: the pilot asks for a different altitude at this time";
     if (first && type === "enroute") {
       field("APREQ IAFDOF at", timeInput(rf.iafdof, "HHMM", function (v) { rf.iafdof = v; refresh(); })).title = "The adjacent facility APREQs an altitude inappropriate for direction of flight at this time: APREQ IAFDOF HHMM in 26, RQ mm in 27";
+    }
+    if (type === "enroute") {
+      field("INOP DME at", timeInput(rf.inopDme, "HHMM", function (v) { rf.inopDme = v; refresh(); })).title = "Rare: the pilot reports an inoperative DME at this time (INOP DME HHMM in 26, DME mm in 27). The controller coordinates it with the next sector, strikes the equipment suffix and writes the TUX suffix beside it: B→T, A→U, D→X";
     }
     const dest = (sp["21"] || "").toUpperCase().trim(), route = (sp["25"] || "").toUpperCase().split(/[\s./]+/).filter(Boolean);
     let routeApt = null; for (let i = route.length - 1; i >= 0; i--) if (isAirport(route[i])) { routeApt = route[i]; break; }

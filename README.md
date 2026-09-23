@@ -172,6 +172,10 @@ Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
   coordinated as an APREQ exchange ("D65, D66, APREQ" / "D65" / "AT MEI,
   N1234 descending to seven thousand" / "N1234 approved as requested,
   [initials]" / "[initials]"); an aircraft never leaves the sector IAFDOF.
+- Builder (only there, never the generator): an en route strip can carry an
+  inoperative-DME report at a time — `INOP DME HHMM` in 26, `DME mm` in 27.
+  The controller coordinates it with the next sector, strikes the equipment
+  suffix in space 4 and writes the TUX suffix beside it (B→T, A→U, D→X).
 - Builder: a KMLU arrival is recognised from a route ending at KMLU (the last
   strip posts STUEE with MLU next); strips in suspense get a `+` placeholder
   in 23 and, after the departure strip, in 14a too (a KMLU departure strip has one in 14a as well).

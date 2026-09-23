@@ -551,7 +551,7 @@
   }
 
   // ---- printed cells the controller writes in ------------------------------------
-  const EDIT_CELLS = ["12", "14", "17", "18", "19", "20", "24", "25"];
+  const EDIT_CELLS = ["4", "12", "14", "17", "18", "19", "20", "24", "25"]; // 4: a changed equipment suffix (INOP DME: B→T, A→U, D→X)
   function applyCells(stripEl, strip, m) {
     EDIT_CELLS.forEach(function (f) {
       const c = cellOf(stripEl, f); if (!c) return;

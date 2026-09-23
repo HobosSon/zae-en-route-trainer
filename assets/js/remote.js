@@ -180,6 +180,13 @@
       const who = String(info.prevSector || "Adjacent sector").replace(/\s*\(.*$/, "");
       r.calls.push({ k: "RQ", at: fields.iafdof, who: who, text: "“" + ourName(who) + ", " + who + ", APREQ.” — “" + ourName(who) + ".” — “AT " + (info.fix || "(fix)") + ", " + cs + " at " + (info.alt ? spokenAlt(info.alt) : "(altitude)") + ".” — the controller answers “" + cs + " approved as requested, [initials]” and the Remote reads back “[initials]”." });
     }
+    if (fields.inopDme != null) { // the pilot reports an inoperative DME (authored scenarios only)
+      line("INOP DME " + toHHMM(fields.inopDme), fields.inopDme);
+      add("DME", mm(fields.inopDme), fields.inopDme);
+      const suf = String((strip.spaces || {})["4"] || "").split("/")[1] || "";
+      const tux = { B: "T", A: "U", D: "X" }[suf.toUpperCase()] || null;
+      r.calls.push({ k: "DME", at: fields.inopDme, who: cs, text: "Aero Center, " + cs + ", our DME is inoperative." + (tux ? " — the controller coordinates it with the next sector, strikes the /" + suf + " and writes /" + tux + " beside it." : "") });
+    }
     if (fields.altReq && fields.altReq.alt && fields.altReq.t != null) {
       line("RQ " + hundreds(fields.altReq.alt) + " " + toHHMM(fields.altReq.t), fields.altReq.t);
       add("RQ", mm(fields.altReq.t), fields.altReq.t);
@@ -306,7 +313,8 @@
       depSeq: rf.depSeq ? parseInt(rf.depSeq, 10) || null : null,
       altReq: alt && fromHHMM(rf.altReq.t) != null ? { alt: alt * 100, t: fromHHMM(rf.altReq.t) } : null,
       vksWx: rf.vksWx == null || rf.vksWx === "" ? null : (rf.vksWx === true || rf.vksWx === "yes"),
-      iafdof: fromHHMM(rf.iafdof)
+      iafdof: fromHHMM(rf.iafdof),
+      inopDme: fromHHMM(rf.inopDme)
     };
   }
   function decorateAuthored(strips, opts) {
