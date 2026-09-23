@@ -429,7 +429,8 @@
       const strips = [];
       stripsWrap.querySelectorAll(".editor-strip").forEach(function (block) {
         const spaces = FPSStrip.readEditable(block.querySelector(".fps-strip"));
-        if (Object.keys(spaces).length) strips.push({ type: block._typeSel.value || "enroute", spaces: spaces, remoteFields: cleanFields(block._rf) });
+        // a strip with nothing typed (space 10 is always 66) is not saved
+        if (Object.keys(spaces).some(function (k) { return k !== "10"; })) strips.push({ type: block._typeSel.value || "enroute", spaces: spaces, remoteFields: cleanFields(block._rf) });
       });
       const altimeters = {};
       ALTIM_SITES.forEach(function (site) { const v = altInputs[site].value.trim(); if (v) altimeters[site] = v; });

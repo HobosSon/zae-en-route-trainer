@@ -69,8 +69,8 @@ and its **Sector 66 "Jackson Low"** non-radar environment.
 
 - **Practice Scenarios / scenario builder** (`scenarios.html`) — hand-built
   scenarios (27 static level slots baked from `assets/data/scenarios.js`;
-  NR-11 and NR-13 through NR-27 are authored, the other 11 slots are still
-  empty; plus Community scenarios saved in the browser) are built from the Remote's
+  all 27 are authored, NR-1 to NR-3 still need their altimeter settings;
+  plus Community scenarios saved in the browser) are built from the Remote's
   strips: each strip is the printed strip (every space, with the shared
   remarks such as FRC in 26) plus a Remote-data panel — initial contact time
   or ON FREQUENCY, request clearance time (defaults to P−5) and DEPARTURE #,
@@ -201,8 +201,8 @@ Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
   15, the Community scenario page (rework); remove "Prototype build" from the home page; the map and
   study-guide pages; rework the difficulty tiers; the answer key (only
   control actions, coordination and phraseology are shown now); the
-  stripmarking rail; remove the static level numbers once every level is
-  saved.
+  stripmarking rail; remove the static level numbers (every level is saved
+  now); altimeters for NR-1 to NR-3.
 
 ## Running locally
 
