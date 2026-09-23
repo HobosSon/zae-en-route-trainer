@@ -190,7 +190,13 @@
     board = root.StripBoard.create(boardEl, {
       showNums: showNums,
       keepSelectionWithin: ".strip-details, .sm-ui, .scenario-bar, .controls", // reading the details, the marking tools, the view toggle or the page controls must not deselect
-      renderOpts: function (st) { return view === "remote" && st.remote ? { remote: { mpm: st.remote.mpm, lines26: st.remote.lines26, plus23: st.remote.plus23, keep14a: st.remote.keep14a } } : null; },
+      renderOpts: function (st) {
+        const o = {};
+        if (view === "remote" && st.remote) o.remote = { mpm: st.remote.mpm, lines26: st.remote.lines26, plus23: st.remote.plus23, keep14a: st.remote.keep14a };
+        // the controller sees the next fix time (22) only when the next fix is an airport
+        if (view !== "remote" && !/^(0M8|K[A-Z0-9]{3})$/.test(String((st.spaces || {})["21"] || "").trim().toUpperCase())) o.hide = ["22"];
+        return o;
+      },
       onSelect: function (strip, slot) {
         if (!revealAll) showDetails(strip);
         if (strip) root.StripMarkup.activate(strip, slot); else root.StripMarkup.deactivate();

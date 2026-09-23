@@ -35,7 +35,8 @@
     if (strip.marks) {
       const cs = el("div", "completed-strip");
       cs.appendChild(el("div", "cap", "Completed strip (red = preplanned / coordination circles, black = issued to the pilot)"));
-      cs.appendChild(FPSStrip.render(strip.spaces, { marks: strip.marks, showNums: false }));
+      const nextApt = /^(0M8|K[A-Z0-9]{3})$/.test(String((strip.spaces || {})["21"] || "").trim().toUpperCase());
+      cs.appendChild(FPSStrip.render(strip.spaces, { marks: strip.marks, showNums: false, hide: nextApt ? null : ["22"] })); // the next fix time is the Remote's unless the next fix is an airport
       box.appendChild(cs);
     }
 

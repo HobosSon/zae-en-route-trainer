@@ -84,6 +84,7 @@
   function targetEl(stripEl, target) {
     if (target.cell) return cellOf(stripEl, target.cell);
     if (target.caret) return stripEl.querySelector('.sm-caret-text[data-id="' + target.caret + '"]');
+    if (target.mk) return stripEl.querySelector('[data-mk="' + target.mk + '"]');
     return null;
   }
   function textNodesIn(rootEl) {
@@ -110,13 +111,14 @@
     return r;
   }
   function fullText(rootEl) { return textNodesIn(rootEl).map(function (n) { return n.nodeValue; }).join(""); }
-  function sameTarget(a, b) { return (a.cell || "") === (b.cell || "") && (a.caret || "") === (b.caret || ""); }
+  function sameTarget(a, b) { return (a.cell || "") === (b.cell || "") && (a.caret || "") === (b.caret || "") && (a.mk || "") === (b.mk || ""); }
 
   // ---- editable helpers ------------------------------------------------------
   function editable(cls, text, onInput, opts) {
     opts = opts || {};
     const d = el("div", cls + " sm-edit");
     d.contentEditable = "true"; d.spellcheck = false;
+    if (opts.key) d.dataset.mk = opts.key;
     if (opts.html) d.innerHTML = text || ""; else d.textContent = text || "";
     if (opts.placeholder) d.dataset.ph = opts.placeholder;
     if (opts.lines) { // Space or Enter starts a new line (holding instructions)
@@ -156,25 +158,31 @@
     applyCells(stripEl, strip, m);
     // restrictions under the altitude (with the black bar once there are any),
     // the coordinated-altitude box left of 24, the landing time under 22
-    const restr = editable("sm-restr", m.restr, function (d) { m.restr = sanitize(d.innerHTML); bar.classList.toggle("is-on", !!d.textContent.trim()); }, { html: true, placeholder: "restrictions" });
+    const b13 = editable("sm-b13", m.b13 || "", function (d) { m.b13 = sanitize(d.innerHTML); }, { html: true, placeholder: "", key: "b13" });
+    b13.addEventListener("beforeinput", penInput); b13.title = "Space 13: revised time over the previous fix (KMLU: the assumed departure time in red)";
+    layer.appendChild(b13);
+    const b15 = editable("sm-15b", m.b15 || "", function (d) { m.b15 = sanitize(d.innerHTML); }, { html: true, placeholder: "", key: "b15" });
+    b15.addEventListener("beforeinput", penInput); b15.title = "Beside the center estimate: a revised estimate (cross out the old minutes, or all four digits across an hour, and recoordinate)";
+    layer.appendChild(b15);
+    const restr = editable("sm-restr", m.restr, function (d) { m.restr = sanitize(d.innerHTML); bar.classList.toggle("is-on", !!d.textContent.trim()); }, { html: true, placeholder: "restrictions", key: "restr" });
     restr.addEventListener("beforeinput", penInput);
     restr.title = "Restrictions, one per line (Enter = next line)";
     layer.appendChild(restr);
     const bar = el("div", "sm-bar20" + (String(m.restr || "").replace(/<[^>]*>/g, "").trim() ? " is-on" : ""));
     layer.appendChild(bar);
-    const coord = editable("sm-coord", m.coord, function (d) { m.coord = sanitize(d.innerHTML); }, { html: true, placeholder: "" });
+    const coord = editable("sm-coord", m.coord, function (d) { m.coord = sanitize(d.innerHTML); }, { html: true, placeholder: "", key: "coord" });
     coord.addEventListener("beforeinput", penInput);
     coord.title = "Altitude coordinated with the next sector (red; circled once approved)";
     layer.appendChild(coord);
-    const land = editable("sm-land", m.land, function (d) { m.land = sanitize(d.innerHTML); }, { html: true, placeholder: "" });
+    const land = editable("sm-land", m.land, function (d) { m.land = sanitize(d.innerHTML); }, { html: true, placeholder: "", key: "land" });
     land.addEventListener("beforeinput", penInput);
     land.title = "Landing time (KGWO / KVKS arrivals)";
     layer.appendChild(land);
     // split box 18 (departures): assumed departure time left, actual right
     if (m.split18 && !(isRemote(strip) && strip.remote.dep)) {
-      const L = editable("sm-18L", m.b18L, function (d) { m.b18L = sanitize(d.innerHTML); }, { html: true, placeholder: "" });
+      const L = editable("sm-18L", m.b18L, function (d) { m.b18L = sanitize(d.innerHTML); }, { html: true, placeholder: "", key: "b18L" });
       L.addEventListener("beforeinput", penInput); L.title = "Assumed departure time (red)";
-      const R = editable("sm-18R", m.b18R, function (d) { m.b18R = sanitize(d.innerHTML); }, { html: true, placeholder: "" });
+      const R = editable("sm-18R", m.b18R, function (d) { m.b18R = sanitize(d.innerHTML); }, { html: true, placeholder: "", key: "b18R" });
       R.addEventListener("beforeinput", penInput); R.title = "Actual departure time (black)";
       layer.appendChild(L); layer.appendChild(el("div", "sm-18slash", "/")); layer.appendChild(R);
     }
@@ -183,8 +191,9 @@
       const hasPlus = !!((strip.spaces || {})["14a"] || "").trim() || !!((m.cells["14a"] || "").replace(/<[^>]*>/g, "").trim());
       const e = el("div", "sm-edc sm-blk" + (hasPlus ? " above-plus" : ""));
       e.appendChild(el("div", "sm-edc-k", "EDC"));
-      const t = editable("sm-edc-t sm-blk", m.edc.time, function (d) { m.edc.time = d.textContent.replace(/[^\dØ]/g, "").slice(0, 4); }, { placeholder: "" });
-      t.title = "EDC time (shift-click EDC to remove)";
+      const t = editable("sm-edc-t", m.edc.time, function (d) { m.edc.time = sanitize(d.innerHTML); }, { html: true, placeholder: "", key: "edc" });
+      t.addEventListener("beforeinput", penInput);
+      t.title = "EDC time; cross it out and write the new one under it if it is recoordinated (shift-click EDC to remove)";
       e.appendChild(t);
       e.addEventListener("click", function (ev) { if (ev.shiftKey) { ev.stopPropagation(); m.edc = null; apply(stripEl, strip); } });
       layer.appendChild(e);
@@ -507,17 +516,23 @@
   function captureSelection() {
     const sel = window.getSelection();
     if (!ui.stripEl || !sel || !sel.rangeCount) { ui.sel = null; return; }
-    const r = sel.getRangeAt(0);
-    const a = r.startContainer, b = r.endContainer;
-    const ea = a.nodeType === 3 ? a.parentNode : a, eb = b.nodeType === 3 ? b.parentNode : b;
-    const cell = ea.closest ? ea.closest(".fps-cell, .sm-caret-text") : null;
-    const cellB = eb.closest ? eb.closest(".fps-cell, .sm-caret-text") : null;
-    if (!cell || cell !== cellB || !ui.stripEl.contains(cell)) { ui.sel = null; return; }
+    const r0 = sel.getRangeAt(0);
+    const a = r0.startContainer;
+    const ea = a.nodeType === 3 ? a.parentNode : a;
+    const cell = ea.closest ? ea.closest(".fps-cell, .sm-caret-text, [data-mk]") : null;
+    if (!cell || !ui.stripEl.contains(cell)) { ui.sel = null; return; }
     if (!textNodesIn(cell).length) { ui.sel = null; return; }
+    // clamp the selection to this box (a double-click selection often ends at the start of the next node)
+    const box = document.createRange(); box.selectNodeContents(cell);
+    const r = r0.cloneRange();
+    if (r.compareBoundaryPoints(Range.START_TO_START, box) < 0) r.setStart(box.startContainer, box.startOffset);
+    if (r.compareBoundaryPoints(Range.END_TO_END, box) > 0) r.setEnd(box.endContainer, box.endOffset);
     const pre = document.createRange(); pre.selectNodeContents(cell); pre.setEnd(r.startContainer, r.startOffset);
     const start = pre.toString().length;
-    const end = start + r.toString().length;
-    const target = cell.classList.contains("sm-caret-text") ? { caret: cell.dataset.id } : { cell: cell.dataset.f };
+    let end = start + r.toString().length;
+    const txt = fullText(cell);
+    while (end > start && /\s/.test(txt[end - 1] || "")) end--; // a double-click may take the trailing blank
+    const target = cell.classList.contains("sm-caret-text") ? { caret: cell.dataset.id } : cell.dataset.mk ? { mk: cell.dataset.mk } : { cell: cell.dataset.f };
     ui.sel = { target: target, start: start, end: end, collapsed: start === end };
   }
   function applySelection(kind) {
@@ -551,7 +566,10 @@
   }
 
   // ---- printed cells the controller writes in ------------------------------------
-  const EDIT_CELLS = ["4", "12", "14", "17", "18", "19", "20", "24", "25"]; // 4: a changed equipment suffix (INOP DME: B→T, A→U, D→X)
+  // 4: a changed equipment suffix (INOP DME: B→T, A→U, D→X); 15: the center estimate (written on a
+  // departure's other strips); 20a: RL / RR altitudes; 21: an amended next fix under the printed one;
+  // 22: the pilot's next fix estimate (the printed one is the Remote's unless the next fix is an airport)
+  const EDIT_CELLS = ["4", "12", "14", "15", "17", "18", "19", "20", "20a", "21", "22", "24", "25"];
   function applyCells(stripEl, strip, m) {
     EDIT_CELLS.forEach(function (f) {
       const c = cellOf(stripEl, f); if (!c) return;
@@ -599,12 +617,27 @@
     blk.addEventListener("click", function () { ui.pen = "blk"; blk.classList.add("is-on"); red.classList.remove("is-on"); });
     pen.appendChild(red); pen.appendChild(blk); penSec.appendChild(pen);
 
+    // symbols from the AERO Center commonly used stripmarking list, typed at the cursor in the pen colour
+    const symSec = section("Special marks");
+    const syms = el("div", "sm-chips");
+    [["T→", "via depart"], ["↑", "climb and maintain"], ["⤒", "at or above"], ["↓", "descend and maintain"], ["⤓", "at or below"], ["⌒", "joining"], ["⊿", "enter controlled airspace"]].forEach(function (pair) {
+      const c = el("div", "sm-pal-chip sm-sym", pair[0]);
+      c.title = pair[1] + " — typed at the cursor in a box on the strip";
+      c.addEventListener("click", function () {
+        const a = document.activeElement;
+        if (!ui.stripEl || !a || !a.isContentEditable || !ui.stripEl.contains(a)) return;
+        document.execCommand("insertText", false, pair[0]);
+      });
+      syms.appendChild(c);
+    });
+    symSec.appendChild(syms);
+
     const textSec = section("Highlight text");
     const mk = function (label, title, fn) { const b = el("button", "btn btn-ghost sm-act", label); b.type = "button"; b.title = title; b.addEventListener("click", fn); textSec.appendChild(b); return b; };
     mk("◯ Circle", "Circle the highlighted text in the pen colour (again to remove; both colours may stack)", function () { applySelection("circ-" + ui.pen); });
     mk("— Strike", "Line the highlighted text through (black; again to remove)", function () { applySelection("strike"); });
     mk("_ Underline", "Underline the highlighted text in the pen colour (IAFDOF, TUX suffix, FRC in red)", function () { applySelection("ul-" + ui.pen); });
-    mk("✕ X out", "Put an X through the highlighted text (black; again to remove)", function () { applySelection("x"); });
+    mk("✕ Cross Out", "Cross the highlighted text out with an X (black; again to remove)", function () { applySelection("x"); });
 
     const routeSec = section("Route");
     const caret = el("button", "btn btn-ghost sm-act", "^ Amend"); caret.type = "button"; caret.title = "Put the cursor in the route, then insert a ^ there with the amendment under it; the same spot again removes it";

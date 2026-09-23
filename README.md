@@ -182,8 +182,15 @@ Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
 - Remote strips: a report the controller asks for is written in black in 26
   with the expected time (`RP 30 SW MHZ/1231`; a DME as `25 NW MHZ/1231`);
   an `RP …/HHMM` line adds the RP reminder with its minutes in 27.
-- Stripmarking editor: the printed cells 12, 14, 17, 18, 19, 20, 24 and the
-  route are written in directly in the pen colour (typed zeros are slashed);
+- The controller's strips do not print the next fix time (22) unless the
+  next fix is an airport; the Remote's strips keep it. Open question: when
+  the plus time in 23 should be shown to the controller.
+- Stripmarking editor: the printed cells 4, 12, 14, 15, 17, 18, 19, 20, 20a
+  (RL / RR altitudes), 21 (an amended next fix under the printed one), 22
+  (the pilot's next fix estimate), 24 and the route are written in directly
+  in the pen colour (typed zeros are slashed); a box in 13 and one beside the
+  center estimate for a revised estimate; a "Special marks" section types
+  T→ ↑ ⤒ ↓ ⤓ ⌒ ⊿ at the cursor;
   boxes for restrictions under 20 (a black bar appears above them), the
   coordinated altitude left of 24 and the landing time under 22; Split 18
   (assumed / actual departure time), EDC with its time (14a, or above a plus

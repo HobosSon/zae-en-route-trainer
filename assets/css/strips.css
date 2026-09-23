@@ -338,7 +338,7 @@
 .view-toggle .btn { border: none; border-radius: 0; padding: 0.3rem 0.7rem; font-size: 0.78rem; }
 .view-toggle .btn.is-on { background: var(--green); color: #0d1211; font-weight: 700; }
 /* Remote strips: typed scenario data in space 26, miles per minute in red in space 9 */
-.fps-cell.fps-r26 { font-size: 1.15cqw; line-height: 1.2; white-space: pre; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; }
+.fps-cell.fps-r26 { font-size: 1.05cqw; line-height: 1.15; white-space: pre; display: flex; flex-direction: column; justify-content: flex-start; overflow: hidden; }
 .fps-cell.fps-plus23 { font-size: 1.44cqw; font-weight: 700; text-align: center; }
 .fps-cell.fps-mpm { color: #cf1f14; font-family: "Caveat", "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive; font-size: 1.9cqw; font-weight: 700; line-height: 1; }
 .remote-calls { margin: 0.4rem 0 0.8rem; padding: 0.7rem 0.9rem; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; font-size: 0.86rem; }
@@ -400,7 +400,10 @@
 .sm-edc { position: absolute; left: 15.8%; top: 76%; width: 8%; display: flex; flex-direction: column; gap: 0; font-weight: 700; line-height: 1; pointer-events: auto; cursor: pointer; }
 .sm-edc.above-plus { top: 57%; }
 .sm-edc-k { font-size: 1.3cqw; }
-.sm-edc-t { font-size: 1.3cqw; min-height: 1.3cqw; min-width: 3cqw; border-bottom: 0.18cqw solid #111; white-space: pre; }
+.sm-edc-t { font-size: 1.3cqw; line-height: 1.05; min-height: 1.3cqw; min-width: 3cqw; white-space: pre-wrap; }
+.sm-b13 { position: absolute; left: 15.8%; top: 38%; width: 8%; height: 14%; font-size: 1.5cqw; line-height: 1.1; font-weight: 700; white-space: pre; }
+.sm-15b { position: absolute; left: 30%; top: 22%; width: 9.5%; height: 11%; font-size: 1.5cqw; line-height: 1.1; font-weight: 700; white-space: pre; }
+.sm-pal-chip.sm-sym { font-size: 1rem; line-height: 1; padding: 0.15rem 0.45rem; }
 .sm-x { position: absolute; background: linear-gradient(to top right, transparent 46%, #111 46%, #111 54%, transparent 54%), linear-gradient(to top left, transparent 46%, #111 46%, #111 54%, transparent 54%); }
 .sm-item26-c { display: flex; align-items: baseline; gap: 0.35cqw; }
 .sm-c-big { font-size: 2.7cqw; line-height: 0.9; pointer-events: auto; cursor: pointer; }
@@ -413,7 +416,7 @@
 .sm-pre15 { position: absolute; left: 18.5%; top: 36%; width: 5%; display: flex; flex-direction: column; align-items: flex-end; gap: 0.1cqw; }
 .sm-pre { font-size: 1.25cqw; line-height: 1.05; font-weight: 700; pointer-events: auto; cursor: pointer; }
 /* space 26: entries then free text */
-.sm-box26 { position: absolute; left: 67%; top: 50%; width: 23.5%; height: 46%; display: flex; flex-direction: column; gap: 0.1cqw; overflow: hidden; padding: 0.2cqw 0.3cqw; box-sizing: border-box; }
+.sm-box26 { position: absolute; left: 67%; top: 66%; width: 23.5%; height: 31%; display: flex; flex-direction: column; gap: 0.1cqw; overflow: hidden; padding: 0.2cqw 0.3cqw; box-sizing: border-box; }
 .sm-item26 { font-size: 1.35cqw; line-height: 1.15; font-weight: 700; white-space: pre; min-height: 1.4cqw; }
 .sm-text26 { flex: 1; font-size: 1.35cqw; line-height: 1.15; font-weight: 700; white-space: pre-wrap; word-break: break-word; min-height: 1.4cqw; }
 .sb-strip.is-selected .sm-text26:empty::before { content: "26"; color: rgba(0, 0, 0, 0.18); font-weight: 400; }

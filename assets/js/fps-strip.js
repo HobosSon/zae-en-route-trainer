@@ -49,7 +49,7 @@
     { k: "reqalt", f: "24", x: 60, y: 78, w: 6, cls: "mid", n: "24" },
     // Column F [66.2-91.0]: route (25) / remarks (26)
     { k: "route", f: "25", x: 67, y: 8, w: 23, cls: "route", n: "25" },
-    { k: "remarks", f: "26", x: 67, y: 70, w: 23, cls: "rem", n: "26" },
+    { k: "remarks", f: "26", x: 67, y: 50, w: 23, cls: "rem", n: "26" },
     // Column G [91.0-100]: 27 / 28 / 30
     { k: "b27", f: "27", x: 91.5, y: 8, w: 7, cls: "sm", n: "27" },
     { k: "b28", f: "28", x: 91.5, y: 30, w: 7, cls: "sm", n: "28" },
@@ -140,7 +140,7 @@
         const v = spaces ? spaces[c.f] : "";
         if (v != null && v !== "") cell.textContent = v;
       } else {
-        const v = spaces ? spaces[c.f] : "";
+        const v = opts.hide && opts.hide.indexOf(c.f) !== -1 ? "" : (spaces ? spaces[c.f] : "");
         if (v != null && v !== "") {
           if (c.k === "centerest" && /^\d{4}$/.test(String(v))) {
             cell.appendChild(el("span", "hh", slashZero(String(v).slice(0, 2))));
@@ -179,10 +179,12 @@
     }
     // the Remote's strips show everything the controller's do (14a included), plus 23
     if (r.lines26 && r.lines26.length) {
-      const b = el("div", "fps-cell fps-r26");
+      const c26 = wrap.querySelector('.fps-cell[data-f="26"]');
+      const b = c26 || el("div", "fps-cell");
+      if (c26 && c26.textContent) { const printed = el("div", null, c26.textContent); c26.textContent = ""; c26.appendChild(printed); }
+      b.classList.add("fps-r26");
       r.lines26.forEach(function (t) { b.appendChild(el("div", null, slashZero(t))); });
-      b.style.left = "67%"; b.style.top = "56%"; b.style.width = "23%"; b.style.height = "42%";
-      wrap.appendChild(b);
+      if (!c26) { b.style.left = "67%"; b.style.top = "50%"; b.style.width = "23%"; wrap.appendChild(b); }
     }
   }
 
