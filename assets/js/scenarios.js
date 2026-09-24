@@ -75,7 +75,7 @@
     intro.appendChild(el("p", null, sc.strips.length + " strips, from a share link. Play it here or save a copy to your Community tab."));
     const row = el("div", "cc-actions");
     row.appendChild(btn("Play", "", function () { play(sc, "community", function () { renderShared(sc); }); }));
-    row.appendChild(btn("Save to Community", "btn-ghost", function () { S.addCommunity(sc); history.replaceState(null, "", location.pathname); currentTab = "community"; renderGrid(); }));
+    row.appendChild(btn("Save Scenario", "btn-ghost", function () { S.addCommunity(sc); history.replaceState(null, "", location.pathname); currentTab = "community"; renderGrid(); }));
     row.appendChild(btn("Back to scenarios", "btn-ghost", function () { history.replaceState(null, "", location.pathname); renderGrid(); }));
     intro.appendChild(row);
     app.appendChild(intro);
@@ -88,7 +88,7 @@
     clear();
     const tabs = el("div", "sc-tabs");
     const tLevels = btn("Levels", "tab" + (currentTab === "levels" ? " tab-active" : ""), function () { currentTab = "levels"; renderGrid(); });
-    const tComm = btn("Community", "tab" + (currentTab === "community" ? " tab-active" : ""), function () { currentTab = "community"; renderGrid(); });
+    const tComm = btn("Create", "tab" + (currentTab === "community" ? " tab-active" : ""), function () { currentTab = "community"; renderGrid(); });
     tabs.appendChild(tLevels); tabs.appendChild(tComm);
     app.appendChild(tabs);
 
@@ -121,13 +121,13 @@
 
   function renderCommunity() {
     const intro = el("div", "sc-intro");
-    intro.appendChild(el("p", null, "Scenarios created by you, saved in this browser. Build your own traffic problems and come back to them; Share link copies a link that reproduces a scenario for anyone."));
+    intro.appendChild(el("p", null, "Create your own scenario, saved in this browser. Share your scenario to collaborate with another controller (the link can be VERY long)"));
     intro.appendChild(btn("+ Create scenario", "", function () { editScenario({ mode: "community" }); }));
     app.appendChild(intro);
 
     const list = S.listCommunity();
     if (!list.length) {
-      app.appendChild(el("div", "empty-state", "No community scenarios yet. Create one to get started."));
+      app.appendChild(el("div", "empty-state", "No scenarios yet. Create one to get started."));
       return;
     }
     const wrap = el("div", "community-list");
