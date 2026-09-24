@@ -759,7 +759,7 @@
 
   let raf = null;
   function scheduleLayout() { if (raf) return; raf = requestAnimationFrame(function () { raf = null; if (ui.strip && ui.stripEl) layoutMarks(ui.stripEl, ui.strip); }); }
-  // The rail is pinned to the window; at the bottom of the page its lower edge stops above the footer.
+  // The rail is pinned to the window; at the bottom of the page the whole box slides up so it stays above the footer.
   let railRaf = null;
   function placeRail() {
     if (railRaf) return;
@@ -767,10 +767,9 @@
       railRaf = null;
       if (!ui.rail) return;
       const foot = document.querySelector(".site-footer");
-      const gap = 8;
-      let bottom = gap;
-      if (foot) { const top = foot.getBoundingClientRect().top; if (top < window.innerHeight) bottom = window.innerHeight - top + gap; }
-      ui.rail.style.bottom = bottom + "px";
+      let lift = 0;
+      if (foot) { const top = foot.getBoundingClientRect().top; if (top < window.innerHeight) lift = window.innerHeight - top; }
+      ui.rail.style.transform = lift > 0 ? "translateY(-" + lift + "px)" : "";
     });
   }
 
