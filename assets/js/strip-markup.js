@@ -92,19 +92,21 @@
     (function walk(n) { if (n.nodeType === 3) { out.push(n); return; } for (let i = 0; i < n.childNodes.length; i++) walk(n.childNodes[i]); })(rootEl);
     return out;
   }
-  function pointAt(rootEl, off) {
+  function pointAt(rootEl, off, atStart) {
     const nodes = textNodesIn(rootEl);
     let acc = 0;
     for (let i = 0; i < nodes.length; i++) {
       const len = nodes[i].nodeValue.length;
-      if (off <= acc + len) return { node: nodes[i], offset: off - acc };
+      // a range start at the very end of a node is placed at the start of the next one, so its
+      // rects belong to the text it covers (not a zero-width rect in the previous element)
+      if (off < acc + len || (off === acc + len && (!atStart || i === nodes.length - 1))) return { node: nodes[i], offset: off - acc };
       acc += len;
     }
     const last = nodes[nodes.length - 1];
     return last ? { node: last, offset: last.nodeValue.length } : null;
   }
   function rangeFor(rootEl, start, end) {
-    const a = pointAt(rootEl, start), b = pointAt(rootEl, end);
+    const a = pointAt(rootEl, start, true), b = pointAt(rootEl, end);
     if (!a || !b) return null;
     const r = document.createRange();
     r.setStart(a.node, a.offset); r.setEnd(b.node, b.offset);
@@ -288,7 +290,7 @@
       // one box per visual line: rects that overlap vertically are merged
       const lines = [];
       Array.prototype.forEach.call(rects, function (r) {
-        if (!r.width && !r.height) return;
+        if (!r.width || !r.height) return; // boundary rects carry no text
         const hit = lines.find(function (L) { return r.top < L.bottom && L.top < r.bottom; });
         if (hit) { hit.left = Math.min(hit.left, r.left); hit.top = Math.min(hit.top, r.top); hit.right = Math.max(hit.right, r.right); hit.bottom = Math.max(hit.bottom, r.bottom); }
         else lines.push({ left: r.left, top: r.top, right: r.right, bottom: r.bottom });
