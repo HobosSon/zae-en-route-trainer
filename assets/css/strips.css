@@ -481,5 +481,5 @@
 .sm-chips { display: flex; flex-wrap: wrap; gap: 0.25rem; }
 .sm-pal-chip { padding: 0.1rem 0.4rem; background: #cfe9b8; color: #111; border-radius: 4px; font-family: "Caveat", "Segoe Print", cursive; font-weight: 700; font-size: 0.95rem; cursor: pointer; user-select: none; }
 .sm-hint { font-family: var(--mono); font-size: 0.62rem; color: var(--text-faint); line-height: 1.4; }
-@media (min-width: 1000px) { body.has-sm-rail .strips-main, body.has-sm-rail .site-footer { padding-left: 160px; } }
+@media (min-width: 1000px) { body.has-sm-rail .strips-main { padding-left: 160px; } }
 @media (max-width: 999px) { .sm-rail { display: none; } }

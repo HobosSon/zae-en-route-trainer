@@ -646,7 +646,9 @@
   function applyCells(stripEl, strip, m) {
     EDIT_CELLS.forEach(function (f) {
       const c = cellOf(stripEl, f); if (!c) return;
+      if (c.dataset.smOrig == null) c.dataset.smOrig = c.innerHTML; // what the strip printed, for Clear strip
       if (m.cells[f] != null) c.innerHTML = m.cells[f];
+      else if (c.querySelector(".sm-red, .sm-blk, .sm-g")) c.innerHTML = c.dataset.smOrig; // typed text with no model behind it (the strip was cleared)
       const off = f === "18" && (m.split18 || (isRemote(strip) && strip.remote.dep)); // the split boxes / the Remote's departure box take over 18
       c.classList.toggle("sm-cell-edit", !off);
       if (f === "15") c.classList.toggle("sm-15-instr", !!INSTR_APTS[depAirport(strip)]); // 0M8 / KVKS departure instructions: small, wrapped
@@ -757,6 +759,20 @@
 
   let raf = null;
   function scheduleLayout() { if (raf) return; raf = requestAnimationFrame(function () { raf = null; if (ui.strip && ui.stripEl) layoutMarks(ui.stripEl, ui.strip); }); }
+  // The rail is pinned to the window; at the bottom of the page its lower edge stops above the footer.
+  let railRaf = null;
+  function placeRail() {
+    if (railRaf) return;
+    railRaf = requestAnimationFrame(function () {
+      railRaf = null;
+      if (!ui.rail) return;
+      const foot = document.querySelector(".site-footer");
+      const gap = 8;
+      let bottom = gap;
+      if (foot) { const top = foot.getBoundingClientRect().top; if (top < window.innerHeight) bottom = window.innerHeight - top + gap; }
+      ui.rail.style.bottom = bottom + "px";
+    });
+  }
 
   // ---- public ---------------------------------------------------------------------
   function attach() {
@@ -766,9 +782,11 @@
     document.body.classList.add("has-sm-rail");
     if (!ui.listening) { // once per page, even if the rail is detached and attached again
       ui.listening = true;
-      window.addEventListener("resize", scheduleLayout);
+      window.addEventListener("resize", function () { scheduleLayout(); placeRail(); });
+      window.addEventListener("scroll", placeRail, { passive: true });
       document.addEventListener("selectionchange", function () { if (ui.stripEl) captureSelection(); });
     }
+    placeRail();
   }
   function activate(strip, slot) {
     ui.strip = strip; ui.slot = slot;
