@@ -748,8 +748,6 @@
     chipSec("Spaces 27–30", ["DA", "H", "VR", "APCH", "Z", "VV", "TXT"]);
 
     const misc = section(null);
-    const remHint = el("div", "sm-hint sm-remote-only", "Remote: click a reminder's letters when the call is made. A report the controller asks for is written in black in space 26 with the time it is expected (RP 30 SW MHZ/1231) or, for a DME, the mileage and the time (25 NW MHZ/1231); an RP line adds RP with its minutes to the reminders. Departure strips: type the actual departure time (2 min after the clearance) and the estimates, IC and PR follow.");
-    misc.appendChild(remHint);
     const clear = el("button", "btn btn-ghost sm-act sm-danger", "Clear strip"); clear.type = "button"; clear.title = "Remove every mark on this strip";
     clear.addEventListener("click", function () { if (!ui.strip) return; if (!confirm("Clear all marks on " + (ui.strip.spaces["3"] || "this strip") + "?")) return; ui.strip.markup = null; apply(ui.stripEl, ui.strip); });
     misc.appendChild(clear);
