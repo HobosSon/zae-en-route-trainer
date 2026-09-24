@@ -45,6 +45,7 @@
 
   // where: "g" = spaces 27-30, "15" = box 15 (preplan outside / actual inside), "26" = space 26 entries
   const PALETTE = [
+    { id: "T", label: "T", where: "15", top: true, title: "T on the left end of the line at the top of box 15: a reminder to ask whether the pilot will accept a northeast departure with turns (KVKS departures joining V417). Not required, highly recommended" },
     { id: "RLS", label: "RLS", where: "15", seed: "RLS ", title: "Released (rule): red = preplan reminder, black = actual entry in box 15" },
     { id: "SYD", label: "SYD", where: "15", seed: "SYD / ", title: "Visual separation approved: red = preplan reminder, black = actual entry in box 15" },
     { id: "V", label: "V<", where: "15", seed: "V< ", title: "Void time: red = preplan reminder, black = actual entry in box 15" },
@@ -217,6 +218,11 @@
     const pre15 = el("div", "sm-pre15");
     m.s15.forEach(function (it) {
       const d = def(it.id);
+      if (d.top) { // the T at the top-left of box 15
+        const t = el("div", "sm-t15 sm-" + it.color, d.label); t.title = d.title + " — click to remove";
+        t.addEventListener("click", function (e) { e.stopPropagation(); toggleItem(strip, stripEl, it.id, it.color); });
+        layer.appendChild(t); return;
+      }
       if (it.color === "red") { const r = el("div", "sm-pre sm-red", d.label); r.title = d.title + " — click to remove"; r.addEventListener("click", function (e) { e.stopPropagation(); toggleItem(strip, stripEl, it.id, "red"); }); pre15.appendChild(r); }
       else { const b = editable("sm-actual sm-blk", it.text, function (x) { it.text = x.textContent; }); b.dataset.iid = it.iid; in15.appendChild(b); }
     });
@@ -623,7 +629,7 @@
       c.classList.toggle("sm-cell-edit", !off);
       if (f === "15") c.classList.toggle("sm-15-instr", !!INSTR_APTS[depAirport(strip)]); // 0M8 / KVKS departure instructions: small, wrapped
       if (c.dataset.smBound) return;
-      c.dataset.smBound = "1";
+      c.dataset.smBound = "1"; c.dataset.html = "1"; // typed as pen-colour runs; drawn glyphs allowed
       c.addEventListener("beforeinput", penInput);
       c.addEventListener("input", function () { m.cells[f] = sanitize(c.innerHTML); layoutMarks(stripEl, strip); });
     });
@@ -710,7 +716,7 @@
       });
       sec.appendChild(wrap);
     };
-    chipSec("Box 15", ["RLS", "SYD", "V"]);
+    chipSec("Box 15", ["T", "RLS", "SYD", "V"]);
     chipSec("Space 14a", ["EDC"]);
     chipSec("Space 26", ["C", "67"]);
     chipSec("Spaces 27–30", ["DA", "H", "VR", "APCH", "Z", "VV", "TXT"]);
