@@ -102,7 +102,6 @@
     // scenario bar: toggle + page content
     const bar = el("div", "scenario-bar");
     const vt = el("div", "view-toggle");
-    vt.title = "Controller strips, or the Remote's strips (same strips plus the initial-contact / request data in space 26 and the red call reminders in space 27)";
     [["controller", "Controller"], ["remote", "Remote"]].forEach(function (pair) {
       const b = el("button", "btn btn-ghost" + (view === pair[0] ? " is-on" : ""), pair[1] + " strips");
       b.type = "button"; b.dataset.view = pair[0];
