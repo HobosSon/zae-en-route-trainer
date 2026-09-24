@@ -124,6 +124,8 @@ body {
   padding: 2.5rem 1.75rem;
 }
 
+.menu-intro .back-link { display: block; margin-bottom: 1rem; }
+
 .menu-intro h2 {
   display: inline-block;
   margin: 0 0 2rem;

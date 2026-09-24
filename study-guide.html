@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CKT 1 Study Guide — ZAE Aero Center</title>
-  <link rel="stylesheet" href="assets/css/main.css?v=20260924p" />
-  <link rel="stylesheet" href="assets/css/quiz.css?v=20260924p" />
-  <link rel="stylesheet" href="assets/css/study.css?v=20260924p" />
+  <link rel="stylesheet" href="assets/css/main.css?v=20260924q" />
+  <link rel="stylesheet" href="assets/css/quiz.css?v=20260924q" />
+  <link rel="stylesheet" href="assets/css/study.css?v=20260924q" />
 </head>
 <body>
   <div class="scanlines" aria-hidden="true"></div>
@@ -28,13 +28,12 @@
   <main class="quiz-main">
     <a class="back-link" href="study.html">&larr; Back to Study Guides</a>
     <h2 class="page-title">CKT 1 Study Guide</h2>
-    <p class="page-sub">
-      All Block 1 questions with their answers, explanations, and source
-      references. Filter by topic, or turn on flashcard mode to hide the answers
-      and reveal them one at a time. When you're ready, take the
-      <a href="quiz.html">CKT 1 Quiz</a>.
-    </p>
-    <div id="guide"></div>
+    <div class="sg-tabs" role="tablist">
+      <button type="button" class="tab tab-active" data-panel="guide">Study Guide</button>
+      <button type="button" class="tab" data-panel="quiz">CKT 1 Quiz</button>
+    </div>
+    <div id="guide" class="sg-panel"></div>
+    <div id="quiz" class="sg-panel" hidden></div>
   </main>
 
   <footer class="site-footer">
@@ -42,8 +41,20 @@
     <span class="meta-dim">Training use only</span>
   </footer>
 
-  <script src="assets/js/main.js?v=20260924p"></script>
-  <script src="assets/data/quiz.js?v=20260924p"></script>
-  <script src="assets/js/study-guide.js?v=20260924p"></script>
+  <script src="assets/js/main.js?v=20260924q"></script>
+  <script src="assets/data/quiz.js?v=20260924q"></script>
+  <script src="assets/js/study-guide.js?v=20260924q"></script>
+  <script src="assets/js/quiz.js?v=20260924q"></script>
+  <script>
+    (function () {
+      var tabs = document.querySelectorAll(".sg-tabs .tab");
+      tabs.forEach(function (t) {
+        t.addEventListener("click", function () {
+          tabs.forEach(function (o) { o.classList.toggle("tab-active", o === t); });
+          document.querySelectorAll(".sg-panel").forEach(function (p) { p.hidden = p.id !== t.dataset.panel; });
+        });
+      });
+    })();
+  </script>
 </body>
 </html>

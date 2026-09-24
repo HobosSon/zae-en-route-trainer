@@ -54,3 +54,10 @@
 .sg-card.is-hidden { border-left-color: var(--border-bright); }
 .sg-card.is-hidden .sg-answer { display: none; }
 .sg-reveal { margin-top: 0.2rem; padding: 0.4rem 0.9rem; font-size: 0.82rem; }
+
+/* Study Guide / Quiz tabs */
+.sg-tabs { display: flex; gap: 0.5rem; border-bottom: 1px solid var(--border); margin: 0.5rem 0 1.25rem; }
+.sg-tabs .tab { background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text-dim); padding: 0.55rem 1rem; font-size: 0.95rem; cursor: pointer; font-family: var(--sans); }
+.sg-tabs .tab:hover { color: var(--text); }
+.sg-tabs .tab-active { color: var(--green); border-bottom-color: var(--green); font-weight: 700; }
+.sg-panel[hidden] { display: none; }

@@ -89,8 +89,14 @@ and its **Sector 66 "Jackson Low"** non-radar environment.
   with the generator) with the Controller / Remote toggle and stripmarking;
   authored scenarios have no conflict-engine answer key.
 
-Planned modules (stubbed as "Coming soon" on the menu): Facility Reference,
-Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
+- **Study Guides** (`study.html`) — the ZAE Non-Radar Map (`map.html`, moved
+  here from the home menu), the CKT 1 Study Guide (`study-guide.html`, with
+  the CKT 1 Quiz as a tab inside it; `quiz.html` still works on its own) and
+  the Aircraft Characteristics Study Guide (`aircraft.html`): the course chart
+  from `assets/data/aircraft.js` rendered column by column, with every kind of
+  element (true airspeed, engines, type, weight class, climb rate, designator,
+  model) toggleable so it can be used as a self-quiz; clicking a box peeks at
+  what it hides.
 
 ## Planned
 
@@ -210,7 +216,7 @@ Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
   highlighted text, and Amend as a toggle at the cursor in the route. The
   Remote's recomputed fix estimates go in 17.
 - To revisit later: space 20 (altitude changes and strikes need more), box
-  15, the Custom tab page (rework); remove "Prototype build" from the home page; the map and
+  15, the Custom tab page (rework); revisit the map page; remove "Prototype build" from the home page; the map and
   study-guide pages; rework the difficulty tiers; the answer key (only
   control actions, coordination and phraseology are shown now); the
   stripmarking rail; altimeters for NR-1 to NR-3.
