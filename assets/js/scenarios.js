@@ -142,7 +142,6 @@
       actions.appendChild(btn("Play", "", function () { play(sc, "community"); }));
       actions.appendChild(btn("Edit", "btn-ghost", function () { editScenario({ mode: "community", existing: sc }); }));
       const share = btn("Share link", "btn-ghost", function () { copyText(encodeShare(sc), share, "Link copied"); });
-      share.title = "Copy a link that reproduces this scenario anywhere (it carries the whole scenario, so it is long)";
       actions.appendChild(share);
       actions.appendChild(btn("Delete", "btn-ghost btn-danger", function () {
         if (confirm("Delete \"" + (sc.title || "this scenario") + "\"?")) { S.deleteCommunity(sc.id); renderGrid(); }
@@ -254,7 +253,6 @@
     const atisIn = document.createElement("input");
     atisIn.type = "text"; atisIn.className = "editor-input editor-input-sm"; atisIn.placeholder = "T (Tango)"; atisIn.maxLength = 1;
     atisIn.value = existing && existing.atis ? existing.atis : "";
-    atisIn.title = "Current ATIS letter. KGWO arrival Remote strips show “IC HHMM WITH <letter>” and “ATIS <letter>”; aircraft already on frequency have it.";
     atisIn.addEventListener("input", function () { atisIn.value = atisIn.value.replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 1); stripsWrap.dataset.atis = atisIn.value; refreshAll(); });
 
     const altInputs = {};
@@ -491,7 +489,6 @@
       field("Request clearance", timeInput(rf.reqClnc, P != null ? ZAERemote.toHHMM(P - ZAERemote.REQ_BEFORE_P) + " (P−5)" : "P−5", function (v) { rf.reqClnc = v; refresh(); }));
       const seq = document.createElement("input"); seq.type = "number"; seq.min = "1"; seq.max = "9"; seq.className = "editor-input editor-input-xs"; seq.placeholder = "—"; seq.value = rf.depSeq || "";
       seq.addEventListener("input", function () { rf.depSeq = seq.value; refresh(); });
-      field("Departure #", seq).title = "Same airport, same request time: the order the requests are made (DEPARTURE #1, #2, …)";
       const frcLab = el("label", "toggle"); const frc = document.createElement("input"); frc.type = "checkbox"; frc.checked = !!rf.frc;
       frc.addEventListener("change", function () {
         rf.frc = frc.checked;
@@ -503,7 +500,6 @@
         refresh();
       });
       frcLab.appendChild(frc); frcLab.appendChild(document.createTextNode(" FRC"));
-      field("Full route clearance", frcLab).title = "FRC is written first in space 26 on both the Remote's and the Controller's strips: the clearance must state every part of the route in space 25";
     } else if (first && String(sp["17"] || "").trim()) {
       row.appendChild(el("span", "editor-remote-note", "Pilot estimate in space 17: on frequency at the start (ON FREQUENCY on the Remote's strip; the controller checks the altitude as level during the problem)."));
     } else if (first) {
@@ -522,12 +518,11 @@
     alt.addEventListener("input", function () { rf.altReq.alt = alt.value.replace(/\D/g, "").slice(0, 3); refresh(); });
     ar.appendChild(alt); ar.appendChild(document.createTextNode(" at "));
     ar.appendChild(timeInput(rf.altReq.t, "HHMM", function (v) { rf.altReq.t = v; refresh(); }));
-    field("Altitude request", ar).title = "Uncommon: the pilot asks for a different altitude at this time";
     if (first && type === "enroute") {
-      field("APREQ IAFDOF at", timeInput(rf.iafdof, "HHMM", function (v) { rf.iafdof = v; refresh(); })).title = "The adjacent facility APREQs an altitude inappropriate for direction of flight at this time: APREQ IAFDOF HHMM in 26, RQ mm in 27";
+      field("APREQ IAFDOF at", timeInput(rf.iafdof, "HHMM", function (v) { rf.iafdof = v; refresh(); }));
     }
     if (type === "enroute") {
-      field("INOP DME at", timeInput(rf.inopDme, "HHMM", function (v) { rf.inopDme = v; refresh(); })).title = "Rare: the pilot reports an inoperative DME at this time (INOP DME HHMM in 26, DME mm in 27). The controller coordinates it with the next sector, strikes the equipment suffix and writes the TUX suffix beside it: B→T, A→U, D→X";
+      field("INOP DME at", timeInput(rf.inopDme, "HHMM", function (v) { rf.inopDme = v; refresh(); }));
     }
     const dest = (sp["21"] || "").toUpperCase().trim(), route = (sp["25"] || "").toUpperCase().split(/[\s./]+/).filter(Boolean);
     let routeApt = null; for (let i = route.length - 1; i >= 0; i--) if (isAirport(route[i])) { routeApt = route[i]; break; }

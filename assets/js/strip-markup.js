@@ -173,33 +173,30 @@
     // restrictions under the altitude (with the black bar once there are any),
     // the coordinated-altitude box left of 24, the landing time under 22
     const b13 = editable("sm-b13", m.b13 || "", function (d) { m.b13 = sanitize(d.innerHTML); }, { html: true, placeholder: "", key: "b13" });
-    b13.addEventListener("beforeinput", penInput); b13.title = "Space 13: revised time over the previous fix (KMLU: the assumed departure time in red)";
+    b13.addEventListener("beforeinput", penInput);
     layer.appendChild(b13);
     if (!INSTR_APTS[depAirport(strip)]) { // no center estimate on a 0M8 / KVKS departure strip: space 15 holds the departure instructions
       const b15 = editable("sm-15b", m.b15 || "", function (d) { m.b15 = sanitize(d.innerHTML); }, { html: true, placeholder: "", key: "b15" });
-      b15.addEventListener("beforeinput", penInput); b15.title = "Beside the center estimate: a revised estimate (cross out the old minutes, or all four digits across an hour, and recoordinate)";
+      b15.addEventListener("beforeinput", penInput);
       layer.appendChild(b15);
     }
     const restr = editable("sm-restr", m.restr, function (d) { m.restr = sanitize(d.innerHTML); bar.classList.toggle("is-on", !!d.textContent.trim()); }, { html: true, placeholder: "restrictions", key: "restr" });
     restr.addEventListener("beforeinput", penInput);
-    restr.title = "Restrictions, one per line (Enter = next line)";
     layer.appendChild(restr);
     const bar = el("div", "sm-bar20" + (String(m.restr || "").replace(/<[^>]*>/g, "").trim() ? " is-on" : ""));
     layer.appendChild(bar);
     const coord = editable("sm-coord", m.coord, function (d) { m.coord = sanitize(d.innerHTML); }, { html: true, placeholder: "", key: "coord" });
     coord.addEventListener("beforeinput", penInput);
-    coord.title = "Altitude coordinated with the next sector (red; circled once approved)";
     layer.appendChild(coord);
     const land = editable("sm-land", m.land, function (d) { m.land = sanitize(d.innerHTML); }, { html: true, placeholder: "", key: "land" });
     land.addEventListener("beforeinput", penInput);
-    land.title = "Landing time (KGWO / KVKS arrivals)";
     layer.appendChild(land);
     // split box 18 (departures): assumed departure time left, actual right
     if (m.split18 && !(isRemote(strip) && strip.remote.dep)) {
       const L = editable("sm-18L", m.b18L, function (d) { m.b18L = sanitize(d.innerHTML); }, { html: true, placeholder: "", key: "b18L" });
-      L.addEventListener("beforeinput", penInput); L.title = "Assumed departure time (red)";
+      L.addEventListener("beforeinput", penInput);
       const R = editable("sm-18R", m.b18R, function (d) { m.b18R = sanitize(d.innerHTML); }, { html: true, placeholder: "", key: "b18R" });
-      R.addEventListener("beforeinput", penInput); R.title = "Actual departure time (black)";
+      R.addEventListener("beforeinput", penInput);
       layer.appendChild(L); layer.appendChild(el("div", "sm-18slash", "/")); layer.appendChild(R);
     }
     // EDC with its time under it: in 14a, or above the plus time when there is one
@@ -209,7 +206,6 @@
       e.appendChild(el("div", "sm-edc-k", "EDC"));
       const t = editable("sm-edc-t", m.edc.time, function (d) { m.edc.time = sanitize(d.innerHTML); }, { html: true, placeholder: "", key: "edc" });
       t.addEventListener("beforeinput", penInput);
-      t.title = "EDC time; cross it out and write the new one under it if it is recoordinated (shift-click EDC to remove)";
       e.appendChild(t);
       e.addEventListener("click", function (ev) { if (ev.shiftKey) { ev.stopPropagation(); m.edc = null; apply(stripEl, strip); } });
       layer.appendChild(e);
@@ -220,7 +216,6 @@
       const d = def(it.id);
       if (d.top) { // the T outside box 15's left border, at the top
         const t = el("div", "sm-t15 sm-" + it.color, d.label); t.dataset.mk = "t15";
-        t.title = d.title + " — click to strike it through once the pilot has been asked (again to undo); shift-click to remove";
         t.addEventListener("click", function (e) {
           e.stopPropagation();
           if (e.shiftKey) { toggleItem(strip, stripEl, it.id, it.color); return; }
@@ -231,7 +226,7 @@
         });
         layer.appendChild(t); return;
       }
-      if (it.color === "red") { const r = el("div", "sm-pre sm-red", d.label); r.title = d.title + " — click to remove"; r.addEventListener("click", function (e) { e.stopPropagation(); toggleItem(strip, stripEl, it.id, "red"); }); pre15.appendChild(r); }
+      if (it.color === "red") { const r = el("div", "sm-pre sm-red", d.label); r.addEventListener("click", function (e) { e.stopPropagation(); toggleItem(strip, stripEl, it.id, "red"); }); pre15.appendChild(r); }
       else { const b = editable("sm-actual sm-blk", it.text, function (x) { it.text = x.textContent; }); b.dataset.iid = it.iid; in15.appendChild(b); }
     });
     layer.appendChild(in15); layer.appendChild(pre15);
@@ -239,7 +234,6 @@
     if (RLS_APTS[depAirport(strip)]) {
       const rls = editable("sm-rls", m.rls || "", function (d) { m.rls = sanitize(d.innerHTML); }, { html: true, placeholder: "release rules", key: "rls" });
       rls.addEventListener("beforeinput", penInput);
-      rls.title = "Release rules for this departure (RLS 2 MIN <…, SYD/…), typed in the pen colour";
       layer.appendChild(rls); layer.classList.add("has-rls");
     }
 
@@ -248,7 +242,7 @@
     m.items26.forEach(function (it) {
       if (it.id === "C") {
         const row = el("div", "sm-item26 sm-item26-c sm-" + it.color);
-        const big = el("span", "sm-c-big", "C"); big.title = def(it.id).title + " (shift-click to remove)";
+        const big = el("span", "sm-c-big", "C");
         big.addEventListener("click", function (e) { if (e.shiftKey) { e.preventDefault(); e.stopPropagation(); toggleItem(strip, stripEl, it.id, it.color); } });
         const val = editable("sm-c-val", String(it.text || "").replace(/^C\s*/, ""), function (x) { it.text = x.textContent; });
         val.dataset.iid = it.iid;
@@ -257,13 +251,12 @@
         return;
       }
       const b = editable("sm-item26 sm-" + it.color, it.text, function (x) { it.text = x.textContent; });
-      b.dataset.iid = it.iid; b.title = def(it.id).title + " (shift-click to remove)";
+      b.dataset.iid = it.iid;
       b.addEventListener("click", function (e) { if (e.shiftKey) { e.preventDefault(); toggleItem(strip, stripEl, it.id, it.color); } });
       box26.appendChild(b);
     });
     const t26 = editable("sm-text26", m.text26, function (d) { m.text26 = sanitize(d.innerHTML); syncAutoRP(strip, stripEl, m); }, { html: true });
     t26.addEventListener("beforeinput", penInput);
-    t26.title = "Space 26: remarks, reports, reminders (typed in the pen colour)";
     box26.appendChild(t26);
     layer.appendChild(box26);
 
@@ -274,7 +267,6 @@
       layer.appendChild(el("div", "sm-xout")); // black X through 27-30 once no reminder is left (set below)
       if (strip.remote.dep) {
         const d = editable("sm-dep18 sm-blk" + (strip.remote.depBox === "12" ? " sm-dep12" : ""), m.dep18, function (x) { m.dep18 = x.textContent.replace(/[^\d]/g, "").slice(0, 4); if (ui.hooks.onDepTime) ui.hooks.onDepTime(strip, m.dep18, stripEl); }, { placeholder: "    " });
-        d.title = (strip.remote.depBox === "12" ? "Actual departure time under the P-time (KMLU: space 18 is for the STUEE progression)" : "Actual departure time (2 minutes after the clearance)") + ": the fix estimates, IC and PR times follow from it";
         layer.appendChild(d);
       }
     }
@@ -285,7 +277,7 @@
     updateXout(strip, stripEl, m);
     if (hasH) overs.forEach(function (chip, i) { // written over the holding instructions
       const o = el("div", "sm-over sm-" + chip.color, def(chip.id).label);
-      o.style.marginLeft = (i * 2.5) + "cqw"; o.title = def(chip.id).title + " — click to remove";
+      o.style.marginLeft = (i * 2.5) + "cqw";
       o.addEventListener("click", function (e) { e.stopPropagation(); toggleItem(strip, stripEl, chip.id, chip.color); });
       layer.appendChild(o);
     });
@@ -417,7 +409,7 @@
   const SVG_NS = "http://www.w3.org/2000/svg";
   function glyphEl(g, colour) {
     const e = el("span", (colour ? "sm-" + colour + " " : "") + "sm-g");
-    e.dataset.g = g; e.contentEditable = "false"; e.title = GLYPHS[g] ? GLYPHS[g].name : "";
+    e.dataset.g = g; e.contentEditable = "false";
     const svg = document.createElementNS(SVG_NS, "svg"); svg.setAttribute("viewBox", "0 0 20 20"); svg.setAttribute("aria-hidden", "true");
     (GLYPHS[g] ? GLYPHS[g].d : []).forEach(function (d) { const p = document.createElementNS(SVG_NS, "path"); p.setAttribute("d", d); svg.appendChild(p); });
     e.appendChild(svg);
@@ -468,7 +460,6 @@
       const d = el("div", "sm-rmd-row sm-red" + (m.done[row.id] ? " is-done" : ""));
       d.dataset.rid = row.id;
       const k = el("span", "sm-rmd-k", row.k);
-      k.title = (row.rp ? "Report passing (from the RP line in space 26) — click when called (lines it through)" : "Click when the call is made (lines it through)");
       k.addEventListener("click", function (e) {
         if (!selectedEl(stripEl)) return; // a click on an unselected strip just selects it
         e.stopPropagation();
@@ -481,7 +472,6 @@
         const val = row.rp ? row.rp.t : (m.rtimes[row.id] || "");
         const t = editable("sm-rmd-t sm-rmd-blank", val, function (x) { const v = x.textContent; if (row.rp) row.rp.t = v; else m.rtimes[row.id] = v; }, { placeholder: "" });
         t.dataset.rid = row.id;
-        t.title = row.rp ? "Minutes the aircraft is estimated to pass the point (card miles per minute)" : "Minutes — filled in during the problem";
         d.appendChild(t);
       } else d.appendChild(el("span", "sm-rmd-t", row.t));
       box.appendChild(d);
@@ -542,10 +532,8 @@
     if (d.timed) { // VR / APCH: the 4-digit time directly under the label
       c.classList.add("sm-chip-col");
       const t = editable("sm-chip-time", chip.time || "", function (x) { chip.time = x.textContent.replace(/[^\dØ]/g, "").slice(0, 4); }, { placeholder: "" });
-      t.title = "Time (HHMM)";
       c.appendChild(t);
     }
-    c.title = d.title + " — shift-click to remove";
     c.addEventListener("click", function (e) { e.stopPropagation(); if (e.shiftKey) toggleItem(strip, stripEl, chip.id, chip.color); });
     return c;
   }
@@ -687,8 +675,8 @@
 
     const penSec = section("Pen");
     const pen = el("div", "sm-pen");
-    const red = el("button", "sm-pen-btn sm-pen-red is-on", "Red"); red.type = "button"; red.title = "Preplanning, reminders, coordination circles, W's";
-    const blk = el("button", "sm-pen-btn sm-pen-blk", "Black"); blk.type = "button"; blk.title = "Issued to the pilot, times, assigned altitudes";
+    const red = el("button", "sm-pen-btn sm-pen-red is-on", "Red"); red.type = "button";
+    const blk = el("button", "sm-pen-btn sm-pen-blk", "Black"); blk.type = "button";
     red.addEventListener("click", function () { ui.pen = "red"; red.classList.add("is-on"); blk.classList.remove("is-on"); });
     blk.addEventListener("click", function () { ui.pen = "blk"; blk.classList.add("is-on"); red.classList.remove("is-on"); });
     pen.appendChild(red); pen.appendChild(blk); penSec.appendChild(pen);
@@ -701,7 +689,6 @@
     [["T", "rt", "via depart"], [null, "up", "climb and maintain"], [null, "aoa", "at or above"], [null, "dn", "descend and maintain"], [null, "aob", "at or below"], [null, "join", "joining"], [null, "eca", "enter controlled airspace"]].forEach(function (d) {
       const c = el("button", "sm-sym", d[0]); c.type = "button";
       c.appendChild(glyphEl(d[1], null));
-      c.title = d[2] + " — written at the cursor in the pen colour";
       c.addEventListener("click", function () {
         const a = document.activeElement;
         if (!ui.stripEl || !a || !a.isContentEditable || !ui.stripEl.contains(a)) return;
@@ -714,18 +701,18 @@
     symSec.appendChild(syms);
 
     const textSec = section("Highlight text");
-    const mk = function (label, title, fn) { const b = el("button", "btn btn-ghost sm-act", label); b.type = "button"; b.title = title; b.addEventListener("click", fn); textSec.appendChild(b); return b; };
+    const mk = function (label, title, fn) { const b = el("button", "btn btn-ghost sm-act", label); b.type = "button"; b.addEventListener("click", fn); textSec.appendChild(b); return b; };
     mk("◯ Circle", "Circle the highlighted text in the pen colour (again to remove; both colours may stack)", function () { applySelection("circ-" + ui.pen); });
     mk("— Strike", "Line the highlighted text through (black; again to remove)", function () { applySelection("strike"); });
     mk("_ Underline", "Underline the highlighted text in the pen colour (IAFDOF, TUX suffix, FRC in red)", function () { applySelection("ul-" + ui.pen); });
     mk("✕ Cross Out", "Cross the highlighted text out with an X (black; again to remove)", function () { applySelection("x"); });
 
     const routeSec = section("Route");
-    const caret = el("button", "btn btn-ghost sm-act", "^ Amend"); caret.type = "button"; caret.title = "Put the cursor in the route, then insert a ^ there with the amendment under it; the same spot again removes it";
+    const caret = el("button", "btn btn-ghost sm-act", "^ Amend"); caret.type = "button";
     caret.addEventListener("click", insertCaret); routeSec.appendChild(caret);
 
     const boxSec = section("Boxes");
-    const split = el("button", "btn btn-ghost sm-act", "Split 18"); split.type = "button"; split.title = "Departures: split box 18 — assumed departure time on the left, actual on the right (again to join)";
+    const split = el("button", "btn btn-ghost sm-act", "Split 18"); split.type = "button";
     split.addEventListener("click", function () { if (!ui.strip) return; const m = model(ui.strip); m.split18 = !m.split18; split.classList.toggle("is-on", m.split18); apply(ui.stripEl, ui.strip); const L = ui.stripEl.querySelector(".sm-18L"); if (L) focusEnd(L); });
     boxSec.appendChild(split);
     ui.splitBtn = split;
@@ -736,7 +723,6 @@
       ids.forEach(function (id) {
         const p = def(id);
         const c = el("div", "sm-pal-chip", p.label);
-        c.title = p.title + " — click (again to remove)";
         c.addEventListener("click", function () { if (ui.strip) toggleItem(ui.strip, ui.stripEl, p.id); });
         wrap.appendChild(c);
       });
@@ -748,7 +734,7 @@
     chipSec("Spaces 27–30", ["DA", "H", "VR", "APCH", "Z", "VV", "TXT"]);
 
     const misc = section(null);
-    const clear = el("button", "btn btn-ghost sm-act sm-danger", "Clear strip"); clear.type = "button"; clear.title = "Remove every mark on this strip";
+    const clear = el("button", "btn btn-ghost sm-act sm-danger", "Clear strip"); clear.type = "button";
     clear.addEventListener("click", function () { if (!ui.strip) return; if (!confirm("Clear all marks on " + (ui.strip.spaces["3"] || "this strip") + "?")) return; ui.strip.markup = null; apply(ui.stripEl, ui.strip); });
     misc.appendChild(clear);
     misc.appendChild(el("div", "sm-hint", "Select a strip on the board to mark it up. Highlight text to circle, underline, x, or strike it through"));

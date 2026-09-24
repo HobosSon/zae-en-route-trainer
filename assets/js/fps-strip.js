@@ -170,7 +170,6 @@
     if (r.mpm != null) {
       const m = el("div", "fps-cell fps-mpm", String(r.mpm));
       m.style.left = "7.4%"; m.style.top = "45%"; m.style.width = "4.5%"; // right beside the filed airspeed (space 5)
-      m.title = "Miles per minute (Color Card Stock Map speed table)";
       wrap.appendChild(m);
     }
     if (r.plus23) { // the Remote's strips print the plus time to the NEXT fix in 23 (the controller moves it to the next strip's 14a)
