@@ -405,6 +405,9 @@
   // Marks from the AERO Center commonly used stripmarking list that no font has: drawn, in the pen colour.
   // Each is an inline glyph span (non-editable, deleted as one character) that sanitize() keeps.
   const GLYPHS = {
+    up: { name: "climb and maintain", fallback: "↑" },
+    dn: { name: "descend and maintain", fallback: "↓" },
+    rt: { name: "via depart", fallback: "→" },
     aoa: { name: "at or above", fallback: "↑" },
     aob: { name: "at or below", fallback: "↓" },
     join: { name: "joining", fallback: "⟋" },
@@ -687,15 +690,17 @@
     const symSec = section("Special marks");
     const syms = el("div", "sm-syms");
     // [text or null, glyph id or null, meaning]
-    [["T→", null, "via depart"], ["↑", null, "climb and maintain"], [null, "aoa", "at or above"], ["↓", null, "descend and maintain"], [null, "aob", "at or below"], [null, "join", "joining"], [null, "eca", "enter controlled airspace"]].forEach(function (d) {
+    // [text before the glyph, glyph id, meaning]: every arrow is drawn so they all match in size and weight
+    [["T", "rt", "via depart"], [null, "up", "climb and maintain"], [null, "aoa", "at or above"], [null, "dn", "descend and maintain"], [null, "aob", "at or below"], [null, "join", "joining"], [null, "eca", "enter controlled airspace"]].forEach(function (d) {
       const c = el("button", "sm-sym", d[0]); c.type = "button";
-      if (d[1]) c.appendChild(glyphEl(d[1], null));
+      c.appendChild(glyphEl(d[1], null));
       c.title = d[2] + " — written at the cursor in the pen colour";
       c.addEventListener("click", function () {
         const a = document.activeElement;
         if (!ui.stripEl || !a || !a.isContentEditable || !ui.stripEl.contains(a)) return;
-        if (d[1] && !a.dataset.html) insertAtCursor(a, GLYPHS[d[1]].fallback); // plain-text boxes cannot hold a drawn glyph
-        else insertAtCursor(a, d[0], d[1]);
+        if (!a.dataset.html) { insertAtCursor(a, (d[0] || "") + GLYPHS[d[1]].fallback); return; } // plain-text boxes cannot hold a drawn glyph
+        if (d[0]) insertAtCursor(a, d[0]);
+        insertAtCursor(a, null, d[1]);
       });
       syms.appendChild(c);
     });
