@@ -162,7 +162,8 @@ Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
 - Stripmarking, box 15: a T chip puts a T outside the left border of box
   15 at the very top (the RLS / SYD / V< reminder column), the (recommended, not required) reminder to ask whether
   the pilot accepts a northeast departure with turns (KVKS departures joining
-  V417); click the T to remove it.
+  V417); click the T (or highlight it and Strike) to line it through once
+  the pilot has been asked, shift-click to remove it.
 - Stripmarking, departure strips: on a 0M8 or KVKS departure strip the
   departure instructions are typed straight into space 15 in small wrapped
   text (the strip has no center estimate, so the revised-estimate box is

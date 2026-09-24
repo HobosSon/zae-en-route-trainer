@@ -434,6 +434,7 @@
 .fps-cell.est.sm-15-instr { width: 10.5%; height: 56%; padding-top: 0.6cqw; font-size: 1.05cqw; line-height: 1.25; font-weight: 700; white-space: pre-wrap; word-break: break-word; overflow: hidden; }
 .sm-actual { font-size: 1.05cqw; line-height: 1.05; font-weight: 700; white-space: pre; min-height: 1.1cqw; letter-spacing: -0.02em; }
 .sm-t15 { position: absolute; left: 18.5%; width: 5%; text-align: right; top: 0.6%; font-size: 1.6cqw; line-height: 1.3; font-weight: 700; pointer-events: auto; cursor: pointer; }
+.sm-t15.is-struck { text-decoration: line-through; text-decoration-color: #111; text-decoration-thickness: 0.24cqw; }
 .sm-pre15 { position: absolute; left: 18.5%; top: 36%; width: 5%; display: flex; flex-direction: column; align-items: flex-end; gap: 0.1cqw; }
 .sm-pre { font-size: 1.25cqw; line-height: 1.05; font-weight: 700; pointer-events: auto; cursor: pointer; }
 /* space 26: entries then free text */

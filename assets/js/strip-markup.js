@@ -45,7 +45,7 @@
 
   // where: "g" = spaces 27-30, "15" = box 15 (preplan outside / actual inside), "26" = space 26 entries
   const PALETTE = [
-    { id: "T", label: "T", where: "15", top: true, title: "T outside the left border of box 15, at the very top (where the RLS / SYD / V< reminders go): a reminder to ask whether the pilot will accept a northeast departure with turns (KVKS departures joining V417). Not required, highly recommended" },
+    { id: "T", label: "T", where: "15", top: true, title: "T outside the left border of box 15, at the very top (where the RLS / SYD / V< reminders go): a reminder to ask whether the pilot will accept a northeast departure with turns (KVKS departures joining V417). Not required, highly recommended; click the T on the strip to line it through once asked" },
     { id: "RLS", label: "RLS", where: "15", seed: "RLS ", title: "Released (rule): red = preplan reminder, black = actual entry in box 15" },
     { id: "SYD", label: "SYD", where: "15", seed: "SYD / ", title: "Visual separation approved: red = preplan reminder, black = actual entry in box 15" },
     { id: "V", label: "V<", where: "15", seed: "V< ", title: "Void time: red = preplan reminder, black = actual entry in box 15" },
@@ -218,9 +218,17 @@
     const pre15 = el("div", "sm-pre15");
     m.s15.forEach(function (it) {
       const d = def(it.id);
-      if (d.top) { // the T at the top-left of box 15
-        const t = el("div", "sm-t15 sm-" + it.color, d.label); t.title = d.title + " — click to remove";
-        t.addEventListener("click", function (e) { e.stopPropagation(); toggleItem(strip, stripEl, it.id, it.color); });
+      if (d.top) { // the T outside box 15's left border, at the top
+        const t = el("div", "sm-t15 sm-" + it.color, d.label); t.dataset.mk = "t15";
+        t.title = d.title + " — click to strike it through once the pilot has been asked (again to undo); shift-click to remove";
+        t.addEventListener("click", function (e) {
+          e.stopPropagation();
+          if (e.shiftKey) { toggleItem(strip, stripEl, it.id, it.color); return; }
+          // a plain click lines the T through (the question has been asked); highlight + Strike does the same
+          const i = m.ranges.findIndex(function (x) { return x.kind === "strike" && x.target.mk === "t15"; });
+          if (i >= 0) m.ranges.splice(i, 1); else m.ranges.push({ target: { mk: "t15" }, start: 0, end: 1, kind: "strike", seq: ++ui.seq });
+          layoutMarks(stripEl, strip);
+        });
         layer.appendChild(t); return;
       }
       if (it.color === "red") { const r = el("div", "sm-pre sm-red", d.label); r.title = d.title + " — click to remove"; r.addEventListener("click", function (e) { e.stopPropagation(); toggleItem(strip, stripEl, it.id, "red"); }); pre15.appendChild(r); }
@@ -306,8 +314,10 @@
     if (!s.width) return;
     const aspect = s.width / s.height;
     const isCircle = function (k) { return k.indexOf("circ-") === 0; };
+    Array.prototype.forEach.call(stripEl.querySelectorAll(".sm-t15.is-struck"), function (n) { n.classList.remove("is-struck"); });
     m.ranges.forEach(function (rk) {
       const tel = targetEl(stripEl, rk.target); if (!tel) return;
+      if (rk.target.mk === "t15" && rk.kind === "strike") { tel.classList.add("is-struck"); return; } // the T: lined through by the font's own strike position
       const rg = rangeFor(tel, rk.start, rk.end); if (!rg) return;
       const rects = rg.getClientRects();
       if (!rects.length) return;
@@ -546,7 +556,11 @@
     }
     const list = d.where === "15" ? m.s15 : d.where === "26" ? m.items26 : m.misc;
     const i = list.findIndex(function (x) { return x.id === id && x.color === color; });
-    if (i >= 0) { list.splice(i, 1); apply(stripEl, strip); return; }
+    if (i >= 0) {
+      list.splice(i, 1);
+      if (d.top) m.ranges = m.ranges.filter(function (x) { return x.target.mk !== "t15"; }); // a removed T takes its strike with it
+      apply(stripEl, strip); return;
+    }
     const item = { iid: "i" + (++ui.seq) + Date.now().toString(36), cid: "c" + ui.seq, id: id, color: color };
     if (d.where === "15") { if (color === "blk") item.text = d.seed; }
     else if (d.where === "26") item.text = d.seed;
