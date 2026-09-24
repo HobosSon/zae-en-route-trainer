@@ -1,11 +1,11 @@
 /*
  * Scenario storage helpers. Exposed as window.ScenarioStore.
  * - Levels: baked in ZAE_STATIC_SCENARIOS (assets/data/scenarios.js).
- * - Community scenarios: created by anyone, saved to localStorage.
+ * - Custom scenarios: created by anyone, saved to localStorage.
  */
 (function (root) {
   "use strict";
-  const COMMUNITY_KEY = "zae_community_scenarios";
+  const CUSTOM_KEY = "zae_community_scenarios" /* key kept from the old Community tab so saved scenarios survive */;
   const STATIC = (root.ZAE_STATIC_SCENARIOS || { total: 27, scenarios: [] });
 
   function readJSON(key, fallback) {
@@ -26,32 +26,32 @@
     return baked ? { source: "baked", slot: slot, scenario: baked } : null;
   }
 
-  // ---- community ----
-  function listCommunity() { return readJSON(COMMUNITY_KEY, []); }
-  function addCommunity(scenario) {
-    const list = listCommunity();
+  // ---- custom ----
+  function listCustom() { return readJSON(CUSTOM_KEY, []); }
+  function addCustom(scenario) {
+    const list = listCustom();
     scenario.id = "c" + Date.now() + Math.floor(Math.random() * 1000);
     scenario.createdAt = new Date().toISOString();
     list.push(scenario);
-    return writeJSON(COMMUNITY_KEY, list) ? scenario : null;
+    return writeJSON(CUSTOM_KEY, list) ? scenario : null;
   }
-  function updateCommunity(id, scenario) {
-    const list = listCommunity();
+  function updateCustom(id, scenario) {
+    const list = listCustom();
     const i = list.findIndex(function (s) { return s.id === id; });
     if (i < 0) return false;
     scenario.id = id; scenario.createdAt = list[i].createdAt;
     list[i] = scenario;
-    return writeJSON(COMMUNITY_KEY, list);
+    return writeJSON(CUSTOM_KEY, list);
   }
-  function deleteCommunity(id) {
-    const list = listCommunity().filter(function (s) { return s.id !== id; });
-    return writeJSON(COMMUNITY_KEY, list);
+  function deleteCustom(id) {
+    const list = listCustom().filter(function (s) { return s.id !== id; });
+    return writeJSON(CUSTOM_KEY, list);
   }
-  function getCommunity(id) { return listCommunity().find(function (s) { return s.id === id; }) || null; }
+  function getCustom(id) { return listCustom().find(function (s) { return s.id === id; }) || null; }
 
   root.ScenarioStore = {
     total: total, getStatic: getStatic,
-    listCommunity: listCommunity, addCommunity: addCommunity, updateCommunity: updateCommunity,
-    deleteCommunity: deleteCommunity, getCommunity: getCommunity
+    listCustom: listCustom, addCustom: addCustom, updateCustom: updateCustom,
+    deleteCustom: deleteCustom, getCustom: getCustom
   };
 })(typeof window !== "undefined" ? window : this);

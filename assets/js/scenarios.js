@@ -1,8 +1,8 @@
 /*
  * Practice Scenarios controller. Level-select for the 27 baked levels,
- * a Community tab (user-created, saved to localStorage), a player on the bay
+ * a Custom tab (user-created, saved to localStorage), a player on the bay
  * board (Controller / Remote toggle, stripmarking), and the scenario builder
- * (used for Community scenarios; the baked levels live in
+ * (used for Custom scenarios; the baked levels live in
  * assets/data/scenarios.js and are edited there directly).
  *
  * Scenarios are built from the Remote's strips: each strip is the printed
@@ -45,8 +45,8 @@
   }
 
   // ---------------- Share links ----------------
-  // A community scenario packed into the page's hash (#share=…) reproduces it
-  // anywhere: the receiver can play it or save it to their own Community tab.
+  // A custom scenario packed into the page's hash (#share=…) reproduces it
+  // anywhere: the receiver can play it or save it to their own Custom tab.
   function encodeShare(sc) {
     const data = { title: sc.title, description: sc.description, startTime: sc.startTime, atis: sc.atis, altimeters: sc.altimeters, strips: sc.strips };
     const json = JSON.stringify(data);
@@ -72,10 +72,10 @@
     const intro = el("div", "sc-intro");
     intro.appendChild(el("h2", "sc-title", "Shared scenario: " + (sc.title || "Untitled scenario")));
     if (sc.description) intro.appendChild(el("p", "sc-desc", sc.description));
-    intro.appendChild(el("p", null, sc.strips.length + " strips, from a share link. Play it here or save a copy to your Community tab."));
+    intro.appendChild(el("p", null, sc.strips.length + " strips, from a share link. Play it here or save a copy to your Custom tab."));
     const row = el("div", "cc-actions");
-    row.appendChild(btn("Play", "", function () { play(sc, "community", function () { renderShared(sc); }); }));
-    row.appendChild(btn("Save Scenario", "btn-ghost", function () { S.addCommunity(sc); history.replaceState(null, "", location.pathname); currentTab = "community"; renderGrid(); }));
+    row.appendChild(btn("Play", "", function () { play(sc, "custom", function () { renderShared(sc); }); }));
+    row.appendChild(btn("Save Scenario", "btn-ghost", function () { S.addCustom(sc); history.replaceState(null, "", location.pathname); currentTab = "custom"; renderGrid(); }));
     row.appendChild(btn("Back to scenarios", "btn-ghost", function () { history.replaceState(null, "", location.pathname); renderGrid(); }));
     intro.appendChild(row);
     app.appendChild(intro);
@@ -88,12 +88,12 @@
     clear();
     const tabs = el("div", "sc-tabs");
     const tLevels = btn("Levels", "tab" + (currentTab === "levels" ? " tab-active" : ""), function () { currentTab = "levels"; renderGrid(); });
-    const tComm = btn("Create", "tab" + (currentTab === "community" ? " tab-active" : ""), function () { currentTab = "community"; renderGrid(); });
+    const tComm = btn("Custom", "tab" + (currentTab === "custom" ? " tab-active" : ""), function () { currentTab = "custom"; renderGrid(); });
     tabs.appendChild(tLevels); tabs.appendChild(tComm);
     app.appendChild(tabs);
 
     if (currentTab === "levels") renderLevels();
-    else renderCommunity();
+    else renderCustom();
   }
 
   function renderLevels() {
@@ -119,32 +119,32 @@
     app.appendChild(grid);
   }
 
-  function renderCommunity() {
+  function renderCustom() {
     const intro = el("div", "sc-intro");
-    intro.appendChild(el("p", null, "Create your own scenario, saved in this browser. Share your scenario to collaborate with another controller (the link can be VERY long)"));
-    intro.appendChild(btn("+ Create scenario", "", function () { editScenario({ mode: "community" }); }));
+    intro.appendChild(el("p", null, "Build your own custom scenarios, saved in this browser. Share a scenario to collaborate with another controller (the link can be VERY long)"));
+    intro.appendChild(btn("+ Create scenario", "", function () { editScenario({ mode: "custom" }); }));
     app.appendChild(intro);
 
-    const list = S.listCommunity();
+    const list = S.listCustom();
     if (!list.length) {
       app.appendChild(el("div", "empty-state", "No scenarios yet. Create one to get started."));
       return;
     }
-    const wrap = el("div", "community-list");
+    const wrap = el("div", "custom-list");
     list.slice().reverse().forEach(function (sc) {
-      const card = el("div", "community-card");
+      const card = el("div", "custom-card");
       const info = el("div", "cc-info");
       info.appendChild(el("h3", null, sc.title || "Untitled scenario"));
       if (sc.description) info.appendChild(el("p", "cc-desc", sc.description));
       info.appendChild(el("p", null, (sc.strips ? sc.strips.length : 0) + " strips"));
       card.appendChild(info);
       const actions = el("div", "cc-actions");
-      actions.appendChild(btn("Play", "", function () { play(sc, "community"); }));
-      actions.appendChild(btn("Edit", "btn-ghost", function () { editScenario({ mode: "community", existing: sc }); }));
+      actions.appendChild(btn("Play", "", function () { play(sc, "custom"); }));
+      actions.appendChild(btn("Edit", "btn-ghost", function () { editScenario({ mode: "custom", existing: sc }); }));
       const share = btn("Share link", "btn-ghost", function () { copyText(encodeShare(sc), share, "Link copied"); });
       actions.appendChild(share);
       actions.appendChild(btn("Delete", "btn-ghost btn-danger", function () {
-        if (confirm("Delete \"" + (sc.title || "this scenario") + "\"?")) { S.deleteCommunity(sc.id); renderGrid(); }
+        if (confirm("Delete \"" + (sc.title || "this scenario") + "\"?")) { S.deleteCustom(sc.id); renderGrid(); }
       }));
       card.appendChild(actions);
       wrap.appendChild(card);
@@ -233,7 +233,7 @@
     const existing = opts.existing || null;
     const head = el("div", "sc-head");
     head.appendChild(btn("← Cancel", "btn-ghost", renderGrid));
-    const label = existing ? "Edit community scenario" : "New community scenario";
+    const label = existing ? "Edit custom scenario" : "New custom scenario";
     head.appendChild(el("span", "editor-label", label));
     app.appendChild(head);
 
@@ -428,13 +428,13 @@
     saveRow.appendChild(btn("Preview on the board", "btn-ghost", function () {
       const sc = collect();
       if (!sc.strips.length) { msg.textContent = "Add at least one strip with data."; return; }
-      play(sc, currentTab, function () { editScenario({ mode: "community", existing: existing ? Object.assign({}, sc, { id: existing.id }) : sc, isDraft: true }); });
+      play(sc, currentTab, function () { editScenario({ mode: "custom", existing: existing ? Object.assign({}, sc, { id: existing.id }) : sc, isDraft: true }); });
     }));
     saveRow.appendChild(btn("Save scenario", "", function () {
       const sc = collect();
       if (!sc.strips.length) { msg.textContent = "Add at least one strip with data."; return; }
-      if (existing && existing.id) S.updateCommunity(existing.id, sc); else S.addCommunity(sc);
-      currentTab = "community"; renderGrid();
+      if (existing && existing.id) S.updateCustom(existing.id, sc); else S.addCustom(sc);
+      currentTab = "custom"; renderGrid();
     }));
     saveRow.appendChild(msg);
     form.appendChild(saveRow);

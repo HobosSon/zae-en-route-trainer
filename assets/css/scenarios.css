@@ -25,9 +25,9 @@
 .level-title { font-weight: 700; font-size: 0.98rem; }
 .level-meta { font-family: var(--mono); font-size: 0.72rem; color: var(--text-dim); }
 
-/* community */
-.community-list { display: flex; flex-direction: column; gap: 0.75rem; }
-.community-card { display: flex; justify-content: space-between; align-items: center; gap: 1rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 0.9rem 1.1rem; flex-wrap: wrap; }
+/* custom */
+.custom-list { display: flex; flex-direction: column; gap: 0.75rem; }
+.custom-card { display: flex; justify-content: space-between; align-items: center; gap: 1rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 0.9rem 1.1rem; flex-wrap: wrap; }
 .cc-info h3 { margin: 0 0 0.2rem; font-size: 1.02rem; }
 .cc-info p { margin: 0; color: var(--text-dim); font-size: 0.82rem; }
 .cc-actions { display: flex; gap: 0.5rem; }

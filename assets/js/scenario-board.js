@@ -113,10 +113,8 @@
     out.appendChild(bar);
     (opts.before || []).forEach(function (n) { if (n) out.appendChild(n); });
     if (opts.hint !== "") out.appendChild(el("p", "board-hint", opts.hint ||
-      "Strips in suspense (a departure awaiting its clearance request, with its postings stacked directly above it) sit above the bay label; " +
-      "active postings sit below, earliest time at the bottom. Hover a strip to enlarge it, click it for its details, drag it to any bay or position. " +
-      "A selected strip stays enlarged and can be marked up with the tools on the left; press F or Space to flag it as a reminder; click anywhere else to deselect. " +
-      "Remote strips (toggle in the scenario bar) add the typed initial-contact and request data in space 26, the miles per minute in space 9 and the red call reminders in space 27."));
+      "Hover a strip to enlarge it, click to select it, or drag it to another spot. A selected strip stays enlarged and can be marked up with the tools on the left. " +
+      "Press F or Space to flag it as a reminder. Click anywhere else to deselect."));
     const boardEl = el("div");
     out.appendChild(boardEl);
     details = el("div", "strip-details");

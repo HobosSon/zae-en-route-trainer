@@ -70,7 +70,7 @@ and its **Sector 66 "Jackson Low"** non-radar environment.
 - **Practice Scenarios / scenario builder** (`scenarios.html`) — hand-built
   scenarios (27 levels baked into `assets/data/scenarios.js`; NR-1 to NR-3
   still need their altimeter settings, added straight into that file;
-  plus scenarios built under the Create tab, saved in the browser) are built from the Remote's
+  plus custom scenarios built under the Custom tab, saved in the browser) are built from the Remote's
   strips: each strip is the printed strip (every space, with the shared
   remarks such as FRC in 26) plus a Remote-data panel — initial contact time
   or ON FREQUENCY, request clearance time (defaults to P−5) and DEPARTURE #,
@@ -156,7 +156,7 @@ Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
 
 - Builder: departure strips can be flagged FRC (written first in space 26 on
   both views), space 10 is fixed at 66, the KVKS weather choice is `REQ KVKS
-  WX` / `HAS KVKS WX`. Created scenarios live in the browser's localStorage
+  WX` / `HAS KVKS WX`. Custom scenarios live in the browser's localStorage
   only; sharing them means a Share link or baking them into
   `assets/data/scenarios.js`.
 - Stripmarking, box 15: a T chip puts a T outside the left border of box
@@ -210,7 +210,7 @@ Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
   highlighted text, and Amend as a toggle at the cursor in the route. The
   Remote's recomputed fix estimates go in 17.
 - To revisit later: space 20 (altitude changes and strikes need more), box
-  15, the Create tab page (rework); remove "Prototype build" from the home page; the map and
+  15, the Custom tab page (rework); remove "Prototype build" from the home page; the map and
   study-guide pages; rework the difficulty tiers; the answer key (only
   control actions, coordination and phraseology are shown now); the
   stripmarking rail; altimeters for NR-1 to NR-3.
