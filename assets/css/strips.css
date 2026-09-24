@@ -403,18 +403,13 @@
 .sm-edc-t { font-size: 1.3cqw; line-height: 1.05; min-height: 1.3cqw; min-width: 3cqw; white-space: pre-wrap; }
 .sm-b13 { position: absolute; left: 15.8%; top: 38%; width: 8%; height: 14%; font-size: 1.5cqw; line-height: 1.1; font-weight: 700; white-space: pre; }
 .sm-15b { position: absolute; left: 30%; top: 22%; width: 9.5%; height: 11%; font-size: 1.5cqw; line-height: 1.1; font-weight: 700; white-space: pre; }
-/* drawn stripmarking glyphs (arrows, at or above / below, joining, enter controlled airspace): the pen colour fills a
-   mask; sized to the cap height of the text around them so the marks match each other and the letters */
-.sm-g { display: inline-block; width: 0.78em; height: 0.78em; vertical-align: -0.06em; background-color: currentColor; -webkit-mask: var(--g) center / contain no-repeat; mask: var(--g) center / contain no-repeat; }
+/* drawn stripmarking glyphs (arrows, at or above / below, joining, enter controlled airspace): inline SVG in the pen
+   colour, sized to the cap height of the text around them so the marks match each other and the letters */
+.sm-g { display: inline-block; width: 0.78em; height: 0.78em; vertical-align: -0.06em; }
+.sm-g svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.sm-g path { fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 .sm-sym .sm-g { width: 1.1rem; height: 1.1rem; vertical-align: middle; }
 .sm-sym { gap: 0.05rem; }
-.sm-g[data-g="up"] { --g: url("data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2020%2020%22%20fill=%22none%22%20stroke=%22%23000%22%20stroke-width=%222.2%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22M10%2018V2%22/%3E%3Cpath%20d=%22M4%208l6-6%206%206%22/%3E%3C/svg%3E"); }
-.sm-g[data-g="dn"] { --g: url("data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2020%2020%22%20fill=%22none%22%20stroke=%22%23000%22%20stroke-width=%222.2%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22M10%202v16%22/%3E%3Cpath%20d=%22M4%2012l6%206%206-6%22/%3E%3C/svg%3E"); }
-.sm-g[data-g="rt"] { --g: url("data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2020%2020%22%20fill=%22none%22%20stroke=%22%23000%22%20stroke-width=%222.2%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22M2%2010h16%22/%3E%3Cpath%20d=%22M12%204l6%206-6%206%22/%3E%3C/svg%3E"); }
-.sm-g[data-g="aoa"] { --g: url("data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2020%2020%22%20fill=%22none%22%20stroke=%22%23000%22%20stroke-width=%222.2%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22M10%2018V2%22/%3E%3Cpath%20d=%22M4%208l6-6%206%206%22/%3E%3Cpath%20d=%22M2%2013h16%22/%3E%3C/svg%3E"); }
-.sm-g[data-g="aob"] { --g: url("data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2020%2020%22%20fill=%22none%22%20stroke=%22%23000%22%20stroke-width=%222.2%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22M10%202v16%22/%3E%3Cpath%20d=%22M4%2012l6%206%206-6%22/%3E%3Cpath%20d=%22M2%207h16%22/%3E%3C/svg%3E"); }
-.sm-g[data-g="join"] { --g: url("data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2020%2020%22%20fill=%22none%22%20stroke=%22%23000%22%20stroke-width=%222.2%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22M2%204h16%22/%3E%3Cpath%20d=%22M2%2011h16%22/%3E%3Cpath%20d=%22M2%2018l16-7%22/%3E%3C/svg%3E"); }
-.sm-g[data-g="eca"] { --g: url("data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2020%2020%22%20fill=%22none%22%20stroke=%22%23000%22%20stroke-width=%222.2%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22M10%202l9%2016H1z%22/%3E%3Cpath%20d=%22M4%204l7%207%22/%3E%3Cpath%20d=%22M7.5%2011.5H11V8%22/%3E%3C/svg%3E"); }
 .sm-syms { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.25rem; }
 .sm-sym {
   height: 1.9rem; display: flex; align-items: center; justify-content: center;
@@ -486,5 +481,5 @@
 .sm-chips { display: flex; flex-wrap: wrap; gap: 0.25rem; }
 .sm-pal-chip { padding: 0.1rem 0.4rem; background: #cfe9b8; color: #111; border-radius: 4px; font-family: "Caveat", "Segoe Print", cursive; font-weight: 700; font-size: 0.95rem; cursor: pointer; user-select: none; }
 .sm-hint { font-family: var(--mono); font-size: 0.62rem; color: var(--text-faint); line-height: 1.4; }
-@media (min-width: 1000px) { body.has-sm-rail .strips-main { padding-left: 160px; } }
+@media (min-width: 1000px) { body.has-sm-rail .strips-main, body.has-sm-rail .site-footer { padding-left: 160px; } }
 @media (max-width: 999px) { .sm-rail { display: none; } }

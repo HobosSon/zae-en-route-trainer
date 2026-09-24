@@ -404,18 +404,23 @@
   function escapeHtml(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
   // Marks from the AERO Center commonly used stripmarking list that no font has: drawn, in the pen colour.
   // Each is an inline glyph span (non-editable, deleted as one character) that sanitize() keeps.
+  // Drawn inline as SVG (a 20x20 grid) so every copy is the same size whatever the pixel it lands on.
   const GLYPHS = {
-    up: { name: "climb and maintain", fallback: "↑" },
-    dn: { name: "descend and maintain", fallback: "↓" },
-    rt: { name: "via depart", fallback: "→" },
-    aoa: { name: "at or above", fallback: "↑" },
-    aob: { name: "at or below", fallback: "↓" },
-    join: { name: "joining", fallback: "⟋" },
-    eca: { name: "enter controlled airspace", fallback: "△" }
+    up: { name: "climb and maintain", fallback: "↑", d: ["M10 18V2", "M4 8l6-6 6 6"] },
+    dn: { name: "descend and maintain", fallback: "↓", d: ["M10 2v16", "M4 12l6 6 6-6"] },
+    rt: { name: "via depart", fallback: "→", d: ["M2 10h16", "M12 4l6 6-6 6"] },
+    aoa: { name: "at or above", fallback: "↑", d: ["M10 18V2", "M4 8l6-6 6 6", "M2 13h16"] },
+    aob: { name: "at or below", fallback: "↓", d: ["M10 2v16", "M4 12l6 6 6-6", "M2 7h16"] },
+    join: { name: "joining", fallback: "⟋", d: ["M2 4h16", "M2 11h16", "M2 18l16-7"] },
+    eca: { name: "enter controlled airspace", fallback: "△", d: ["M10 2l9 16H1z", "M4 4l7 7", "M7.5 11.5H11V8"] }
   };
+  const SVG_NS = "http://www.w3.org/2000/svg";
   function glyphEl(g, colour) {
     const e = el("span", (colour ? "sm-" + colour + " " : "") + "sm-g");
     e.dataset.g = g; e.contentEditable = "false"; e.title = GLYPHS[g] ? GLYPHS[g].name : "";
+    const svg = document.createElementNS(SVG_NS, "svg"); svg.setAttribute("viewBox", "0 0 20 20"); svg.setAttribute("aria-hidden", "true");
+    (GLYPHS[g] ? GLYPHS[g].d : []).forEach(function (d) { const p = document.createElementNS(SVG_NS, "path"); p.setAttribute("d", d); svg.appendChild(p); });
+    e.appendChild(svg);
     return e;
   }
   // Typed text goes into a span of the current pen colour, never nested in the other colour.
