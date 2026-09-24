@@ -827,7 +827,7 @@
 
     // Scenario window: every posted time (P-times, fix and airport estimates
     // inside ZAE) lands within 45 minutes so the board reads as one problem.
-    const win = { start: rint(0, 1380), span: 45 };
+    const win = { start: rint(0, 138) * 10, span: 45 }; // start times on a 10-minute boundary
     const engine = root.ZAEConflicts || null;
     const flights = [];
     let analysis = null;
