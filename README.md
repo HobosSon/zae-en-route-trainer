@@ -159,6 +159,12 @@ Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
   WX` / `HAS KVKS WX`. Community scenarios live in the browser's localStorage
   only; sharing them means a Share link or baking them into
   `assets/data/scenarios.js`.
+- Stripmarking, departure strips: on a 0M8 or KVKS departure strip the
+  departure instructions are typed straight into space 15 in small wrapped
+  text (the strip has no center estimate, so the revised-estimate box is
+  not offered there); a KMLU, KGWO or Jackson Approach (KJAN, KHKS, KJVW)
+  departure strip has a release-rules box at the bottom of box 15 (`RLS 2
+  MIN <…`, `SYD/…`) on the departure strip only, not the flight's later strips.
 - Remote strips: a strip whose fix is already progressed (a time in 18) shows
   only `ON FREQUENCY` in 26 and no reminders; once every reminder in 27 is
   lined through (or there was none) a black X goes through 27-30, and an RP

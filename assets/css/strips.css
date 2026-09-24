@@ -426,6 +426,12 @@
 .sm-chip-time { font-size: 1.2cqw; line-height: 1.05; min-height: 1.2cqw; min-width: 3cqw; border-bottom: 0.18cqw solid currentColor; white-space: pre; }
 .sm-act.is-on { background: var(--accent, #3aa66a); color: #fff; }
 .sm-in15 { position: absolute; left: 24.3%; top: 34%; width: 15.6%; height: 26%; display: flex; flex-direction: column; gap: 0.1cqw; overflow: hidden; }
+.sm-layer.has-rls .sm-in15 { height: 11%; }
+/* release rules at the bottom of box 15 (KMLU, JAN APCH and KGWO departure strips) */
+.sm-rls { position: absolute; left: 24.3%; top: 45%; width: 15.6%; height: 15.5%; padding-top: 0.4cqw; box-sizing: border-box; font-size: 1.05cqw; line-height: 1.2; font-weight: 700; white-space: pre-wrap; word-break: break-word; overflow: hidden; }
+.sb-strip.is-selected .sm-rls:empty::before { white-space: normal; }
+/* 0M8 / KVKS departure strips: the departure instructions typed in space 15 are small and wrap under the arrow */
+.fps-cell.est.sm-15-instr { width: 10.5%; height: 56%; padding-top: 0.6cqw; font-size: 1.05cqw; line-height: 1.25; font-weight: 700; white-space: pre-wrap; word-break: break-word; overflow: hidden; }
 .sm-actual { font-size: 1.05cqw; line-height: 1.05; font-weight: 700; white-space: pre; min-height: 1.1cqw; letter-spacing: -0.02em; }
 .sm-pre15 { position: absolute; left: 18.5%; top: 36%; width: 5%; display: flex; flex-direction: column; align-items: flex-end; gap: 0.1cqw; }
 .sm-pre { font-size: 1.25cqw; line-height: 1.05; font-weight: 700; pointer-events: auto; cursor: pointer; }

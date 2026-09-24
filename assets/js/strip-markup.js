@@ -64,7 +64,7 @@
   const ui = { pen: "red", strip: null, slot: null, stripEl: null, rail: null, sel: null, seq: 0, view: "controller", hooks: {} };
 
   function model(strip) {
-    if (!strip.markup) strip.markup = { ranges: [], carets: [], text26: "", items26: [], s15: [], misc: [], rtimes: {}, done: {}, rp: [], dep18: "", cells: {}, restr: "", coord: "", land: "", split18: false, b18L: "", b18R: "", edc: null };
+    if (!strip.markup) strip.markup = { ranges: [], carets: [], text26: "", items26: [], s15: [], misc: [], rtimes: {}, done: {}, rp: [], dep18: "", cells: {}, restr: "", coord: "", land: "", rls: "", split18: false, b18L: "", b18R: "", edc: null };
     const m = strip.markup;
     ["ranges", "carets", "items26", "s15", "misc", "rp"].forEach(function (k) { if (!m[k]) m[k] = []; });
     ["rtimes", "done", "cells"].forEach(function (k) { if (!m[k]) m[k] = {}; });
@@ -73,6 +73,17 @@
     return m;
   }
   function isRemote(strip) { return ui.view === "remote" && !!(strip && strip.remote); }
+  // The airport a departure strip (and only the departure strip of the flight) leaves from.
+  function depAirport(strip) {
+    if (!strip || strip.type !== "departure") return null;
+    const sp = strip.spaces || {};
+    const first = String(sp["19"] || "").trim().split(/\s+/)[0];
+    if (/^[K0-9][A-Z0-9]{2,3}$/.test(first) && /P\d{4}/.test(String(sp["19"] || ""))) return first;
+    if (String(sp["11"] || "").trim() === "KMLU") return "KMLU";
+    return /^[K0-9][A-Z0-9]{2,3}$/.test(first) ? first : null;
+  }
+  const INSTR_APTS = { "0M8": 1, KVKS: 1 };                         // departure instructions are written in space 15
+  const RLS_APTS = { KMLU: 1, KGWO: 1, KJAN: 1, KHKS: 1, KJVW: 1 };  // release rules go in a box at the bottom of box 15
   function selectedEl(stripEl) { return !!stripEl.closest(".sb-strip.is-selected"); }
 
   // ---- geometry helpers ------------------------------------------------
@@ -163,9 +174,11 @@
     const b13 = editable("sm-b13", m.b13 || "", function (d) { m.b13 = sanitize(d.innerHTML); }, { html: true, placeholder: "", key: "b13" });
     b13.addEventListener("beforeinput", penInput); b13.title = "Space 13: revised time over the previous fix (KMLU: the assumed departure time in red)";
     layer.appendChild(b13);
-    const b15 = editable("sm-15b", m.b15 || "", function (d) { m.b15 = sanitize(d.innerHTML); }, { html: true, placeholder: "", key: "b15" });
-    b15.addEventListener("beforeinput", penInput); b15.title = "Beside the center estimate: a revised estimate (cross out the old minutes, or all four digits across an hour, and recoordinate)";
-    layer.appendChild(b15);
+    if (!INSTR_APTS[depAirport(strip)]) { // no center estimate on a 0M8 / KVKS departure strip: space 15 holds the departure instructions
+      const b15 = editable("sm-15b", m.b15 || "", function (d) { m.b15 = sanitize(d.innerHTML); }, { html: true, placeholder: "", key: "b15" });
+      b15.addEventListener("beforeinput", penInput); b15.title = "Beside the center estimate: a revised estimate (cross out the old minutes, or all four digits across an hour, and recoordinate)";
+      layer.appendChild(b15);
+    }
     const restr = editable("sm-restr", m.restr, function (d) { m.restr = sanitize(d.innerHTML); bar.classList.toggle("is-on", !!d.textContent.trim()); }, { html: true, placeholder: "restrictions", key: "restr" });
     restr.addEventListener("beforeinput", penInput);
     restr.title = "Restrictions, one per line (Enter = next line)";
@@ -208,6 +221,13 @@
       else { const b = editable("sm-actual sm-blk", it.text, function (x) { it.text = x.textContent; }); b.dataset.iid = it.iid; in15.appendChild(b); }
     });
     layer.appendChild(in15); layer.appendChild(pre15);
+    // release rules (RLS 2 MIN <…, SYD/…) at the bottom of box 15 on KMLU, JAN APCH and KGWO departure strips
+    if (RLS_APTS[depAirport(strip)]) {
+      const rls = editable("sm-rls", m.rls || "", function (d) { m.rls = sanitize(d.innerHTML); }, { html: true, placeholder: "release rules", key: "rls" });
+      rls.addEventListener("beforeinput", penInput);
+      rls.title = "Release rules for this departure (RLS 2 MIN <…, SYD/…), typed in the pen colour";
+      layer.appendChild(rls); layer.classList.add("has-rls");
+    }
 
     // space 26: entries (C, 67) then free text
     const box26 = el("div", "sm-box26");
@@ -601,6 +621,7 @@
       if (m.cells[f] != null) c.innerHTML = m.cells[f];
       const off = f === "18" && (m.split18 || (isRemote(strip) && strip.remote.dep)); // the split boxes / the Remote's departure box take over 18
       c.classList.toggle("sm-cell-edit", !off);
+      if (f === "15") c.classList.toggle("sm-15-instr", !!INSTR_APTS[depAirport(strip)]); // 0M8 / KVKS departure instructions: small, wrapped
       if (c.dataset.smBound) return;
       c.dataset.smBound = "1";
       c.addEventListener("beforeinput", penInput);
