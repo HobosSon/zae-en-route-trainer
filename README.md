@@ -159,8 +159,8 @@ Study Guides (CKT 1 Study Guide + CKT 1 Quiz).
   WX` / `HAS KVKS WX`. Community scenarios live in the browser's localStorage
   only; sharing them means a Share link or baking them into
   `assets/data/scenarios.js`.
-- Stripmarking, box 15: a T chip puts a T on the left end of the line at
-  the top of box 15, the (recommended, not required) reminder to ask whether
+- Stripmarking, box 15: a T chip puts a T outside the left border of box
+  15 at the very top (the RLS / SYD / V< reminder column), the (recommended, not required) reminder to ask whether
   the pilot accepts a northeast departure with turns (KVKS departures joining
   V417); click the T to remove it.
 - Stripmarking, departure strips: on a 0M8 or KVKS departure strip the

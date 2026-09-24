@@ -45,7 +45,7 @@
 
   // where: "g" = spaces 27-30, "15" = box 15 (preplan outside / actual inside), "26" = space 26 entries
   const PALETTE = [
-    { id: "T", label: "T", where: "15", top: true, title: "T on the left end of the line at the top of box 15: a reminder to ask whether the pilot will accept a northeast departure with turns (KVKS departures joining V417). Not required, highly recommended" },
+    { id: "T", label: "T", where: "15", top: true, title: "T outside the left border of box 15, at the very top (where the RLS / SYD / V< reminders go): a reminder to ask whether the pilot will accept a northeast departure with turns (KVKS departures joining V417). Not required, highly recommended" },
     { id: "RLS", label: "RLS", where: "15", seed: "RLS ", title: "Released (rule): red = preplan reminder, black = actual entry in box 15" },
     { id: "SYD", label: "SYD", where: "15", seed: "SYD / ", title: "Visual separation approved: red = preplan reminder, black = actual entry in box 15" },
     { id: "V", label: "V<", where: "15", seed: "V< ", title: "Void time: red = preplan reminder, black = actual entry in box 15" },
